@@ -1,0 +1,258 @@
+model PlatformCategory {
+  id       String  @id @default(uuid(7)) @db.Char(36)
+  code     String  @unique @db.VarChar(30)
+  name     String  @db.VarChar(80)
+  isActive Boolean @default(true) @map("is_active")
+
+  providers PlatformProvider[]
+  projects  ConnectedProject[]
+
+  @@map("platform_categories")
+}
+
+model PlatformProvider {
+  id               String          @id @default(uuid(7)) @db.Char(36)
+  categoryId       String          @map("category_id") @db.Char(36)
+  code             String          @unique @db.VarChar(50)
+  name             String          @db.VarChar(120)
+  apiAvailability  ApiAvailability @map("api_availability")
+  officialDocsUrl  String?         @map("official_docs_url") @db.Text
+  requiresApproval Boolean         @default(false) @map("requires_approval")
+  isActive         Boolean         @default(true) @map("is_active")
+
+  category     PlatformCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  capabilities ProviderCapability[]
+  projects     ConnectedProject[]
+
+  @@index([categoryId, isActive], map: "idx_provider_category_active")
+  @@map("platform_providers")
+}
+
+model Capability {
+  id          String              @id @default(uuid(7)) @db.Char(36)
+  code        String              @unique @db.VarChar(80)
+  name        String              @db.VarChar(140)
+  entityType  String              @map("entity_type") @db.VarChar(60)
+  direction   CapabilityDirection
+  description String?             @db.Text
+
+  providers  ProviderCapability[]
+  operations ProviderOperationRequest[]
+
+  @@index([entityType, direction], map: "idx_capability_entity_direction")
+  @@map("capabilities")
+}
+
+model ProviderCapability {
+  providerId     String                  @map("provider_id") @db.Char(36)
+  capabilityId   String                  @map("capability_id") @db.Char(36)
+  supportStatus  CapabilitySupportStatus @map("support_status")
+  requiredScope  String?                 @map("required_scope") @db.VarChar(160)
+  notes          String?                 @db.Text
+  sourceUrl      String?                 @map("source_url") @db.Text
+  verifiedAt     DateTime?               @map("verified_at") @db.Date
+
+  provider   PlatformProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  capability Capability       @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  @@id([providerId, capabilityId])
+  @@map("provider_capabilities")
+}
+
+model ConnectedProject {
+  id                   String             @id @default(uuid(7)) @db.Char(36)
+  companyId            String             @map("company_id") @db.Char(36)
+  categoryId           String             @map("category_id") @db.Char(36)
+  providerId           String             @map("provider_id") @db.Char(36)
+  name                 String             @db.VarChar(160)
+  externalAccountId    String?            @map("external_account_id") @db.VarChar(191)
+  environment          ProjectEnvironment @default(SANDBOX)
+  status               ProjectStatus      @default(DRAFT)
+  defaultCurrency      String?            @map("default_currency") @db.Char(3)
+  lastSuccessfulSyncAt DateTime?          @map("last_successful_sync_at") @db.DateTime(3)
+  createdById          String             @map("created_by") @db.Char(36)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category    PlatformCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  provider    PlatformProvider    @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  createdBy   User                @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  credentials ProjectCredential?
+  locations   ProjectLocation[]
+  syncStates  ProjectSyncState[]
+  operations  ProviderOperationRequest[]
+  jobs        IntegrationJob[]
+  errors      IntegrationError[]
+  webhooks    WebhookEvent[]
+
+  externalCategories   ExternalCategory[]
+  externalProducts     ExternalProduct[]
+  externalInventory    ExternalInventoryLevel[]
+  externalCustomers    ExternalCustomer[]
+  externalOrders       ExternalOrder[]
+  externalRefunds      ExternalRefund[]
+  externalFulfillments ExternalFulfillment[]
+  externalPromotions   ExternalPromotion[]
+  externalDrivers      ExternalDriver[]
+  externalSettlements  ExternalSettlement[]
+  installmentTxns      InstallmentTransaction[]
+  expenses             Expense[]
+  financialTransactions FinancialTransaction[]
+
+  @@unique([companyId, providerId, name], map: "uq_connected_project_company_provider_name")
+  @@index([companyId, categoryId, status], map: "idx_connected_project_company_category_status")
+  @@map("connected_projects")
+}
+
+model ProjectCredential {
+  id                    String           @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId    String           @unique @map("connected_project_id") @db.Char(36)
+  authType              AuthType         @map("auth_type")
+  credentialsCiphertext Bytes            @map("credentials_ciphertext") @db.LongBlob
+  keyVersion            Int              @map("key_version") @db.SmallInt
+  expiresAt             DateTime?        @map("expires_at") @db.DateTime(3)
+  status                CredentialStatus @default(ACTIVE)
+  rotatedAt             DateTime?        @map("rotated_at") @db.DateTime(3)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
+
+  project ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+
+  @@map("project_credentials")
+}
+
+model ProjectLocation {
+  id               String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String     @map("connected_project_id") @db.Char(36)
+  companyBranchId  String?      @map("company_branch_id") @db.Char(36)
+  externalId       String       @map("external_id") @db.VarChar(191)
+  name             String       @db.VarChar(180)
+  code             String?      @db.VarChar(80)
+  status           RecordStatus @default(ACTIVE)
+  timezone         String?      @db.VarChar(64)
+  city             String?      @db.VarChar(100)
+  addressLine      String?      @map("address_line") @db.Text
+  latitude         Decimal?     @db.Decimal(9, 6)
+  longitude        Decimal?     @db.Decimal(9, 6)
+  rawPayload       Json         @default("{}") @map("raw_payload")
+  lastSyncedAt     DateTime?    @map("last_synced_at") @db.DateTime(3)
+
+  project       ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  companyBranch CompanyBranch?   @relation(fields: [companyBranchId], references: [id], onDelete: SetNull)
+
+  categories  ExternalCategory[]
+  products    ExternalProduct[]
+  inventory   ExternalInventoryLevel[]
+  orders      ExternalOrder[]
+  promotions  ExternalPromotion[]
+  drivers     ExternalDriver[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_project_location_external")
+  @@index([connectedProjectId, status], map: "idx_project_location_status")
+  @@map("project_locations")
+}
+
+model ProjectSyncState {
+  id                   String        @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId   String        @map("connected_project_id") @db.Char(36)
+  entityType           String        @map("entity_type") @db.VarChar(60)
+  direction            SyncDirection
+  cursor               String?       @db.Text
+  lastSyncedAt         DateTime?     @map("last_synced_at") @db.DateTime(3)
+  lastStatus           SyncStatus    @default(NEVER_RUN) @map("last_status")
+  consecutiveFailures  Int           @default(0) @map("consecutive_failures")
+  lastErrorAt          DateTime?     @map("last_error_at") @db.DateTime(3)
+
+  project ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedProjectId, entityType, direction], map: "uq_project_sync_state")
+  @@map("project_sync_states")
+}
+
+model ProviderOperationRequest {
+  id                 String          @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String          @map("connected_project_id") @db.Char(36)
+  capabilityId       String          @map("capability_id") @db.Char(36)
+  requestedById      String          @map("requested_by") @db.Char(36)
+  operationType      String          @map("operation_type") @db.VarChar(80)
+  idempotencyKey     String          @map("idempotency_key") @db.VarChar(120)
+  externalTargetId   String?         @map("external_target_id") @db.VarChar(191)
+  payload            Json            @default("{}")
+  status             OperationStatus @default(PENDING)
+  responseExternalId String?         @map("response_external_id") @db.VarChar(191)
+  failureMessage     String?         @map("failure_message") @db.Text
+  createdAt          DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  processedAt        DateTime?       @map("processed_at") @db.DateTime(3)
+
+  project     ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  capability  Capability       @relation(fields: [capabilityId], references: [id], onDelete: Restrict)
+  requestedBy User             @relation("OperationRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  errors      IntegrationError[]
+
+  @@unique([connectedProjectId, idempotencyKey], map: "uq_operation_idempotency")
+  @@index([connectedProjectId, status, createdAt], map: "idx_operation_project_status_created")
+  @@map("provider_operation_requests")
+}
+
+model IntegrationJob {
+  id                 String    @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String    @map("connected_project_id") @db.Char(36)
+  jobType            String    @map("job_type") @db.VarChar(60)
+  entityType         String?   @map("entity_type") @db.VarChar(60)
+  status             JobStatus @default(QUEUED)
+  attemptCount       Int       @default(0) @map("attempt_count") @db.SmallInt
+  scheduledAt        DateTime  @map("scheduled_at") @db.DateTime(3)
+  startedAt          DateTime? @map("started_at") @db.DateTime(3)
+  finishedAt         DateTime? @map("finished_at") @db.DateTime(3)
+  metrics            Json      @default("{}")
+  /// Set while QUEUED/RUNNING for full syncs: "{projectId}:{entityType}"
+  activeSyncKey      String?   @unique @map("active_sync_key") @db.VarChar(120)
+
+  project ConnectedProject   @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  errors  IntegrationError[]
+
+  @@index([status, scheduledAt], map: "idx_integration_job_status_scheduled")
+  @@map("integration_jobs")
+}
+
+model IntegrationError {
+  id                 String   @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String   @map("connected_project_id") @db.Char(36)
+  integrationJobId   String?  @map("integration_job_id") @db.Char(36)
+  operationRequestId String?  @map("operation_request_id") @db.Char(36)
+  errorCode          String?  @map("error_code") @db.VarChar(100)
+  message            String   @db.Text
+  isRetryable        Boolean  @default(false) @map("is_retryable")
+  payloadExcerpt     String?  @map("payload_excerpt") @db.Text
+  occurrenceCount    Int      @default(1) @map("occurrence_count")
+  firstSeenAt        DateTime @default(now()) @map("first_seen_at") @db.DateTime(3)
+  lastSeenAt         DateTime @default(now()) @map("last_seen_at") @db.DateTime(3)
+
+  project   ConnectedProject          @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  job       IntegrationJob?           @relation(fields: [integrationJobId], references: [id], onDelete: SetNull)
+  operation ProviderOperationRequest? @relation(fields: [operationRequestId], references: [id], onDelete: SetNull)
+
+  @@index([connectedProjectId, lastSeenAt(sort: Desc)], map: "idx_integration_error_project_last_seen")
+  @@map("integration_errors")
+}
+
+model WebhookEvent {
+  id                 String        @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String        @map("connected_project_id") @db.Char(36)
+  providerEventId    String?       @map("provider_event_id") @db.VarChar(191)
+  eventType          String        @map("event_type") @db.VarChar(120)
+  payload            Json
+  signatureValid     Boolean?      @map("signature_valid")
+  status             WebhookStatus @default(RECEIVED)
+  receivedAt         DateTime      @default(now()) @map("received_at") @db.DateTime(3)
+  processedAt        DateTime?     @map("processed_at") @db.DateTime(3)
+  errorMessage       String?       @map("error_message") @db.Text
+  payloadHash        String        @map("payload_hash") @db.Char(64)
+
+  project ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([connectedProjectId, providerEventId], map: "uq_webhook_provider_event")
+  @@unique([connectedProjectId, payloadHash], map: "uq_webhook_payload_hash")
+  @@index([status, receivedAt], map: "idx_webhook_status_received")
+  @@map("webhook_events")
+}

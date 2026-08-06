@@ -1,0 +1,35 @@
+Phase 1 spike results — CHECK + FULLTEXT vs prisma migrate dev
+================================================================
+Date: 2026-07-25
+Prisma: 7.9.0 / MySQL 8.4.9
+
+Experiment A — hand-written FULLTEXT only (not in Prisma schema)
+----------------------------------------------------------------
+1. Applied CREATE FULLTEXT INDEX via custom migration.
+2. Added an unrelated column and ran `prisma migrate dev`.
+3. Result: Prisma generated `DROP INDEX ft_...` then ALTER TABLE.
+   Verdict: hand-written FULLTEXT does NOT survive shadow replay.
+
+Experiment B — FULLTEXT via Prisma `@@fulltext([...], map: "...")`
+----------------------------------------------------------------
+1. Declared `@@fulltext([name, description], map: "ft_probe_item_name_description")`.
+2. Added unrelated column `sku` and ran `prisma migrate dev`.
+3. Generated SQL: only `ADD COLUMN sku`.
+4. SHOW CREATE TABLE still has FULLTEXT KEY.
+   Verdict: FULLTEXT MUST be declared in the Prisma schema.
+
+Experiment C — hand-written CHECK constraint
+--------------------------------------------
+1. Applied `CHECK (unit_price >= 0)` via custom migration (not in schema).
+2. Ran `prisma migrate dev` after schema drift.
+3. Generated SQL did not DROP the CHECK.
+4. SHOW CREATE TABLE still has the CONSTRAINT.
+   Verdict: hand-written CHECK SURVIVES. Keep money/range CHECKs in
+   migration SQL; also validate in the application layer.
+
+Locked policy for later phases
+------------------------------
+- FULLTEXT: always `@@fulltext` in Prisma models.
+- CHECK: hand-written SQL migrations + app validation.
+- Soft-delete uniqueness: deletedMarker column (MySQL has no partial indexes).
+- Append-only: composite @@id([id, createdAt]) for future partitioning.

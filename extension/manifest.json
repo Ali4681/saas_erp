@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "SaaS ERP — Delivery Bridges",
+  "version": "1.2.9",
+  "description": "Bridges HungerStation, Ninja, ToYou, and Mrsool partner portals to the local SaaS ERP",
+  "permissions": ["cookies", "storage", "alarms", "scripting", "tabs", "webRequest"],
+  "host_permissions": [
+    "https://partner-app.hungerstation.com/*",
+    "https://vagw-api.eu.prd.portal.restaurant/*",
+    "https://bff-api.eu.prd.portal.restaurant/*",
+    "https://vos-api.eu.prd.portal.restaurant/*",
+    "https://vos-api.eu.restaurant-partners.com/*",
+    "https://vendor-api-sa.me.restaurant-partners.com/*",
+    "https://vss.me.restaurant-partners.com/*",
+    "https://vts.eu.restaurant-partners.com/*",
+    "https://hungerstation.partner.deliveryhero.io/*",
+    "https://restaurant-portal.ananinja.com/*",
+    "https://admin.ananinja.com/*",
+    "https://ananinja.com/*",
+    "https://merchant.toyou.io/*",
+    "https://toyou.delivery/*",
+    "https://business.mrsool.co/*",
+    "https://business-api.mrsool.co/*",
+    "https://pi.mrsool.co/*",
+    "https://mrsool.co/*",
+    "http://127.0.0.1:3000/*",
+    "http://localhost:3000/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://partner-app.hungerstation.com/*"],
+      "js": ["hs-finance-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://partner-app.hungerstation.com/*"],
+      "js": ["hs-finance-bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "SaaS ERP Delivery Bridges"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "create": "Create",
+  "optional": "Optional",
+  "name": "Name",
+  "notes": "Notes",
+  "email": "Email",
+  "phone": "Phone",
+  "communication": "Contact info",
+  "status": "Status",
+  "action": "Action",
+  "number": "Number",
+  "date": "Date",
+  "total": "Total",
+  "balanceDue": "Balance due",
+  "quantity": "Quantity",
+  "supplier": "Supplier",
+  "lineDescription": "Line description",
+  "description": "Description",
+  "unitCost": "Unit cost",
+  "issuedOn": "Issue date",
+  "dueOn": "Due date",
+  "back": "Purchasing",
+  "hub": {
+    "title": "Purchasing",
+    "description": "Suppliers, purchase orders, receiving, and bills",
+    "suppliers": "Suppliers",
+    "suppliersHint": "Supplier directory",
+    "purchaseOrders": "Purchase orders",
+    "purchaseOrdersHint": "Order and receive",
+    "bills": "Supplier bills",
+    "billsHint": "Purchase payables"
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "newTitle": "New supplier",
+    "add": "Add supplier",
+    "code": "Code",
+    "taxNumber": "Tax number",
+    "empty": "No suppliers yet"
+  },
+  "purchaseOrders": {
+    "title": "Purchase orders",
+    "newTitle": "New purchase order",
+    "add": "Add purchase order",
+    "warehouse": "Warehouse",
+    "orderedOn": "Order date",
+    "expectedOn": "Expected",
+    "item": "Item",
+    "empty": "No purchase orders yet",
+    "approve": "Approve",
+    "receive": "Receive",
+    "receiveConfirm": "Receive inventory for this order?"
+  },
+  "bills": {
+    "title": "Supplier bills",
+    "newTitle": "New supplier bill",
+    "add": "Add supplier bill",
+    "billNumber": "Bill number",
+    "empty": "No supplier bills yet"
+  },
+  "flash": {
+    "supplierCreated": "Supplier created",
+    "purchaseOrderCreated": "Purchase order created",
+    "purchaseOrderReceived": "Purchase order received",
+    "statusUpdated": "Status updated to {status}",
+    "billCreated": "Supplier bill created"
+  }
+}

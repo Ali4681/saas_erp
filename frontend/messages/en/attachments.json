@@ -1,0 +1,27 @@
+{
+  "title": "Attachments",
+  "description": "Upload and view files linked to entities",
+  "uploadTitle": "Upload attachment",
+  "uploadTrigger": "Upload attachment",
+  "entityType": "Entity type",
+  "entityContact": "Contact",
+  "entityInvoice": "Sales invoice",
+  "entityProject": "Project",
+  "entityNote": "Note",
+  "entityEmployee": "Employee",
+  "entityOther": "Other",
+  "entityId": "Entity ID (UUID)",
+  "file": "File",
+  "upload": "Upload",
+  "empty": "No attachments",
+  "colFile": "File",
+  "colEntity": "Entity",
+  "colSize": "Size",
+  "colDate": "Date",
+  "colDownload": "Download",
+  "download": "Download",
+  "flash": {
+    "uploaded": "Attachment uploaded",
+    "chooseFile": "Choose a file to upload"
+  }
+}

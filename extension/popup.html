@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    width: 300px;
+    background: #f8fafc;
+    color: #0f172a;
+  }
+  .header {
+    background: #0f172a;
+    color: #fff;
+    padding: 12px 14px;
+  }
+  .title { font-size: 13px; font-weight: 700; }
+  .sub { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+  .list { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+  }
+  .name { font-size: 12px; font-weight: 600; }
+  .badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .ok { background: #dcfce7; color: #15803d; }
+  .off { background: #f1f5f9; color: #64748b; }
+  .footer {
+    padding: 8px 12px 12px;
+    font-size: 10px;
+    color: #94a3b8;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">SaaS ERP Bridges</div>
+    <div class="sub">HungerStation · Ninja · ToYou · Mrsool</div>
+  </div>
+  <div class="list" id="list"></div>
+  <div class="footer" id="footer">جارٍ التحقق...</div>
+  <script src="popup.js"></script>
+</body>
+</html>

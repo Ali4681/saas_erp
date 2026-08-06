@@ -1,0 +1,11 @@
+{
+  "title": "الإشعارات",
+  "description": "غير المقروء: {count}",
+  "markAllRead": "تعليم الكل كمقروء",
+  "markAll": "تعليم الكل",
+  "empty": "لا توجد إشعارات",
+  "markRead": "مقروء",
+  "unreadCount": "{count} غير مقروء",
+  "loading": "جاري التحميل…",
+  "ariaLabel": "الإشعارات"
+}

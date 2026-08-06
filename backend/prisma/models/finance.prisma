@@ -1,0 +1,104 @@
+model BankAccount {
+  id              String          @id @default(uuid(7)) @db.Char(36)
+  companyId       String          @map("company_id") @db.Char(36)
+  name            String          @db.VarChar(140)
+  accountType     BankAccountType @map("account_type")
+  bankName        String?         @map("bank_name") @db.VarChar(140)
+  ibanCiphertext  Bytes?          @map("iban_ciphertext") @db.Blob
+  ibanKeyVersion  Int?            @map("iban_key_version") @db.SmallInt
+  ibanLast4       String?         @map("iban_last4") @db.Char(4)
+  /// SHA-256 of normalized IBAN for duplicate detection (nullable when no IBAN)
+  ibanFingerprint String?         @map("iban_fingerprint") @db.Char(64)
+  currency        String          @db.Char(3)
+  status          RecordStatus    @default(ACTIVE)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  expenses Expense[]
+  salesPayments    SalesPayment[]
+  supplierPayments SupplierPayment[]
+
+  @@unique([companyId, ibanFingerprint], map: "uq_bank_account_iban_fingerprint")
+  @@index([companyId, status], map: "idx_bank_account_company_status")
+  @@map("bank_accounts")
+}
+
+model ExpenseCategory {
+  id        String       @id @default(uuid(7)) @db.Char(36)
+  companyId String       @map("company_id") @db.Char(36)
+  code      String?      @db.VarChar(40)
+  /// MySQL null-unique substitute for optional code
+  codeKey   String       @default("") @map("code_key") @db.VarChar(40)
+  name      String       @db.VarChar(120)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  expenses Expense[]
+
+  @@unique([companyId, codeKey], map: "uq_expense_category_company_code")
+  @@index([companyId, status], map: "idx_expense_category_company_status")
+  @@map("expense_categories")
+}
+
+model Expense {
+  id                 String        @id @default(uuid(7)) @db.Char(36)
+  companyId          String        @map("company_id") @db.Char(36)
+  expenseCategoryId  String        @map("expense_category_id") @db.Char(36)
+  bankAccountId      String?       @map("bank_account_id") @db.Char(36)
+  connectedProjectId String?       @map("connected_project_id") @db.Char(36)
+  description        String        @db.VarChar(240)
+  amount             Decimal       @db.Decimal(18, 2)
+  currency           String        @db.Char(3)
+  expenseDate        DateTime      @map("expense_date") @db.Date
+  status             ExpenseStatus @default(DRAFT)
+  referenceNumber    String?       @map("reference_number") @db.VarChar(100)
+  createdById        String        @map("created_by") @db.Char(36)
+  createdAt          DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category   ExpenseCategory     @relation(fields: [expenseCategoryId], references: [id], onDelete: Restrict)
+  bankAccount BankAccount?       @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  project    ConnectedProject?   @relation(fields: [connectedProjectId], references: [id], onDelete: SetNull)
+  createdBy  User                @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  financeTxns FinancialTransaction[]
+
+  @@index([companyId, expenseDate(sort: Desc), status], map: "idx_expense_company_date_status")
+  @@map("expenses")
+}
+
+/// Operational finance ledger — not double-entry accounting.
+model FinancialTransaction {
+  id                       String                    @id @default(uuid(7)) @db.Char(36)
+  companyId                String                    @map("company_id") @db.Char(36)
+  connectedProjectId       String?                   @map("connected_project_id") @db.Char(36)
+  transactionType          FinancialTransactionType  @map("transaction_type")
+  direction                FinancialDirection
+  amount                   Decimal                   @db.Decimal(18, 2)
+  currency                 String                    @db.Char(3)
+  occurredAt               DateTime                  @map("occurred_at") @db.DateTime(3)
+  externalOrderId          String?                   @map("external_order_id") @db.Char(36)
+  installmentTransactionId String?                   @map("installment_transaction_id") @db.Char(36)
+  externalSettlementId     String?                   @map("external_settlement_id") @db.Char(36)
+  expenseId                String?                   @map("expense_id") @db.Char(36)
+  salesInvoiceId           String?                   @map("sales_invoice_id") @db.Char(36)
+  supplierBillId           String?                   @map("supplier_bill_id") @db.Char(36)
+  description              String?                   @db.Text
+  createdAt                DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  project      ConnectedProject?      @relation(fields: [connectedProjectId], references: [id], onDelete: SetNull)
+  externalOrder ExternalOrder?        @relation(fields: [externalOrderId], references: [id], onDelete: SetNull)
+  installment  InstallmentTransaction? @relation(fields: [installmentTransactionId], references: [id], onDelete: SetNull)
+  settlement   ExternalSettlement?    @relation(fields: [externalSettlementId], references: [id], onDelete: SetNull)
+  expense      Expense?               @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  salesInvoice SalesInvoice?          @relation(fields: [salesInvoiceId], references: [id], onDelete: SetNull)
+  supplierBill SupplierBill?          @relation(fields: [supplierBillId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, occurredAt(sort: Desc), transactionType], map: "idx_finance_tx_company_occurred_type")
+  @@index([connectedProjectId, occurredAt(sort: Desc)], map: "idx_finance_tx_project_occurred")
+  @@map("financial_transactions")
+}

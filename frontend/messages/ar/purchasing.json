@@ -1,0 +1,68 @@
+{
+  "create": "إنشاء",
+  "optional": "اختياري",
+  "name": "الاسم",
+  "notes": "ملاحظات",
+  "email": "البريد",
+  "phone": "الهاتف",
+  "communication": "التواصل",
+  "status": "الحالة",
+  "action": "إجراء",
+  "number": "الرقم",
+  "date": "التاريخ",
+  "total": "الإجمالي",
+  "balanceDue": "المتبقي",
+  "quantity": "الكمية",
+  "supplier": "المورد",
+  "lineDescription": "وصف البند",
+  "description": "الوصف",
+  "unitCost": "تكلفة الوحدة",
+  "issuedOn": "تاريخ الإصدار",
+  "dueOn": "الاستحقاق",
+  "back": "المشتريات",
+  "hub": {
+    "title": "المشتريات",
+    "description": "الموردون وأوامر الشراء والاستلام والفواتير",
+    "suppliers": "الموردون",
+    "suppliersHint": "دليل الموردين",
+    "purchaseOrders": "أوامر الشراء",
+    "purchaseOrdersHint": "طلب واستلام",
+    "bills": "فواتير الموردين",
+    "billsHint": "مستحقات الشراء"
+  },
+  "suppliers": {
+    "title": "الموردون",
+    "newTitle": "مورد جديد",
+    "add": "إضافة مورد",
+    "code": "الرمز",
+    "taxNumber": "الرقم الضريبي",
+    "empty": "لا يوجد موردون"
+  },
+  "purchaseOrders": {
+    "title": "أوامر الشراء",
+    "newTitle": "أمر شراء جديد",
+    "add": "إضافة أمر شراء",
+    "warehouse": "المستودع",
+    "orderedOn": "تاريخ الطلب",
+    "expectedOn": "متوقع",
+    "item": "الصنف",
+    "empty": "لا توجد أوامر شراء",
+    "approve": "اعتماد",
+    "receive": "استلام",
+    "receiveConfirm": "استلام المخزون لهذا الأمر؟"
+  },
+  "bills": {
+    "title": "فواتير الموردين",
+    "newTitle": "فاتورة مورد جديدة",
+    "add": "إضافة فاتورة مورد",
+    "billNumber": "رقم الفاتورة",
+    "empty": "لا توجد فواتير موردين"
+  },
+  "flash": {
+    "supplierCreated": "تم إنشاء المورد",
+    "purchaseOrderCreated": "تم إنشاء أمر الشراء",
+    "purchaseOrderReceived": "تم استلام أمر الشراء",
+    "statusUpdated": "تم تحديث الحالة إلى {status}",
+    "billCreated": "تم إنشاء فاتورة المورد"
+  }
+}

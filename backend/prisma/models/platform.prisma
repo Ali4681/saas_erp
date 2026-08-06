@@ -1,0 +1,153 @@
+model MarketingPost {
+  id             String              @id @default(uuid(7)) @db.Char(36)
+  companyId      String              @map("company_id") @db.Char(36)
+  title          String?             @db.VarChar(180)
+  content        String              @db.Text
+  channel        MarketingChannel
+  status         MarketingPostStatus @default(DRAFT)
+  /// Combined date+time for scheduling (calendar / drag-drop uses this).
+  scheduledAt    DateTime?           @map("scheduled_at") @db.DateTime(3)
+  publishedAt    DateTime?           @map("published_at") @db.DateTime(3)
+  archivedAt     DateTime?           @map("archived_at") @db.DateTime(3)
+  externalPostId String?             @map("external_post_id") @db.VarChar(191)
+  failureReason  String?             @map("failure_reason") @db.Text
+  publishMode    String?             @map("publish_mode") @db.VarChar(40)
+  createdById    String              @map("created_by") @db.Char(36)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User                    @relation("MarketingPostCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  media     MarketingPostMedia[]
+
+  @@index([companyId, status, scheduledAt], map: "idx_marketing_post_status_scheduled")
+  @@index([companyId, scheduledAt], map: "idx_marketing_post_calendar")
+  @@map("marketing_posts")
+}
+
+/// Image / video attached to a marketing post (14.1).
+model MarketingPostMedia {
+  id              String             @id @default(uuid(7)) @db.Char(36)
+  companyId       String             @map("company_id") @db.Char(36)
+  marketingPostId String             @map("marketing_post_id") @db.Char(36)
+  mediaType       MarketingMediaType @map("media_type")
+  fileName        String             @map("file_name") @db.VarChar(255)
+  mimeType        String             @map("mime_type") @db.VarChar(120)
+  sizeBytes       BigInt             @map("size_bytes")
+  storageKey      String             @map("storage_key") @db.VarChar(512)
+  checksumSha256  String?            @map("checksum_sha256") @db.Char(64)
+  position        Int                @default(0)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  post    MarketingPost @relation(fields: [marketingPostId], references: [id], onDelete: Cascade)
+
+  @@index([marketingPostId, position], map: "idx_marketing_post_media_position")
+  @@index([companyId, marketingPostId], map: "idx_marketing_post_media_company")
+  @@map("marketing_post_media")
+}
+
+/// External social account link (14.4) — ready for OAuth/API credentials per platform.
+model MarketingPlatformConnection {
+  id                    String                    @id @default(uuid(7)) @db.Char(36)
+  companyId             String                    @map("company_id") @db.Char(36)
+  channel               MarketingChannel
+  displayName           String                    @map("display_name") @db.VarChar(160)
+  externalAccountId     String?                   @map("external_account_id") @db.VarChar(191)
+  status                MarketingConnectionStatus @default(DISCONNECTED)
+  /// Encrypted JSON: accessToken, refreshToken, pageId, etc. (platform-specific).
+  credentialsCiphertext Bytes?                    @map("credentials_ciphertext") @db.LongBlob
+  keyVersion            Int?                      @map("key_version")
+  lastError             String?                   @map("last_error") @db.Text
+  connectedAt           DateTime?                 @map("connected_at") @db.DateTime(3)
+  createdById           String                    @map("created_by") @db.Char(36)
+  createdAt             DateTime                  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User    @relation("MarketingConnectionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, channel, displayName], map: "uq_marketing_connection_channel_name")
+  @@index([companyId, channel, status], map: "idx_marketing_connection_status")
+  @@map("marketing_platform_connections")
+}
+
+model AutomationRule {
+  id           String           @id @default(uuid(7)) @db.Char(36)
+  companyId    String           @map("company_id") @db.Char(36)
+  name         String           @db.VarChar(160)
+  module       String           @db.VarChar(60)
+  triggerEvent String           @map("trigger_event") @db.VarChar(100)
+  conditions   Json             @default("[]")
+  actions      Json
+  scheduleCron String?          @map("schedule_cron") @db.VarChar(120)
+  status       AutomationStatus @default(DRAFT)
+  createdById  String           @map("created_by") @db.Char(36)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User            @relation("AutomationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  runs      AutomationRun[]
+
+  @@index([companyId, status, module], map: "idx_automation_company_status_module")
+  @@map("automation_rules")
+}
+
+model AutomationRun {
+  id                String              @id @default(uuid(7)) @db.Char(36)
+  automationRuleId  String              @map("automation_rule_id") @db.Char(36)
+  status            AutomationRunStatus @default(RUNNING)
+  triggerEntityType String?             @map("trigger_entity_type") @db.VarChar(80)
+  triggerEntityId   String?             @map("trigger_entity_id") @db.Char(36)
+  startedAt         DateTime            @default(now()) @map("started_at") @db.DateTime(3)
+  finishedAt        DateTime?           @map("finished_at") @db.DateTime(3)
+  result            Json                @default("{}")
+  errorMessage      String?             @map("error_message") @db.Text
+
+  rule AutomationRule @relation(fields: [automationRuleId], references: [id], onDelete: Cascade)
+
+  @@index([automationRuleId, startedAt(sort: Desc)], map: "idx_automation_run_started")
+  @@map("automation_runs")
+}
+
+model Attachment {
+  id             String   @id @default(uuid(7)) @db.Char(36)
+  companyId      String   @map("company_id") @db.Char(36)
+  uploadedById   String   @map("uploaded_by") @db.Char(36)
+  entityType     String   @map("entity_type") @db.VarChar(80)
+  entityId       String   @map("entity_id") @db.Char(36)
+  fileName       String   @map("file_name") @db.VarChar(255)
+  mimeType       String   @map("mime_type") @db.VarChar(120)
+  sizeBytes      BigInt   @map("size_bytes")
+  storageKey     String   @unique @map("storage_key") @db.VarChar(512)
+  checksumSha256 String   @map("checksum_sha256") @db.Char(64)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  uploadedBy User    @relation("AttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([companyId, entityType, entityId], map: "idx_attachment_entity")
+  @@map("attachments")
+}
+
+model AiUsageLog {
+  id               String   @default(uuid(7)) @db.Char(36)
+  companyId        String   @map("company_id") @db.Char(36)
+  userId           String?  @map("user_id") @db.Char(36)
+  module           String   @db.VarChar(60)
+  provider         String   @db.VarChar(60)
+  model            String   @db.VarChar(100)
+  inputTokens      Int      @default(0) @map("input_tokens")
+  outputTokens     Int      @default(0) @map("output_tokens")
+  estimatedCost    Decimal  @default(0) @map("estimated_cost") @db.Decimal(18, 6)
+  requestReference String?  @map("request_reference") @db.VarChar(120)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@id([id, createdAt])
+  @@index([companyId, createdAt(sort: Desc), module], map: "idx_ai_usage_company_created")
+  @@map("ai_usage_logs")
+}

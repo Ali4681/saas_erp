@@ -1,0 +1,45 @@
+/// Platform catalog of payment gateways (Stripe, PayPal, …).
+model PaymentGateway {
+  id                 String                     @id @default(uuid(7)) @db.Char(36)
+  code               String                     @unique @db.VarChar(40)
+  name               String                     @db.VarChar(120)
+  providerType       PaymentGatewayProviderType @default(GLOBAL) @map("provider_type")
+  /// ISO country codes, or ["*"] for worldwide
+  countryCodes       Json                       @default("[\"*\"]") @map("country_codes")
+  supportsCurrencies Json                       @default("[\"USD\",\"EUR\",\"SAR\"]") @map("supports_currencies")
+  docsUrl            String?                    @map("docs_url") @db.Text
+  isActive           Boolean                    @default(true) @map("is_active")
+  sortOrder          Int                        @default(0) @map("sort_order")
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime                   @updatedAt @map("updated_at") @db.DateTime(3)
+
+  companyMethods CompanyPaymentMethod[]
+
+  @@index([isActive, sortOrder], map: "idx_payment_gateway_active_sort")
+  @@map("payment_gateways")
+}
+
+/// Company-enabled payment gateway (credentials encrypted at rest).
+model CompanyPaymentMethod {
+  id                    String                     @id @default(uuid(7)) @db.Char(36)
+  companyId             String                     @map("company_id") @db.Char(36)
+  paymentGatewayId      String                     @map("payment_gateway_id") @db.Char(36)
+  name                  String                     @db.VarChar(140)
+  status                CompanyPaymentMethodStatus @default(ACTIVE)
+  credentialsCiphertext Bytes?                     @map("credentials_ciphertext") @db.LongBlob
+  keyVersion            Int?                       @map("key_version") @db.SmallInt
+  config                Json                       @default("{}")
+  createdById           String                     @map("created_by") @db.Char(36)
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  paymentGateway   PaymentGateway    @relation(fields: [paymentGatewayId], references: [id], onDelete: Restrict)
+  createdBy        User              @relation("CompanyPaymentMethodCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  salesPayments    SalesPayment[]
+  supplierPayments SupplierPayment[]
+
+  @@unique([companyId, paymentGatewayId, name], map: "uq_company_payment_method")
+  @@index([companyId, status], map: "idx_company_payment_method_status")
+  @@map("company_payment_methods")
+}

@@ -1,0 +1,21 @@
+{
+  "title": "Company settings",
+  "description": "Basic data, tax, and email (read-only — edit from the platform or later phases)",
+  "loadError": "Could not load settings",
+  "companyCard": "Company",
+  "displayName": "Display name",
+  "legalName": "Legal name",
+  "slug": "Slug",
+  "status": "Status",
+  "currency": "Currency",
+  "timezone": "Timezone",
+  "country": "Country",
+  "plan": "Plan",
+  "taxCard": "Tax & invoices",
+  "noSettings": "No saved settings",
+  "taxNumber": "Tax number",
+  "invoicePrefix": "Invoice prefix",
+  "defaultTaxRate": "Default tax rate",
+  "emailFromName": "Sender name",
+  "emailFromAddress": "Sender email"
+}

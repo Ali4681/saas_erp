@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `users` ADD COLUMN `theme` VARCHAR(10) NOT NULL DEFAULT 'light';

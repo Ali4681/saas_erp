@@ -1,0 +1,87 @@
+model Plan {
+  id              String          @id @default(uuid(7)) @db.Char(36)
+  code            String          @unique @db.VarChar(40)
+  name            String          @db.VarChar(120)
+  billingInterval BillingInterval @map("billing_interval")
+  price           Decimal         @db.Decimal(18, 2)
+  currency        String          @db.Char(3)
+  isActive        Boolean         @default(true) @map("is_active")
+  sortOrder       Int             @default(0) @map("sort_order") @db.SmallInt
+
+  features      PlanFeature[]
+  subscriptions Subscription[]
+
+  @@index([isActive, sortOrder], map: "idx_plans_active_sort")
+  @@map("plans")
+}
+
+model PlanFeature {
+  planId      String  @map("plan_id") @db.Char(36)
+  featureCode String  @map("feature_code") @db.VarChar(60)
+  isEnabled   Boolean @default(true) @map("is_enabled")
+  limitValue  Int?    @map("limit_value")
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([planId, featureCode])
+  @@map("plan_features")
+}
+
+model Subscription {
+  id              String             @id @default(uuid(7)) @db.Char(36)
+  companyId       String             @map("company_id") @db.Char(36)
+  planId          String             @map("plan_id") @db.Char(36)
+  status          SubscriptionStatus
+  startsAt        DateTime           @map("starts_at") @db.DateTime(3)
+  endsAt          DateTime           @map("ends_at") @db.DateTime(3)
+  trialEndsAt     DateTime?          @map("trial_ends_at") @db.DateTime(3)
+  autoRenew       Boolean            @default(true) @map("auto_renew")
+  cancelledAt     DateTime?          @map("cancelled_at") @db.DateTime(3)
+  /// Set to companyId while status is ACTIVE or TRIALING; null otherwise (MySQL partial-unique substitute).
+  activeCompanyId String?            @unique @map("active_company_id") @db.Char(36)
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  plan     Plan                  @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices SubscriptionInvoice[]
+
+  @@index([companyId, status], map: "idx_subscription_company_status")
+  @@map("subscriptions")
+}
+
+model SubscriptionInvoice {
+  id            String        @id @default(uuid(7)) @db.Char(36)
+  subscriptionId String       @map("subscription_id") @db.Char(36)
+  invoiceNumber String        @unique @map("invoice_number") @db.VarChar(50)
+  issuedAt      DateTime      @map("issued_at") @db.DateTime(3)
+  dueAt         DateTime      @map("due_at") @db.DateTime(3)
+  status        InvoiceStatus @default(DRAFT)
+  subtotal      Decimal       @db.Decimal(18, 2)
+  taxAmount     Decimal       @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount   Decimal       @map("total_amount") @db.Decimal(18, 2)
+  currency      String        @db.Char(3)
+  paidAt        DateTime?     @map("paid_at") @db.DateTime(3)
+
+  subscription Subscription           @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  payments     SubscriptionPayment[]
+
+  @@index([subscriptionId, status, dueAt], map: "idx_sub_invoice_status_due")
+  @@map("subscription_invoices")
+}
+
+model SubscriptionPayment {
+  id                   String        @id @default(uuid(7)) @db.Char(36)
+  subscriptionInvoiceId String       @map("subscription_invoice_id") @db.Char(36)
+  provider             String        @db.VarChar(50)
+  externalPaymentId    String?       @map("external_payment_id") @db.VarChar(191)
+  amount               Decimal       @db.Decimal(18, 2)
+  currency             String        @db.Char(3)
+  status               PaymentStatus @default(PENDING)
+  paidAt               DateTime?     @map("paid_at") @db.DateTime(3)
+  createdAt            DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+
+  invoice SubscriptionInvoice @relation(fields: [subscriptionInvoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, externalPaymentId], map: "uq_sub_payment_provider_external")
+  @@index([subscriptionInvoiceId, status], map: "idx_sub_payment_invoice_status")
+  @@map("subscription_payments")
+}

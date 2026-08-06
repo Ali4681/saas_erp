@@ -1,0 +1,11 @@
+{
+  "title": "Notifications",
+  "description": "Unread: {count}",
+  "markAllRead": "Mark all as read",
+  "markAll": "Mark all",
+  "empty": "No notifications",
+  "markRead": "Mark read",
+  "unreadCount": "{count} unread",
+  "loading": "Loading…",
+  "ariaLabel": "Notifications"
+}

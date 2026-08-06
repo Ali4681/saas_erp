@@ -1,0 +1,165 @@
+model ItemCategory {
+  id        String       @id @default(uuid(7)) @db.Char(36)
+  companyId String       @map("company_id") @db.Char(36)
+  parentId  String?      @map("parent_id") @db.Char(36)
+  code      String?      @db.VarChar(40)
+  codeKey   String       @default("") @map("code_key") @db.VarChar(40)
+  name      String       @db.VarChar(140)
+  status    RecordStatus @default(ACTIVE)
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  parent   ItemCategory?   @relation("ItemCategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children ItemCategory[]  @relation("ItemCategoryTree")
+  items    Item[]
+
+  @@unique([companyId, codeKey], map: "uq_item_category_company_code")
+  @@index([companyId, status], map: "idx_item_category_status")
+  @@map("item_categories")
+}
+
+model Unit {
+  id            String @id @default(uuid(7)) @db.Char(36)
+  companyId     String @map("company_id") @db.Char(36)
+  code          String @db.VarChar(20)
+  name          String @db.VarChar(80)
+  decimalPlaces Int    @default(0) @map("decimal_places") @db.SmallInt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  items   Item[]
+
+  @@unique([companyId, code], map: "uq_unit_company_code")
+  @@map("units")
+}
+
+model Item {
+  id             String       @id @default(uuid(7)) @db.Char(36)
+  companyId      String       @map("company_id") @db.Char(36)
+  itemCategoryId String?      @map("item_category_id") @db.Char(36)
+  unitId         String       @map("unit_id") @db.Char(36)
+  sku            String?      @db.VarChar(120)
+  skuKey         String       @default("") @map("sku_key") @db.VarChar(120)
+  barcode        String?      @db.VarChar(120)
+  barcodeKey     String       @default("") @map("barcode_key") @db.VarChar(120)
+  name           String       @db.VarChar(220)
+  status         RecordStatus @default(ACTIVE)
+  cost           Decimal?     @db.Decimal(18, 2)
+  salePrice      Decimal?     @map("sale_price") @db.Decimal(18, 2)
+  minStock       Decimal      @default(0) @map("min_stock") @db.Decimal(18, 3)
+  taxRate        Decimal      @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category          ItemCategory?       @relation(fields: [itemCategoryId], references: [id], onDelete: SetNull)
+  unit              Unit                @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  balances          StockBalance[]
+  movements         StockMovement[]
+  countItems        StockCountItem[]
+  quoteItems        SalesQuoteItem[]
+  invoiceItems      SalesInvoiceItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  billItems         SupplierBillItem[]
+
+  @@unique([companyId, skuKey], map: "uq_item_company_sku")
+  @@unique([companyId, barcodeKey], map: "uq_item_company_barcode")
+  @@index([companyId, status], map: "idx_item_company_status")
+  @@map("items")
+}
+
+model Warehouse {
+  id              String       @id @default(uuid(7)) @db.Char(36)
+  companyId       String       @map("company_id") @db.Char(36)
+  companyBranchId String?      @map("company_branch_id") @db.Char(36)
+  code            String       @db.VarChar(40)
+  name            String       @db.VarChar(140)
+  status          RecordStatus @default(ACTIVE)
+  addressLine     String?      @map("address_line") @db.Text
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch          CompanyBranch?   @relation(fields: [companyBranchId], references: [id], onDelete: SetNull)
+  balances        StockBalance[]
+  movements       StockMovement[]
+  counts          StockCount[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@unique([companyId, code], map: "uq_warehouse_company_code")
+  @@index([companyId, status], map: "idx_warehouse_company_status")
+  @@map("warehouses")
+}
+
+model StockBalance {
+  warehouseId      String   @map("warehouse_id") @db.Char(36)
+  itemId           String   @map("item_id") @db.Char(36)
+  quantityOnHand   Decimal  @default(0) @map("quantity_on_hand") @db.Decimal(18, 3)
+  quantityReserved Decimal  @default(0) @map("quantity_reserved") @db.Decimal(18, 3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  item      Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([warehouseId, itemId])
+  @@map("stock_balances")
+}
+
+model StockMovement {
+  id            String            @id @default(uuid(7)) @db.Char(36)
+  companyId     String            @map("company_id") @db.Char(36)
+  warehouseId   String            @map("warehouse_id") @db.Char(36)
+  itemId        String            @map("item_id") @db.Char(36)
+  movementType  StockMovementType @map("movement_type")
+  quantity      Decimal           @db.Decimal(18, 3)
+  unitCost      Decimal?          @map("unit_cost") @db.Decimal(18, 2)
+  referenceType String?           @map("reference_type") @db.VarChar(60)
+  referenceId   String?           @map("reference_id") @db.Char(36)
+  occurredAt    DateTime          @map("occurred_at") @db.DateTime(3)
+  createdById   String            @map("created_by") @db.Char(36)
+  notes         String?           @db.Text
+  createdAt     DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  item      Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  createdBy User      @relation("StockMovementCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([companyId, warehouseId, itemId, occurredAt], map: "idx_stock_movement_wh_item_time")
+  @@map("stock_movements")
+}
+
+model StockCount {
+  id              String           @id @default(uuid(7)) @db.Char(36)
+  companyId       String           @map("company_id") @db.Char(36)
+  warehouseId     String           @map("warehouse_id") @db.Char(36)
+  countNumber     String           @map("count_number") @db.VarChar(60)
+  status          StockCountStatus @default(DRAFT)
+  /// Set while DRAFT/IN_PROGRESS for one-open-count-per-warehouse
+  openWarehouseId String?          @unique @map("open_warehouse_id") @db.Char(36)
+  startedAt       DateTime         @map("started_at") @db.DateTime(3)
+  completedAt     DateTime?        @map("completed_at") @db.DateTime(3)
+  createdById     String           @map("created_by") @db.Char(36)
+  approvedById    String?          @map("approved_by") @db.Char(36)
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouse  Warehouse        @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy  User             @relation("StockCountCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy User?            @relation("StockCountApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  items      StockCountItem[]
+
+  @@unique([companyId, countNumber], map: "uq_stock_count_number")
+  @@map("stock_counts")
+}
+
+model StockCountItem {
+  id              String   @id @default(uuid(7)) @db.Char(36)
+  stockCountId    String   @map("stock_count_id") @db.Char(36)
+  itemId          String   @map("item_id") @db.Char(36)
+  systemQuantity  Decimal  @map("system_quantity") @db.Decimal(18, 3)
+  countedQuantity Decimal? @map("counted_quantity") @db.Decimal(18, 3)
+  varianceQuantity Decimal? @map("variance_quantity") @db.Decimal(18, 3)
+  notes           String?  @db.Text
+
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  item       Item       @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([stockCountId, itemId], map: "uq_stock_count_item")
+  @@map("stock_count_items")
+}

@@ -1,0 +1,69 @@
+{
+  "unsupportedLocale": "Unsupported locale",
+  "unsupportedTheme": "Unsupported theme",
+  "unauthorized": "Unauthorized",
+  "invalidCredentials": "Invalid credentials",
+  "noMembership": "No active company membership",
+  "internal": "Internal server error",
+  "forbidden": "Forbidden",
+  "notFound": "Not found",
+  "badRequest": "Bad request",
+  "conflict": "Conflict",
+  "validationFailed": "Validation failed",
+  "prisma": {
+    "notFound": "Requested record was not found",
+    "modelNotFound": "{model} not found",
+    "duplicate": "A record with this unique value already exists",
+    "duplicateField": "Duplicate value for: {fields}",
+    "invalidReference": "Referenced record does not exist or cannot be linked",
+    "invalidReferenceField": "Invalid reference for: {fields}",
+    "tooLong": "One or more field values exceed the allowed length",
+    "requiredNull": "A required field is missing or null",
+    "relationBreak": "The change would break a required relation",
+    "invalidQuery": "Invalid database query or payload"
+  },
+  "auth": {
+    "invalidCredentials": "Invalid credentials",
+    "noMembership": "No active company membership",
+    "invalidRefreshToken": "Invalid refresh token",
+    "notCompanyMember": "Not a member of that company",
+    "companyNotFound": "Company not found",
+    "multipleCompanies": "Multiple companies — provide companySlug or companyId"
+  },
+  "users": {
+    "roleNotFound": "Tenant role not found",
+    "accountDisabled": "This account is disabled and cannot be added",
+    "cannotAddPlatformAdmin": "Cannot add a platform admin as a company member this way",
+    "alreadyMember": "User is already a member of this company",
+    "membershipNotFound": "Membership not found",
+    "cannotRemoveLastOwner": "Cannot remove the last company owner — assign another owner first"
+  },
+  "roles": {
+    "codeFormat": "Role code must be UPPER_SNAKE_CASE (2–40 characters)",
+    "codeReserved": "Cannot use a reserved system role code",
+    "codeTaken": "Role code is already used in this company",
+    "notFound": "Role not found",
+    "customNotFound": "Custom role not found in this company",
+    "cannotModifySystem": "Cannot modify system role permissions",
+    "useCompanyEndpoint": "Use the company roles endpoint",
+    "cannotDeleteLinked": "Cannot delete role: linked to {count} users. Reassign users first.",
+    "blockedPermissions": "Permissions not allowed for company roles: {codes}",
+    "unknownPermissions": "Unknown permission codes: {codes}"
+  },
+  "plans": {
+    "noSubscription": "No active subscription for company",
+    "featureRequiresPlan": "Feature {feature} requires a plan that includes it (Enterprise)",
+    "featureDisabled": "Feature {feature} is not enabled",
+    "limitReached": "{feature} limit reached ({limit})"
+  },
+  "automation": {
+    "actionsRequired": "At least one action is required",
+    "cronRequired": "scheduleCron is required for schedule.cron triggers",
+    "templateNotFound": "Template not found",
+    "templateAlreadyInstalled": "Template already installed for this company",
+    "templatePhase": "Template requires phase {required} (current {current})",
+    "ruleNotFound": "Automation rule not found",
+    "onlyActiveExecutable": "Only ACTIVE rules can be executed",
+    "noRunProduced": "Rule did not produce a run"
+  }
+}

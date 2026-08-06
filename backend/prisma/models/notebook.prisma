@@ -1,0 +1,74 @@
+model NotebookCategory {
+  id        String       @id @default(uuid(7)) @db.Char(36)
+  companyId String       @map("company_id") @db.Char(36)
+  code      String?      @db.VarChar(40)
+  codeKey   String       @default("") @map("code_key") @db.VarChar(40)
+  name      String       @db.VarChar(140)
+  status    RecordStatus @default(ACTIVE)
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  notes   BusinessNote[]
+
+  @@unique([companyId, codeKey], map: "uq_notebook_category_code")
+  @@index([companyId, status], map: "idx_notebook_category_status")
+  @@map("notebook_categories")
+}
+
+model BusinessNote {
+  id              String             @id @default(uuid(7)) @db.Char(36)
+  companyId       String             @map("company_id") @db.Char(36)
+  categoryId      String?            @map("category_id") @db.Char(36)
+  title           String             @db.VarChar(220)
+  body            String             @db.Text
+  status          NotebookNoteStatus @default(OPEN)
+  priority        TaskPriority       @default(MEDIUM)
+  workProjectId   String?            @map("work_project_id") @db.Char(36)
+  crmContactId    String?            @map("crm_contact_id") @db.Char(36)
+  employeeId      String?            @map("employee_id") @db.Char(36)
+  createdById     String             @map("created_by") @db.Char(36)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company     Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  category    NotebookCategory?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  workProject WorkProject?            @relation(fields: [workProjectId], references: [id], onDelete: SetNull)
+  contact     CrmContact?             @relation(fields: [crmContactId], references: [id], onDelete: SetNull)
+  employee    Employee?               @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdBy   User                    @relation("BusinessNoteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  comments    BusinessNoteComment[]
+  revisions   BusinessNoteRevision[]
+
+  @@index([companyId, status, priority], map: "idx_business_note_status_priority")
+  @@fulltext([title, body], map: "ft_business_note_search")
+  @@map("business_notes")
+}
+
+model BusinessNoteComment {
+  id          String   @id @default(uuid(7)) @db.Char(36)
+  noteId      String   @map("note_id") @db.Char(36)
+  authorUserId String  @map("author_user_id") @db.Char(36)
+  body        String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  note   BusinessNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  author User         @relation("BusinessNoteCommentAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([noteId, createdAt], map: "idx_business_note_comment_created")
+  @@map("business_note_comments")
+}
+
+model BusinessNoteRevision {
+  id          String   @id @default(uuid(7)) @db.Char(36)
+  noteId      String   @map("note_id") @db.Char(36)
+  editedById  String   @map("edited_by") @db.Char(36)
+  title       String   @db.VarChar(220)
+  body        String   @db.Text
+  status      NotebookNoteStatus
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  note     BusinessNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  editedBy User         @relation("BusinessNoteRevisionEditor", fields: [editedById], references: [id], onDelete: Restrict)
+
+  @@index([noteId, createdAt(sort: Desc)], map: "idx_business_note_revision_created")
+  @@map("business_note_revisions")
+}

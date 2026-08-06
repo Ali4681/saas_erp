@@ -1,0 +1,164 @@
+model SalesQuote {
+  id             String              @id @default(uuid(7)) @db.Char(36)
+  companyId      String              @map("company_id") @db.Char(36)
+  contactId      String              @map("crm_contact_id") @db.Char(36)
+  quoteNumber    String              @map("quote_number") @db.VarChar(60)
+  status         SalesDocumentStatus @default(DRAFT)
+  issuedOn       DateTime            @map("issued_on") @db.Date
+  expiresOn      DateTime?           @map("expires_on") @db.Date
+  currency       String              @db.Char(3)
+  subtotal       Decimal             @db.Decimal(18, 2)
+  discountAmount Decimal             @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxAmount      Decimal             @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount    Decimal             @map("total_amount") @db.Decimal(18, 2)
+  createdById    String              @map("created_by") @db.Char(36)
+  approvedById   String?             @map("approved_by") @db.Char(36)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact   CrmContact       @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  createdBy User             @relation("SalesQuoteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  approvedBy User?           @relation("SalesQuoteApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  items     SalesQuoteItem[]
+  invoices  SalesInvoice[]
+
+  @@unique([companyId, quoteNumber], map: "uq_sales_quote_number")
+  @@index([companyId, status, issuedOn], map: "idx_sales_quote_status_issued")
+  @@map("sales_quotes")
+}
+
+model SalesQuoteItem {
+  id             String  @id @default(uuid(7)) @db.Char(36)
+  salesQuoteId   String  @map("sales_quote_id") @db.Char(36)
+  itemId         String? @map("item_id") @db.Char(36)
+  description    String  @db.VarChar(240)
+  quantity       Decimal @db.Decimal(18, 3)
+  unitPrice      Decimal @map("unit_price") @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxAmount      Decimal @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount    Decimal @map("total_amount") @db.Decimal(18, 2)
+  position       Int     @db.SmallInt
+
+  quote SalesQuote @relation(fields: [salesQuoteId], references: [id], onDelete: Cascade)
+  item  Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@unique([salesQuoteId, position], map: "uq_sales_quote_item_position")
+  @@map("sales_quote_items")
+}
+
+model SalesInvoice {
+  id              String        @id @default(uuid(7)) @db.Char(36)
+  companyId       String        @map("company_id") @db.Char(36)
+  contactId       String        @map("crm_contact_id") @db.Char(36)
+  salesQuoteId    String?       @map("sales_quote_id") @db.Char(36)
+  /// Optional branch attribution for BI (17.1 / 17.3).
+  companyBranchId String?       @map("company_branch_id") @db.Char(36)
+  /// Creator / salesperson user for BI rankings & employee filter.
+  createdById     String?       @map("created_by") @db.Char(36)
+  invoiceNumber   String        @map("invoice_number") @db.VarChar(60)
+  status          InvoiceStatus @default(DRAFT)
+  issuedOn        DateTime      @map("issued_on") @db.Date
+  dueOn           DateTime?     @map("due_on") @db.Date
+  currency        String        @db.Char(3)
+  subtotal        Decimal       @db.Decimal(18, 2)
+  discountAmount  Decimal       @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxAmount       Decimal       @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount     Decimal       @map("total_amount") @db.Decimal(18, 2)
+  balanceDue      Decimal       @map("balance_due") @db.Decimal(18, 2)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact     CrmContact             @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  quote       SalesQuote?            @relation(fields: [salesQuoteId], references: [id], onDelete: SetNull)
+  branch      CompanyBranch?         @relation(fields: [companyBranchId], references: [id], onDelete: SetNull)
+  createdBy   User?                  @relation("SalesInvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  items       SalesInvoiceItem[]
+  payments    SalesPayment[]
+  creditNotes SalesCreditNote[]
+  financeTxns FinancialTransaction[]
+
+  @@unique([companyId, invoiceNumber], map: "uq_sales_invoice_number")
+  @@index([companyId, status, dueOn], map: "idx_sales_invoice_status_due")
+  @@index([companyId, companyBranchId, issuedOn], map: "idx_sales_invoice_branch_issued")
+  @@index([companyId, createdById, issuedOn], map: "idx_sales_invoice_creator_issued")
+  @@map("sales_invoices")
+}
+
+model SalesInvoiceItem {
+  id             String  @id @default(uuid(7)) @db.Char(36)
+  salesInvoiceId String  @map("sales_invoice_id") @db.Char(36)
+  itemId         String? @map("item_id") @db.Char(36)
+  description    String  @db.VarChar(240)
+  quantity       Decimal @db.Decimal(18, 3)
+  unitPrice      Decimal @map("unit_price") @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxAmount      Decimal @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount    Decimal @map("total_amount") @db.Decimal(18, 2)
+  position       Int     @db.SmallInt
+
+  invoice          SalesInvoice           @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+  item             Item?                  @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  creditNoteItems  SalesCreditNoteItem[]
+
+  @@unique([salesInvoiceId, position], map: "uq_sales_invoice_item_position")
+  @@map("sales_invoice_items")
+}
+
+model SalesPayment {
+  id                      String        @id @default(uuid(7)) @db.Char(36)
+  companyId               String        @map("company_id") @db.Char(36)
+  salesInvoiceId          String        @map("sales_invoice_id") @db.Char(36)
+  bankAccountId           String?       @map("bank_account_id") @db.Char(36)
+  companyPaymentMethodId  String?       @map("company_payment_method_id") @db.Char(36)
+  receiptNumber           String        @map("receipt_number") @db.VarChar(60)
+  method                  PaymentMethod
+  amount                  Decimal       @db.Decimal(18, 2)
+  currency                String        @db.Char(3)
+  status                  PaymentStatus @default(SUCCEEDED)
+  paidAt                  DateTime      @map("paid_at") @db.DateTime(3)
+  externalReference       String?       @map("external_reference") @db.VarChar(191)
+
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoice              SalesInvoice          @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  bankAccount          BankAccount?          @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  companyPaymentMethod CompanyPaymentMethod? @relation(fields: [companyPaymentMethodId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, receiptNumber], map: "uq_sales_payment_receipt")
+  @@index([salesInvoiceId, status], map: "idx_sales_payment_invoice_status")
+  @@map("sales_payments")
+}
+
+model SalesCreditNote {
+  id               String              @id @default(uuid(7)) @db.Char(36)
+  companyId        String              @map("company_id") @db.Char(36)
+  salesInvoiceId   String              @map("sales_invoice_id") @db.Char(36)
+  creditNoteNumber String              @map("credit_note_number") @db.VarChar(60)
+  status           SalesDocumentStatus @default(DRAFT)
+  issuedOn         DateTime            @map("issued_on") @db.Date
+  reason           String?             @db.Text
+  totalAmount      Decimal             @map("total_amount") @db.Decimal(18, 2)
+  currency         String              @db.Char(3)
+
+  company Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invoice SalesInvoice          @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  items   SalesCreditNoteItem[]
+
+  @@unique([companyId, creditNoteNumber], map: "uq_sales_credit_note_number")
+  @@index([salesInvoiceId, status], map: "idx_sales_credit_note_invoice_status")
+  @@map("sales_credit_notes")
+}
+
+model SalesCreditNoteItem {
+  id                 String  @id @default(uuid(7)) @db.Char(36)
+  salesCreditNoteId  String  @map("sales_credit_note_id") @db.Char(36)
+  salesInvoiceItemId String? @map("sales_invoice_item_id") @db.Char(36)
+  description        String  @db.VarChar(240)
+  quantity           Decimal @db.Decimal(18, 3)
+  amount             Decimal @db.Decimal(18, 2)
+
+  creditNote  SalesCreditNote  @relation(fields: [salesCreditNoteId], references: [id], onDelete: Cascade)
+  invoiceItem SalesInvoiceItem? @relation(fields: [salesInvoiceItemId], references: [id], onDelete: SetNull)
+
+  @@index([salesCreditNoteId], map: "idx_sales_credit_note_item")
+  @@map("sales_credit_note_items")
+}

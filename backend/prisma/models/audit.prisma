@@ -1,0 +1,61 @@
+model Notification {
+  id        String    @id @default(uuid(7)) @db.Char(36)
+  companyId String?   @map("company_id") @db.Char(36)
+  userId    String?   @map("user_id") @db.Char(36)
+  type      String    @db.VarChar(60)
+  title     String    @db.VarChar(180)
+  body      String    @db.Text
+  actionUrl String?   @map("action_url") @db.Text
+  data      Json      @default("{}")
+  readAt    DateTime? @map("read_at") @db.DateTime(3)
+  pushSentAt DateTime? @map("push_sent_at") @db.DateTime(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt(sort: Desc)], map: "idx_notification_user_read")
+  @@map("notifications")
+}
+
+/// FCM device tokens registered by a user (web / android / ios).
+model UserPushDevice {
+  id         String    @id @default(uuid(7)) @db.Char(36)
+  companyId  String    @map("company_id") @db.Char(36)
+  userId     String    @map("user_id") @db.Char(36)
+  token      String    @db.VarChar(512)
+  platform   String    @db.VarChar(20)
+  deviceName String?   @map("device_name") @db.VarChar(120)
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at") @db.DateTime(3)
+  disabledAt DateTime? @map("disabled_at") @db.DateTime(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token], map: "uq_user_push_device_token")
+  @@index([companyId, userId, disabledAt], map: "idx_user_push_device_user")
+  @@map("user_push_devices")
+}
+
+model AuditLog {
+  id          String   @default(uuid(7)) @db.Char(36)
+  companyId   String?  @map("company_id") @db.Char(36)
+  actorUserId String?  @map("actor_user_id") @db.Char(36)
+  action      String   @db.VarChar(80)
+  entityType  String   @map("entity_type") @db.VarChar(80)
+  entityId    String?  @map("entity_id") @db.Char(36)
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.Text
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  actor   User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@id([id, createdAt])
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_audit_company_created")
+  @@index([entityType, entityId], map: "idx_audit_entity")
+  @@map("audit_logs")
+}

@@ -1,0 +1,52 @@
+/// Temporary sandbox models that lock MySQL conventions before the full catalog.
+/// Tables keep existing names via @@map until replaced by real tenancy models.
+
+model SandboxCompany {
+  id        String       @id @default(uuid(7)) @db.Char(36)
+  name      String       @db.VarChar(180)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  items SandboxItem[]
+
+  @@map("convention_probe_companies")
+}
+
+model SandboxItem {
+  id            String       @id @default(uuid(7)) @db.Char(36)
+  companyId     String       @map("company_id") @db.Char(36)
+  name          String       @db.VarChar(220)
+  description   String?      @db.Text
+  unitPrice     Decimal      @map("unit_price") @db.Decimal(18, 2)
+  status        RecordStatus @default(ACTIVE)
+  deletedAt     DateTime?    @map("deleted_at") @db.DateTime(3)
+  deletedMarker String       @default("") @map("deleted_marker") @db.VarChar(36)
+  notes         String?      @db.VarChar(255)
+  sku           String?      @db.VarChar(64)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company SandboxCompany @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, name, deletedMarker], map: "uq_probe_item_company_name")
+  @@index([companyId, status], map: "idx_probe_item_company_status")
+  @@fulltext([name, description], map: "ft_probe_item_name_description")
+  @@map("convention_probe_items")
+}
+
+model SandboxAuditLog {
+  id          String   @default(uuid(7)) @db.Char(36)
+  companyId   String?  @map("company_id") @db.Char(36)
+  actorUserId String?  @map("actor_user_id") @db.Char(36)
+  action      String   @db.VarChar(80)
+  entityType  String   @map("entity_type") @db.VarChar(80)
+  entityId    String?  @map("entity_id") @db.Char(36)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@id([id, createdAt])
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_probe_audit_company_created")
+  @@index([entityType, entityId], map: "idx_probe_audit_entity")
+  @@map("convention_probe_audit_logs")
+}

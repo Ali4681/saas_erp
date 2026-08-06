@@ -1,0 +1,82 @@
+{
+  "create": "Create",
+  "optional": "Optional",
+  "name": "Name",
+  "type": "Type",
+  "notes": "Notes",
+  "contact": "Contact",
+  "customer": "Customer",
+  "titleField": "Title",
+  "value": "Value",
+  "currency": "Currency",
+  "status": "Status",
+  "action": "Action",
+  "email": "Email",
+  "phone": "Phone",
+  "communication": "Contact info",
+  "createdAt": "Created",
+  "subject": "Subject",
+  "schedule": "Schedule",
+  "hub": {
+    "title": "Customer relationship management",
+    "description": "Contacts, opportunities, activities, and contracts",
+    "contacts": "Contacts",
+    "contactsHint": "Customers and leads",
+    "opportunities": "Opportunities",
+    "opportunitiesHint": "Pipeline",
+    "activities": "Activities",
+    "activitiesHint": "Calls and tasks",
+    "contracts": "Contracts",
+    "contractsHint": "Customer agreements"
+  },
+  "contacts": {
+    "title": "Contacts",
+    "description": "Customers and leads",
+    "newTitle": "New contact",
+    "add": "Add contact",
+    "customerType": "Customer",
+    "leadType": "Lead",
+    "companyName": "Company name",
+    "source": "Source",
+    "empty": "No contacts yet"
+  },
+  "opportunities": {
+    "title": "Opportunities",
+    "newTitle": "New opportunity",
+    "add": "Add opportunity",
+    "estimatedValue": "Estimated value",
+    "expectedCloseDate": "Expected close date",
+    "empty": "No opportunities yet",
+    "won": "Won",
+    "lost": "Lost"
+  },
+  "activities": {
+    "title": "Activities",
+    "newTitle": "New activity",
+    "add": "Add activity",
+    "call": "Call",
+    "meeting": "Meeting",
+    "followUp": "Follow-up",
+    "task": "Task",
+    "emailType": "Email",
+    "noteType": "Note",
+    "empty": "No activities yet",
+    "complete": "Complete"
+  },
+  "contracts": {
+    "title": "Contracts",
+    "newTitle": "New contract",
+    "add": "Add contract",
+    "startsOn": "Starts",
+    "endsOn": "Ends",
+    "empty": "No contracts yet",
+    "activate": "Activate"
+  },
+  "flash": {
+    "contactCreated": "Contact created",
+    "opportunityCreated": "Opportunity created",
+    "activityCreated": "Activity created",
+    "contractCreated": "Contract created",
+    "statusUpdated": "Status updated to {status}"
+  }
+}

@@ -1,0 +1,142 @@
+model CompanyApiKey {
+  id              String              @id @default(uuid(7)) @db.Char(36)
+  companyId       String              @map("company_id") @db.Char(36)
+  name            String              @db.VarChar(120)
+  keyPrefix       String              @map("key_prefix") @db.VarChar(16)
+  keyHash         String              @map("key_hash") @db.Char(64)
+  scopes          Json                @default("[]")
+  rateLimitPerMin Int                 @default(60) @map("rate_limit_per_min")
+  status          CompanyApiKeyStatus @default(ACTIVE)
+  lastUsedAt      DateTime?           @map("last_used_at") @db.DateTime(3)
+  expiresAt       DateTime?           @map("expires_at") @db.DateTime(3)
+  createdById     String              @map("created_by") @db.Char(36)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User            @relation("CompanyApiKeyCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  logs      ApiRequestLog[]
+
+  @@unique([keyHash], map: "uq_company_api_key_hash")
+  @@index([companyId, status], map: "idx_company_api_key_status")
+  @@map("company_api_keys")
+}
+
+model ApiRequestLog {
+  id              String   @default(uuid(7)) @db.Char(36)
+  companyId       String   @map("company_id") @db.Char(36)
+  companyApiKeyId String?  @map("company_api_key_id") @db.Char(36)
+  method          String   @db.VarChar(10)
+  path            String   @db.VarChar(255)
+  statusCode      Int      @map("status_code") @db.SmallInt
+  ipAddress       String?  @map("ip_address") @db.VarChar(45)
+  durationMs      Int?     @map("duration_ms")
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  apiKey  CompanyApiKey? @relation(fields: [companyApiKeyId], references: [id], onDelete: SetNull)
+
+  @@id([id, createdAt])
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_api_request_log_created")
+  @@map("api_request_logs")
+}
+
+model CompanyWebhook {
+  id          String               @id @default(uuid(7)) @db.Char(36)
+  companyId   String               @map("company_id") @db.Char(36)
+  name        String               @db.VarChar(120)
+  targetUrl   String               @map("target_url") @db.VarChar(500)
+  secretHash  String               @map("secret_hash") @db.Char(64)
+  events      Json                 @default("[]")
+  status      CompanyWebhookStatus @default(ACTIVE)
+  createdById String               @map("created_by") @db.Char(36)
+  createdAt   DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User               @relation("CompanyWebhookCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  deliveries WebhookDelivery[]
+
+  @@index([companyId, status], map: "idx_company_webhook_status")
+  @@map("company_webhooks")
+}
+
+model WebhookDelivery {
+  id               String                @default(uuid(7)) @db.Char(36)
+  companyWebhookId String                @map("company_webhook_id") @db.Char(36)
+  eventType        String                @map("event_type") @db.VarChar(100)
+  payload          Json
+  status           WebhookDeliveryStatus @default(PENDING)
+  attemptCount     Int                   @default(1) @map("attempt_count") @db.SmallInt
+  responseCode     Int?                  @map("response_code") @db.SmallInt
+  errorMessage     String?               @map("error_message") @db.Text
+  createdAt        DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+
+  webhook CompanyWebhook @relation(fields: [companyWebhookId], references: [id], onDelete: Cascade)
+
+  @@id([id, createdAt])
+  @@index([companyWebhookId, createdAt(sort: Desc)], map: "idx_webhook_delivery_created")
+  @@map("webhook_deliveries")
+}
+
+model MessagingChannel {
+  id           String            @id @default(uuid(7)) @db.Char(36)
+  companyId    String            @map("company_id") @db.Char(36)
+  provider     MessagingProvider
+  name         String            @db.VarChar(120)
+  config       Json              @default("{}")
+  status       RecordStatus      @default(ACTIVE)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  templates MessageTemplate[]
+  deliveries MessageDelivery[]
+
+  @@unique([companyId, provider, name], map: "uq_messaging_channel_name")
+  @@index([companyId, status], map: "idx_messaging_channel_status")
+  @@map("messaging_channels")
+}
+
+model MessageTemplate {
+  id                  String            @id @default(uuid(7)) @db.Char(36)
+  companyId           String            @map("company_id") @db.Char(36)
+  messagingChannelId  String            @map("messaging_channel_id") @db.Char(36)
+  code                String            @db.VarChar(80)
+  name                String            @db.VarChar(140)
+  subject             String?           @db.VarChar(180)
+  bodyTemplate        String            @map("body_template") @db.Text
+  status              RecordStatus      @default(ACTIVE)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  channel MessagingChannel @relation(fields: [messagingChannelId], references: [id], onDelete: Cascade)
+  deliveries MessageDelivery[]
+
+  @@unique([companyId, code], map: "uq_message_template_code")
+  @@map("message_templates")
+}
+
+model MessageDelivery {
+  id                 String                @default(uuid(7)) @db.Char(36)
+  companyId          String                @map("company_id") @db.Char(36)
+  messagingChannelId String                @map("messaging_channel_id") @db.Char(36)
+  messageTemplateId  String?               @map("message_template_id") @db.Char(36)
+  recipient          String                @db.VarChar(254)
+  subject            String?               @db.VarChar(180)
+  body               String                @db.Text
+  status             MessageDeliveryStatus @default(QUEUED)
+  providerMessageId  String?               @map("provider_message_id") @db.VarChar(191)
+  errorMessage       String?               @map("error_message") @db.Text
+  sentAt             DateTime?             @map("sent_at") @db.DateTime(3)
+  createdAt          DateTime              @default(now()) @map("created_at") @db.DateTime(3)
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  channel  MessagingChannel  @relation(fields: [messagingChannelId], references: [id], onDelete: Restrict)
+  template MessageTemplate?  @relation(fields: [messageTemplateId], references: [id], onDelete: SetNull)
+
+  @@id([id, createdAt])
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_message_delivery_created")
+  @@map("message_deliveries")
+}

@@ -1,0 +1,82 @@
+{
+  "create": "إنشاء",
+  "optional": "اختياري",
+  "name": "الاسم",
+  "type": "النوع",
+  "notes": "ملاحظات",
+  "contact": "جهة الاتصال",
+  "customer": "العميل",
+  "titleField": "العنوان",
+  "value": "القيمة",
+  "currency": "العملة",
+  "status": "الحالة",
+  "action": "إجراء",
+  "email": "البريد",
+  "phone": "الهاتف",
+  "communication": "التواصل",
+  "createdAt": "أُنشئ",
+  "subject": "الموضوع",
+  "schedule": "موعد",
+  "hub": {
+    "title": "إدارة علاقات العملاء",
+    "description": "جهات الاتصال والفرص والأنشطة والعقود",
+    "contacts": "جهات الاتصال",
+    "contactsHint": "عملاء ومحتملون",
+    "opportunities": "الفرص",
+    "opportunitiesHint": "خط الأنابيب",
+    "activities": "الأنشطة",
+    "activitiesHint": "مكالمات ومهام",
+    "contracts": "العقود",
+    "contractsHint": "اتفاقيات العملاء"
+  },
+  "contacts": {
+    "title": "جهات الاتصال",
+    "description": "عملاء ومحتملون",
+    "newTitle": "جهة اتصال جديدة",
+    "add": "إضافة جهة اتصال",
+    "customerType": "عميل",
+    "leadType": "محتمل",
+    "companyName": "اسم الشركة",
+    "source": "المصدر",
+    "empty": "لا توجد جهات اتصال"
+  },
+  "opportunities": {
+    "title": "الفرص",
+    "newTitle": "فرصة جديدة",
+    "add": "إضافة فرصة",
+    "estimatedValue": "القيمة المتوقعة",
+    "expectedCloseDate": "تاريخ الإغلاق المتوقع",
+    "empty": "لا توجد فرص",
+    "won": "فازت",
+    "lost": "خسرت"
+  },
+  "activities": {
+    "title": "الأنشطة",
+    "newTitle": "نشاط جديد",
+    "add": "إضافة نشاط",
+    "call": "مكالمة",
+    "meeting": "اجتماع",
+    "followUp": "متابعة",
+    "task": "مهمة",
+    "emailType": "بريد",
+    "noteType": "ملاحظة",
+    "empty": "لا توجد أنشطة",
+    "complete": "إكمال"
+  },
+  "contracts": {
+    "title": "العقود",
+    "newTitle": "عقد جديد",
+    "add": "إضافة عقد",
+    "startsOn": "يبدأ",
+    "endsOn": "ينتهي",
+    "empty": "لا توجد عقود",
+    "activate": "تفعيل"
+  },
+  "flash": {
+    "contactCreated": "تم إنشاء جهة الاتصال",
+    "opportunityCreated": "تم إنشاء الفرصة",
+    "activityCreated": "تم إنشاء النشاط",
+    "contractCreated": "تم إنشاء العقد",
+    "statusUpdated": "تم تحديث الحالة إلى {status}"
+  }
+}

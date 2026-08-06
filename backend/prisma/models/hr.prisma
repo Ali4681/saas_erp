@@ -1,0 +1,117 @@
+model Employee {
+  id                   String           @id @default(uuid(7)) @db.Char(36)
+  companyId            String           @map("company_id") @db.Char(36)
+  userId               String?          @map("user_id") @db.Char(36)
+  /// MySQL null-unique substitute for optional user link
+  userKey              String           @default("") @map("user_key") @db.Char(36)
+  companyBranchId      String?          @map("company_branch_id") @db.Char(36)
+  companyDepartmentId  String?          @map("company_department_id") @db.Char(36)
+  employeeNumber       String           @map("employee_number") @db.VarChar(40)
+  fullName             String           @map("full_name") @db.VarChar(180)
+  email                String?          @db.VarChar(254)
+  phone                String?          @db.VarChar(40)
+  jobTitle             String?          @map("job_title") @db.VarChar(120)
+  hireDate             DateTime?        @map("hire_date") @db.Date
+  employmentStatus     EmploymentStatus @default(ACTIVE) @map("employment_status")
+  basicSalary          Decimal?         @map("basic_salary") @db.Decimal(18, 2)
+  currency             String?          @db.Char(3)
+  leaveBalanceDays     Decimal          @default(21) @map("leave_balance_days") @db.Decimal(8, 2)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company      Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  branch       CompanyBranch?      @relation(fields: [companyBranchId], references: [id], onDelete: SetNull)
+  department   CompanyDepartment?  @relation(fields: [companyDepartmentId], references: [id], onDelete: SetNull)
+  attendance   AttendanceRecord[]
+  leaveRequests LeaveRequest[]
+  payrollItems PayrollItem[]
+  businessNotes BusinessNote[]
+
+  @@unique([companyId, employeeNumber], map: "uq_employee_number")
+  @@index([companyId, userId], map: "idx_employee_company_user")
+  @@index([companyId, employmentStatus], map: "idx_employee_status")
+  @@map("employees")
+}
+
+model AttendanceRecord {
+  id             String           @id @default(uuid(7)) @db.Char(36)
+  companyId      String           @map("company_id") @db.Char(36)
+  employeeId     String           @map("employee_id") @db.Char(36)
+  attendanceDate DateTime         @map("attendance_date") @db.Date
+  checkInAt      DateTime?        @map("check_in_at") @db.DateTime(3)
+  checkOutAt     DateTime?        @map("check_out_at") @db.DateTime(3)
+  status         AttendanceStatus
+  workedMinutes  Int?             @map("worked_minutes")
+  source         String?          @db.VarChar(40)
+  notes          String?          @db.Text
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, attendanceDate], map: "uq_attendance_employee_date")
+  @@index([companyId, attendanceDate], map: "idx_attendance_company_date")
+  @@map("attendance_records")
+}
+
+model LeaveRequest {
+  id            String      @id @default(uuid(7)) @db.Char(36)
+  companyId     String      @map("company_id") @db.Char(36)
+  employeeId    String      @map("employee_id") @db.Char(36)
+  leaveType     String      @map("leave_type") @db.VarChar(60)
+  startsOn      DateTime    @map("starts_on") @db.Date
+  endsOn        DateTime    @map("ends_on") @db.Date
+  requestedDays Decimal     @map("requested_days") @db.Decimal(6, 2)
+  status        LeaveStatus @default(PENDING)
+  reason        String?     @db.Text
+  approvedById  String?     @map("approved_by") @db.Char(36)
+  decidedAt     DateTime?   @map("decided_at") @db.DateTime(3)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  approvedBy User?    @relation("LeaveApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, startsOn], map: "idx_leave_company_status_start")
+  @@map("leave_requests")
+}
+
+model PayrollRun {
+  id              String        @id @default(uuid(7)) @db.Char(36)
+  companyId       String        @map("company_id") @db.Char(36)
+  periodStart     DateTime      @map("period_start") @db.Date
+  periodEnd       DateTime      @map("period_end") @db.Date
+  status          PayrollStatus @default(DRAFT)
+  totalGross      Decimal       @default(0) @map("total_gross") @db.Decimal(18, 2)
+  totalDeductions Decimal       @default(0) @map("total_deductions") @db.Decimal(18, 2)
+  totalNet        Decimal       @default(0) @map("total_net") @db.Decimal(18, 2)
+  processedAt     DateTime?     @map("processed_at") @db.DateTime(3)
+  createdById     String        @map("created_by") @db.Char(36)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User          @relation("PayrollCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items     PayrollItem[]
+
+  @@unique([companyId, periodStart, periodEnd], map: "uq_payroll_run_period")
+  @@map("payroll_runs")
+}
+
+model PayrollItem {
+  id          String            @id @default(uuid(7)) @db.Char(36)
+  payrollRunId String           @map("payroll_run_id") @db.Char(36)
+  employeeId  String            @map("employee_id") @db.Char(36)
+  basicSalary Decimal           @map("basic_salary") @db.Decimal(18, 2)
+  allowances  Decimal           @default(0) @db.Decimal(18, 2)
+  bonuses     Decimal           @default(0) @db.Decimal(18, 2)
+  deductions  Decimal           @default(0) @db.Decimal(18, 2)
+  advances    Decimal           @default(0) @db.Decimal(18, 2)
+  netAmount   Decimal           @map("net_amount") @db.Decimal(18, 2)
+  status      PayrollItemStatus @default(DRAFT)
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([payrollRunId, employeeId], map: "uq_payroll_item_run_employee")
+  @@map("payroll_items")
+}

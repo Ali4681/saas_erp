@@ -1,0 +1,390 @@
+model ExternalCategory {
+  id               String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String     @map("connected_project_id") @db.Char(36)
+  projectLocationId String?     @map("project_location_id") @db.Char(36)
+  externalId       String       @map("external_id") @db.VarChar(191)
+  parentExternalId String?      @map("parent_external_id") @db.VarChar(191)
+  name             String       @db.VarChar(180)
+  status           RecordStatus @default(ACTIVE)
+  sortOrder        Int?         @map("sort_order")
+  rawPayload       Json         @default("{}") @map("raw_payload")
+  lastSyncedAt     DateTime     @map("last_synced_at") @db.DateTime(3)
+
+  project  ConnectedProject  @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  location ProjectLocation?  @relation(fields: [projectLocationId], references: [id], onDelete: SetNull)
+  products ExternalProduct[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_category_project_external")
+  @@index([connectedProjectId, projectLocationId, status], map: "idx_external_category_location_status")
+  @@map("external_categories")
+}
+
+model ExternalProduct {
+  id                 String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String       @map("connected_project_id") @db.Char(36)
+  projectLocationId  String?      @map("project_location_id") @db.Char(36)
+  externalCategoryId String?      @map("external_category_id") @db.Char(36)
+  externalId         String       @map("external_id") @db.VarChar(191)
+  sku                String?      @db.VarChar(120)
+  name               String       @db.VarChar(220)
+  description        String?      @db.Text
+  status             RecordStatus @default(ACTIVE)
+  price              Decimal?     @db.Decimal(18, 2)
+  currency           String?      @db.Char(3)
+  taxRate            Decimal?     @map("tax_rate") @db.Decimal(5, 2)
+  imageUrl           String?      @map("image_url") @db.Text
+  rawPayload         Json         @default("{}") @map("raw_payload")
+  lastSyncedAt       DateTime     @map("last_synced_at") @db.DateTime(3)
+
+  project    ConnectedProject          @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  location   ProjectLocation?          @relation(fields: [projectLocationId], references: [id], onDelete: SetNull)
+  category   ExternalCategory?         @relation(fields: [externalCategoryId], references: [id], onDelete: SetNull)
+  variants   ExternalProductVariant[]
+  inventory  ExternalInventoryLevel[]
+  orderItems ExternalOrderItem[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_product_project_external")
+  @@index([connectedProjectId, status], map: "idx_external_product_status")
+  @@index([connectedProjectId, sku], map: "idx_external_product_sku")
+  @@map("external_products")
+}
+
+model ExternalProductVariant {
+  id               String       @id @default(uuid(7)) @db.Char(36)
+  externalProductId String      @map("external_product_id") @db.Char(36)
+  externalId       String       @map("external_id") @db.VarChar(191)
+  sku              String?      @db.VarChar(120)
+  name             String       @db.VarChar(180)
+  status           RecordStatus @default(ACTIVE)
+  price            Decimal?     @db.Decimal(18, 2)
+  rawPayload       Json         @default("{}") @map("raw_payload")
+  lastSyncedAt     DateTime     @map("last_synced_at") @db.DateTime(3)
+
+  product    ExternalProduct          @relation(fields: [externalProductId], references: [id], onDelete: Cascade)
+  inventory  ExternalInventoryLevel[]
+  orderItems ExternalOrderItem[]
+
+  @@unique([externalProductId, externalId], map: "uq_external_variant_product_external")
+  @@index([externalProductId, status], map: "idx_external_variant_status")
+  @@map("external_product_variants")
+}
+
+model ExternalInventoryLevel {
+  id                       String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId       String       @map("connected_project_id") @db.Char(36)
+  projectLocationId        String       @map("project_location_id") @db.Char(36)
+  externalProductId        String       @map("external_product_id") @db.Char(36)
+  externalProductVariantId String?      @map("external_product_variant_id") @db.Char(36)
+  /// MySQL partial-null unique substitute: variant id or empty string
+  variantKey               String       @default("") @map("variant_key") @db.VarChar(36)
+  externalId               String?      @map("external_id") @db.VarChar(191)
+  quantityAvailable        Decimal?     @map("quantity_available") @db.Decimal(18, 3)
+  quantityReserved         Decimal?     @map("quantity_reserved") @db.Decimal(18, 3)
+  status                   RecordStatus @default(ACTIVE)
+  externalUpdatedAt        DateTime?    @map("external_updated_at") @db.DateTime(3)
+  lastSyncedAt             DateTime     @map("last_synced_at") @db.DateTime(3)
+
+  project  ConnectedProject        @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  location ProjectLocation         @relation(fields: [projectLocationId], references: [id], onDelete: Cascade)
+  product  ExternalProduct         @relation(fields: [externalProductId], references: [id], onDelete: Cascade)
+  variant  ExternalProductVariant? @relation(fields: [externalProductVariantId], references: [id], onDelete: SetNull)
+
+  @@unique([connectedProjectId, projectLocationId, externalProductId, variantKey], map: "uq_external_inventory_level")
+  @@map("external_inventory_levels")
+}
+
+model ExternalCustomer {
+  id                 String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String       @map("connected_project_id") @db.Char(36)
+  externalId         String       @map("external_id") @db.VarChar(191)
+  displayName        String?      @map("display_name") @db.VarChar(180)
+  emailCiphertext    Bytes?       @map("email_ciphertext") @db.Blob
+  phoneCiphertext    Bytes?       @map("phone_ciphertext") @db.Blob
+  keyVersion         Int?         @map("key_version") @db.SmallInt
+  status             RecordStatus @default(ACTIVE)
+  dataRetentionUntil DateTime?    @map("data_retention_until") @db.Date
+  rawPayload         Json         @default("{}") @map("raw_payload")
+  lastSyncedAt       DateTime     @map("last_synced_at") @db.DateTime(3)
+
+  project ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  orders  ExternalOrder[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_customer_project_external")
+  @@index([connectedProjectId, status], map: "idx_external_customer_status")
+  @@map("external_customers")
+}
+
+model ExternalOrder {
+  id                 String                 @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String                 @map("connected_project_id") @db.Char(36)
+  projectLocationId  String?                @map("project_location_id") @db.Char(36)
+  externalCustomerId String?                @map("external_customer_id") @db.Char(36)
+  externalId         String                 @map("external_id") @db.VarChar(191)
+  externalNumber     String?                @map("external_number") @db.VarChar(120)
+  status             NormalizedOrderStatus  @default(UNKNOWN)
+  financialStatus    FinancialStatus?       @map("financial_status")
+  fulfillmentStatus  FulfillmentStatus?     @map("fulfillment_status")
+  placedAt           DateTime               @map("placed_at") @db.DateTime(3)
+  currency           String                 @db.Char(3)
+  subtotal           Decimal                @default(0) @db.Decimal(18, 2)
+  discountAmount     Decimal                @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxAmount          Decimal                @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  deliveryFee        Decimal                @default(0) @map("delivery_fee") @db.Decimal(18, 2)
+  providerFee        Decimal                @default(0) @map("provider_fee") @db.Decimal(18, 2)
+  totalAmount        Decimal                @map("total_amount") @db.Decimal(18, 2)
+  netAmount          Decimal?               @map("net_amount") @db.Decimal(18, 2)
+  paymentMethod      String?                @map("payment_method") @db.VarChar(80)
+  rawPayload         Json                   @default("{}") @map("raw_payload")
+  lastSyncedAt       DateTime               @map("last_synced_at") @db.DateTime(3)
+
+  project       ConnectedProject            @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  location      ProjectLocation?            @relation(fields: [projectLocationId], references: [id], onDelete: SetNull)
+  customer      ExternalCustomer?           @relation(fields: [externalCustomerId], references: [id], onDelete: SetNull)
+  items         ExternalOrderItem[]
+  statusHistory ExternalOrderStatusHistory[]
+  refunds       ExternalRefund[]
+  fulfillments  ExternalFulfillment[]
+  financeTxns   FinancialTransaction[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_order_project_external")
+  @@index([connectedProjectId, placedAt(sort: Desc)], map: "idx_external_order_placed")
+  @@index([connectedProjectId, status], map: "idx_external_order_status")
+  @@map("external_orders")
+}
+
+model ExternalOrderItem {
+  id                       String   @id @default(uuid(7)) @db.Char(36)
+  externalOrderId          String   @map("external_order_id") @db.Char(36)
+  externalId               String?  @map("external_id") @db.VarChar(191)
+  /// MySQL null-unique substitute for optional external_id
+  externalIdKey            String   @default("") @map("external_id_key") @db.VarChar(191)
+  externalProductId        String?  @map("external_product_id") @db.Char(36)
+  externalProductVariantId String?  @map("external_product_variant_id") @db.Char(36)
+  name                     String   @db.VarChar(220)
+  sku                      String?  @db.VarChar(120)
+  quantity                 Decimal  @db.Decimal(18, 3)
+  unitPrice                Decimal  @map("unit_price") @db.Decimal(18, 2)
+  discountAmount           Decimal  @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  taxAmount                Decimal  @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount              Decimal  @map("total_amount") @db.Decimal(18, 2)
+  rawPayload               Json     @default("{}") @map("raw_payload")
+
+  order   ExternalOrder           @relation(fields: [externalOrderId], references: [id], onDelete: Cascade)
+  product ExternalProduct?        @relation(fields: [externalProductId], references: [id], onDelete: SetNull)
+  variant ExternalProductVariant? @relation(fields: [externalProductVariantId], references: [id], onDelete: SetNull)
+
+  @@unique([externalOrderId, externalIdKey], map: "uq_external_order_item_external")
+  @@index([externalOrderId], map: "idx_external_order_item_order")
+  @@map("external_order_items")
+}
+
+model ExternalOrderStatusHistory {
+  id               String                @id @default(uuid(7)) @db.Char(36)
+  externalOrderId  String                @map("external_order_id") @db.Char(36)
+  externalStatus   String                @map("external_status") @db.VarChar(100)
+  normalizedStatus NormalizedOrderStatus @map("normalized_status")
+  source           EventSource
+  occurredAt       DateTime              @map("occurred_at") @db.DateTime(3)
+  rawPayload       Json                  @default("{}") @map("raw_payload")
+
+  order ExternalOrder @relation(fields: [externalOrderId], references: [id], onDelete: Cascade)
+
+  @@index([externalOrderId, occurredAt], map: "idx_external_order_status_history")
+  @@map("external_order_status_history")
+}
+
+model ExternalRefund {
+  id                 String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String       @map("connected_project_id") @db.Char(36)
+  externalOrderId    String?      @map("external_order_id") @db.Char(36)
+  externalId         String       @map("external_id") @db.VarChar(191)
+  status             RefundStatus
+  amount             Decimal      @db.Decimal(18, 2)
+  currency           String       @db.Char(3)
+  reason             String?      @db.Text
+  requestedAt        DateTime?    @map("requested_at") @db.DateTime(3)
+  processedAt        DateTime?    @map("processed_at") @db.DateTime(3)
+  rawPayload         Json         @default("{}") @map("raw_payload")
+
+  project ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  order   ExternalOrder?   @relation(fields: [externalOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_refund_project_external")
+  @@index([externalOrderId, status], map: "idx_external_refund_order_status")
+  @@map("external_refunds")
+}
+
+model ExternalFulfillment {
+  id                 String            @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String            @map("connected_project_id") @db.Char(36)
+  externalOrderId    String            @map("external_order_id") @db.Char(36)
+  externalDriverId   String?           @map("external_driver_id") @db.Char(36)
+  externalId         String            @map("external_id") @db.VarChar(191)
+  status             FulfillmentStatus
+  trackingNumber     String?           @map("tracking_number") @db.VarChar(160)
+  trackingUrl        String?           @map("tracking_url") @db.Text
+  pickupAt           DateTime?         @map("pickup_at") @db.DateTime(3)
+  deliveredAt        DateTime?         @map("delivered_at") @db.DateTime(3)
+  deliveryFee        Decimal?          @map("delivery_fee") @db.Decimal(18, 2)
+  rawPayload         Json              @default("{}") @map("raw_payload")
+
+  project ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  order   ExternalOrder    @relation(fields: [externalOrderId], references: [id], onDelete: Cascade)
+  driver  ExternalDriver?  @relation(fields: [externalDriverId], references: [id], onDelete: SetNull)
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_fulfillment_project_external")
+  @@index([externalOrderId, status], map: "idx_external_fulfillment_order_status")
+  @@map("external_fulfillments")
+}
+
+model ExternalPromotion {
+  id                 String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String       @map("connected_project_id") @db.Char(36)
+  projectLocationId  String?      @map("project_location_id") @db.Char(36)
+  externalId         String       @map("external_id") @db.VarChar(191)
+  name               String       @db.VarChar(180)
+  promotionType      String       @map("promotion_type") @db.VarChar(60)
+  value              Decimal?     @db.Decimal(18, 2)
+  startsAt           DateTime?    @map("starts_at") @db.DateTime(3)
+  endsAt             DateTime?    @map("ends_at") @db.DateTime(3)
+  status             RecordStatus @default(ACTIVE)
+  rawPayload         Json         @default("{}") @map("raw_payload")
+
+  project  ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  location ProjectLocation? @relation(fields: [projectLocationId], references: [id], onDelete: SetNull)
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_promotion_project_external")
+  @@index([connectedProjectId, status], map: "idx_external_promotion_status")
+  @@map("external_promotions")
+}
+
+model ExternalDriver {
+  id                 String       @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String       @map("connected_project_id") @db.Char(36)
+  projectLocationId  String?      @map("project_location_id") @db.Char(36)
+  externalId         String       @map("external_id") @db.VarChar(191)
+  name               String?      @db.VarChar(180)
+  phoneCiphertext    Bytes?       @map("phone_ciphertext") @db.Blob
+  keyVersion         Int?         @map("key_version") @db.SmallInt
+  status             RecordStatus @default(ACTIVE)
+  vehicleType        String?      @map("vehicle_type") @db.VarChar(80)
+  rawPayload         Json         @default("{}") @map("raw_payload")
+  lastSyncedAt       DateTime     @map("last_synced_at") @db.DateTime(3)
+
+  project      ConnectedProject      @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  location     ProjectLocation?      @relation(fields: [projectLocationId], references: [id], onDelete: SetNull)
+  fulfillments ExternalFulfillment[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_driver_project_external")
+  @@index([connectedProjectId, status], map: "idx_external_driver_status")
+  @@map("external_drivers")
+}
+
+model ExternalSettlement {
+  id                 String           @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId String           @map("connected_project_id") @db.Char(36)
+  externalId         String           @map("external_id") @db.VarChar(191)
+  periodStart        DateTime?        @map("period_start") @db.Date
+  periodEnd          DateTime?        @map("period_end") @db.Date
+  status             SettlementStatus
+  grossSales         Decimal          @default(0) @map("gross_sales") @db.Decimal(18, 2)
+  providerFees       Decimal          @default(0) @map("provider_fees") @db.Decimal(18, 2)
+  refunds            Decimal          @default(0) @db.Decimal(18, 2)
+  adjustments        Decimal          @default(0) @db.Decimal(18, 2)
+  netAmount          Decimal          @map("net_amount") @db.Decimal(18, 2)
+  currency           String           @db.Char(3)
+  expectedAt         DateTime?        @map("expected_at") @db.Date
+  paidAt             DateTime?        @map("paid_at") @db.DateTime(3)
+  rawPayload         Json             @default("{}") @map("raw_payload")
+
+  project ConnectedProject @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  financeTxns FinancialTransaction[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_external_settlement_project_external")
+  @@index([connectedProjectId, status, periodEnd(sort: Desc)], map: "idx_external_settlement_status_period")
+  @@map("external_settlements")
+}
+
+model InstallmentTransaction {
+  id                       String            @id @default(uuid(7)) @db.Char(36)
+  connectedProjectId       String            @map("connected_project_id") @db.Char(36)
+  externalId               String            @map("external_id") @db.VarChar(191)
+  merchantOrderReference   String            @map("merchant_order_reference") @db.VarChar(191)
+  externalCustomerReference String?          @map("external_customer_reference") @db.VarChar(191)
+  status                   InstallmentStatus @default(UNKNOWN)
+  amount                   Decimal           @db.Decimal(18, 2)
+  currency                 String            @db.Char(3)
+  providerFee              Decimal?          @map("provider_fee") @db.Decimal(18, 2)
+  netAmount                Decimal?          @map("net_amount") @db.Decimal(18, 2)
+  checkoutUrl              String?           @map("checkout_url") @db.Text
+  authorizedAt             DateTime?         @map("authorized_at") @db.DateTime(3)
+  capturedAt               DateTime?         @map("captured_at") @db.DateTime(3)
+  closedAt                 DateTime?         @map("closed_at") @db.DateTime(3)
+  rawPayload               Json              @default("{}") @map("raw_payload")
+  lastSyncedAt             DateTime          @map("last_synced_at") @db.DateTime(3)
+
+  project  ConnectedProject     @relation(fields: [connectedProjectId], references: [id], onDelete: Cascade)
+  events   InstallmentEvent[]
+  refunds  InstallmentRefund[]
+  disputes InstallmentDispute[]
+  financeTxns FinancialTransaction[]
+
+  @@unique([connectedProjectId, externalId], map: "uq_installment_txn_project_external")
+  @@index([connectedProjectId, merchantOrderReference], map: "idx_installment_txn_merchant_ref")
+  @@map("installment_transactions")
+}
+
+model InstallmentEvent {
+  id                      String             @id @default(uuid(7)) @db.Char(36)
+  installmentTransactionId String            @map("installment_transaction_id") @db.Char(36)
+  externalEventId         String?            @map("external_event_id") @db.VarChar(191)
+  /// MySQL null-unique substitute
+  externalEventKey        String             @default("") @map("external_event_key") @db.VarChar(191)
+  eventType               String             @map("event_type") @db.VarChar(100)
+  status                  InstallmentStatus?
+  occurredAt              DateTime           @map("occurred_at") @db.DateTime(3)
+  rawPayload              Json               @default("{}") @map("raw_payload")
+
+  transaction InstallmentTransaction @relation(fields: [installmentTransactionId], references: [id], onDelete: Cascade)
+
+  @@unique([installmentTransactionId, externalEventKey], map: "uq_installment_event_external")
+  @@index([installmentTransactionId, occurredAt], map: "idx_installment_event_occurred")
+  @@map("installment_events")
+}
+
+model InstallmentRefund {
+  id                       String       @id @default(uuid(7)) @db.Char(36)
+  installmentTransactionId String       @map("installment_transaction_id") @db.Char(36)
+  externalId               String       @map("external_id") @db.VarChar(191)
+  status                   RefundStatus
+  amount                   Decimal      @db.Decimal(18, 2)
+  currency                 String       @db.Char(3)
+  reason                   String?      @db.Text
+  requestedAt              DateTime?    @map("requested_at") @db.DateTime(3)
+  processedAt              DateTime?    @map("processed_at") @db.DateTime(3)
+  rawPayload               Json         @default("{}") @map("raw_payload")
+
+  transaction InstallmentTransaction @relation(fields: [installmentTransactionId], references: [id], onDelete: Cascade)
+
+  @@unique([installmentTransactionId, externalId], map: "uq_installment_refund_external")
+  @@index([installmentTransactionId, status], map: "idx_installment_refund_status")
+  @@map("installment_refunds")
+}
+
+model InstallmentDispute {
+  id                       String        @id @default(uuid(7)) @db.Char(36)
+  installmentTransactionId String        @map("installment_transaction_id") @db.Char(36)
+  externalId               String        @map("external_id") @db.VarChar(191)
+  status                   DisputeStatus
+  reason                   String?       @db.VarChar(180)
+  amount                   Decimal?      @db.Decimal(18, 2)
+  dueAt                    DateTime?     @map("due_at") @db.DateTime(3)
+  resolvedAt               DateTime?     @map("resolved_at") @db.DateTime(3)
+  rawPayload               Json          @default("{}") @map("raw_payload")
+
+  transaction InstallmentTransaction @relation(fields: [installmentTransactionId], references: [id], onDelete: Cascade)
+
+  @@unique([installmentTransactionId, externalId], map: "uq_installment_dispute_external")
+  @@index([status, dueAt], map: "idx_installment_dispute_status_due")
+  @@map("installment_disputes")
+}

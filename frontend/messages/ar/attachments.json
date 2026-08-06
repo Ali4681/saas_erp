@@ -1,0 +1,27 @@
+{
+  "title": "المرفقات",
+  "description": "رفع وعرض الملفات المرتبطة بالكيانات",
+  "uploadTitle": "رفع مرفق",
+  "uploadTrigger": "رفع مرفق",
+  "entityType": "نوع الكيان",
+  "entityContact": "جهة اتصال",
+  "entityInvoice": "فاتورة مبيعات",
+  "entityProject": "مشروع",
+  "entityNote": "ملاحظة",
+  "entityEmployee": "موظف",
+  "entityOther": "أخرى",
+  "entityId": "معرّف الكيان (UUID)",
+  "file": "الملف",
+  "upload": "رفع",
+  "empty": "لا توجد مرفقات",
+  "colFile": "الملف",
+  "colEntity": "الكيان",
+  "colSize": "الحجم",
+  "colDate": "التاريخ",
+  "colDownload": "تحميل",
+  "download": "تحميل",
+  "flash": {
+    "uploaded": "تم رفع المرفق",
+    "chooseFile": "اختر ملفاً للرفع"
+  }
+}

@@ -1,0 +1,141 @@
+model Company {
+  id              String        @id @default(uuid(7)) @db.Char(36)
+  legalName       String        @map("legal_name") @db.VarChar(180)
+  displayName     String        @map("display_name") @db.VarChar(180)
+  slug            String        @unique @db.VarChar(80)
+  status          CompanyStatus @default(ACTIVE)
+  businessCategory CompanyBusinessCategory @map("business_category")
+  defaultCurrency String        @map("default_currency") @db.Char(3)
+  timezone        String        @db.VarChar(64)
+  countryCode     String?       @map("country_code") @db.Char(2)
+  city            String?       @db.VarChar(100)
+  logoAttachmentId String?      @map("logo_attachment_id") @db.Char(36)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+  deletedAt       DateTime?     @map("deleted_at") @db.DateTime(3)
+
+  settings       CompanySettings?
+  branches       CompanyBranch[]
+  departments    CompanyDepartment[]
+  memberships    CompanyUser[]
+  subscriptions  Subscription[]
+  notifications  Notification[]
+  pushDevices    UserPushDevice[]
+  auditLogs      AuditLog[]
+  projects       ConnectedProject[]
+  bankAccounts   BankAccount[]
+  expenseCategories ExpenseCategory[]
+  expenses       Expense[]
+  financialTransactions FinancialTransaction[]
+
+  crmContacts      CrmContact[]
+  crmPipelines    CrmPipeline[]
+  crmOpportunities CrmOpportunity[]
+  crmActivities   CrmActivity[]
+  crmContracts    CrmContract[]
+  salesQuotes     SalesQuote[]
+  salesInvoices   SalesInvoice[]
+  salesPayments   SalesPayment[]
+  salesCreditNotes SalesCreditNote[]
+  suppliers       Supplier[]
+  purchaseOrders  PurchaseOrder[]
+  supplierBills   SupplierBill[]
+  supplierPayments SupplierPayment[]
+  itemCategories  ItemCategory[]
+  units           Unit[]
+  items           Item[]
+  warehouses      Warehouse[]
+  stockMovements  StockMovement[]
+  stockCounts     StockCount[]
+
+  employees         Employee[]
+  attendanceRecords AttendanceRecord[]
+  leaveRequests     LeaveRequest[]
+  payrollRuns       PayrollRun[]
+  workProjects      WorkProject[]
+  automationRules   AutomationRule[]
+  marketingPosts    MarketingPost[]
+  marketingPostMedia MarketingPostMedia[]
+  marketingPlatformConnections MarketingPlatformConnection[]
+  attachments       Attachment[]
+  aiUsageLogs       AiUsageLog[]
+
+  notebookCategories NotebookCategory[]
+  businessNotes      BusinessNote[]
+  companyApiKeys     CompanyApiKey[]
+  apiRequestLogs     ApiRequestLog[]
+  companyWebhooks    CompanyWebhook[]
+  messagingChannels  MessagingChannel[]
+  messageTemplates   MessageTemplate[]
+  messageDeliveries  MessageDelivery[]
+  paymentMethods     CompanyPaymentMethod[]
+
+  @@index([status], map: "idx_companies_status")
+  @@map("companies")
+}
+
+model CompanySettings {
+  companyId          String   @id @map("company_id") @db.Char(36)
+  taxNumber          String?  @map("tax_number") @db.VarChar(80)
+  invoicePrefix      String   @default("INV") @map("invoice_prefix") @db.VarChar(20)
+  nextInvoiceNumber  BigInt   @default(1) @map("next_invoice_number")
+  defaultTaxRate     Decimal  @default(0) @map("default_tax_rate") @db.Decimal(5, 2)
+  emailFromName      String?  @map("email_from_name") @db.VarChar(120)
+  emailFromAddress   String?  @map("email_from_address") @db.VarChar(254)
+  settings           Json     @default("{}")
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_settings")
+}
+
+model CompanyBranch {
+  id            String       @id @default(uuid(7)) @db.Char(36)
+  companyId     String       @map("company_id") @db.Char(36)
+  code          String       @db.VarChar(30)
+  name          String       @db.VarChar(140)
+  status        RecordStatus @default(ACTIVE)
+  phone         String?      @db.VarChar(40)
+  city          String?      @db.VarChar(100)
+  addressLine   String?      @map("address_line") @db.Text
+  deletedAt     DateTime?    @map("deleted_at") @db.DateTime(3)
+  deletedMarker String       @default("") @map("deleted_marker") @db.VarChar(36)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  departments CompanyDepartment[]
+  memberships CompanyUser[]
+  locations   ProjectLocation[]
+  warehouses  Warehouse[]
+  employees   Employee[]
+  salesInvoices SalesInvoice[]
+
+  @@unique([companyId, code, deletedMarker], map: "uq_branch_company_code")
+  @@index([companyId, status], map: "idx_branch_company_status")
+  @@map("company_branches")
+}
+
+model CompanyDepartment {
+  id                 String       @id @default(uuid(7)) @db.Char(36)
+  companyId          String       @map("company_id") @db.Char(36)
+  branchId           String?      @map("branch_id") @db.Char(36)
+  parentDepartmentId String?      @map("parent_department_id") @db.Char(36)
+  code               String?      @db.VarChar(30)
+  name               String       @db.VarChar(140)
+  status             RecordStatus @default(ACTIVE)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch           CompanyBranch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  parentDepartment CompanyDepartment?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
+  childDepartments CompanyDepartment[] @relation("DepartmentHierarchy")
+  memberships      CompanyUser[]
+  employees        Employee[]
+
+  @@unique([companyId, code], map: "uq_department_company_code")
+  @@index([companyId, branchId], map: "idx_department_company_branch")
+  @@map("company_departments")
+}

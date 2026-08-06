@@ -1,0 +1,136 @@
+model Supplier {
+  id        String       @id @default(uuid(7)) @db.Char(36)
+  companyId String       @map("company_id") @db.Char(36)
+  code      String?      @db.VarChar(40)
+  codeKey   String       @default("") @map("code_key") @db.VarChar(40)
+  name      String       @db.VarChar(180)
+  taxNumber String?      @map("tax_number") @db.VarChar(80)
+  email     String?      @db.VarChar(254)
+  phone     String?      @db.VarChar(40)
+  status    RecordStatus @default(ACTIVE)
+  notes     String?      @db.Text
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  purchaseOrders PurchaseOrder[]
+  bills          SupplierBill[]
+
+  @@unique([companyId, codeKey], map: "uq_supplier_company_code")
+  @@index([companyId, status, name], map: "idx_supplier_status_name")
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id           String              @id @default(uuid(7)) @db.Char(36)
+  companyId    String              @map("company_id") @db.Char(36)
+  supplierId   String              @map("supplier_id") @db.Char(36)
+  warehouseId  String?             @map("warehouse_id") @db.Char(36)
+  orderNumber  String              @map("order_number") @db.VarChar(60)
+  status       PurchaseOrderStatus @default(DRAFT)
+  orderedOn    DateTime?           @map("ordered_on") @db.Date
+  expectedOn   DateTime?           @map("expected_on") @db.Date
+  currency     String              @db.Char(3)
+  subtotal     Decimal             @db.Decimal(18, 2)
+  taxAmount    Decimal             @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount  Decimal             @map("total_amount") @db.Decimal(18, 2)
+  requestedById String             @map("requested_by") @db.Char(36)
+  approvedById String?             @map("approved_by") @db.Char(36)
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier    Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouse   Warehouse?          @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  requestedBy User                @relation("PurchaseOrderRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy  User?               @relation("PurchaseOrderApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  items       PurchaseOrderItem[]
+  bills       SupplierBill[]
+
+  @@unique([companyId, orderNumber], map: "uq_purchase_order_number")
+  @@index([companyId, status, orderedOn], map: "idx_purchase_order_status_ordered")
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String  @id @default(uuid(7)) @db.Char(36)
+  purchaseOrderId String  @map("purchase_order_id") @db.Char(36)
+  itemId          String  @map("item_id") @db.Char(36)
+  description     String  @db.VarChar(240)
+  quantity        Decimal @db.Decimal(18, 3)
+  unitCost        Decimal @map("unit_cost") @db.Decimal(18, 2)
+  taxAmount       Decimal @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount     Decimal @map("total_amount") @db.Decimal(18, 2)
+  position        Int     @db.SmallInt
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  item          Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([purchaseOrderId, position], map: "uq_purchase_order_item_position")
+  @@map("purchase_order_items")
+}
+
+model SupplierBill {
+  id              String        @id @default(uuid(7)) @db.Char(36)
+  companyId       String        @map("company_id") @db.Char(36)
+  supplierId      String        @map("supplier_id") @db.Char(36)
+  purchaseOrderId String?       @map("purchase_order_id") @db.Char(36)
+  billNumber      String        @map("bill_number") @db.VarChar(80)
+  status          InvoiceStatus @default(DRAFT)
+  issuedOn        DateTime      @map("issued_on") @db.Date
+  dueOn           DateTime?     @map("due_on") @db.Date
+  currency        String        @db.Char(3)
+  subtotal        Decimal       @db.Decimal(18, 2)
+  taxAmount       Decimal       @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount     Decimal       @map("total_amount") @db.Decimal(18, 2)
+  balanceDue      Decimal       @map("balance_due") @db.Decimal(18, 2)
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supplier    Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  items       SupplierBillItem[]
+  payments    SupplierPayment[]
+  financeTxns FinancialTransaction[]
+
+  @@unique([companyId, supplierId, billNumber], map: "uq_supplier_bill_number")
+  @@index([companyId, status, dueOn], map: "idx_supplier_bill_status_due")
+  @@map("supplier_bills")
+}
+
+model SupplierBillItem {
+  id             String  @id @default(uuid(7)) @db.Char(36)
+  supplierBillId String  @map("supplier_bill_id") @db.Char(36)
+  itemId         String? @map("item_id") @db.Char(36)
+  description    String  @db.VarChar(240)
+  quantity       Decimal @db.Decimal(18, 3)
+  unitCost       Decimal @map("unit_cost") @db.Decimal(18, 2)
+  taxAmount      Decimal @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount    Decimal @map("total_amount") @db.Decimal(18, 2)
+  position       Int     @db.SmallInt
+
+  bill SupplierBill @relation(fields: [supplierBillId], references: [id], onDelete: Cascade)
+  item Item?        @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@unique([supplierBillId, position], map: "uq_supplier_bill_item_position")
+  @@map("supplier_bill_items")
+}
+
+model SupplierPayment {
+  id                      String        @id @default(uuid(7)) @db.Char(36)
+  companyId               String        @map("company_id") @db.Char(36)
+  supplierBillId          String        @map("supplier_bill_id") @db.Char(36)
+  bankAccountId           String?       @map("bank_account_id") @db.Char(36)
+  companyPaymentMethodId  String?       @map("company_payment_method_id") @db.Char(36)
+  paymentNumber           String        @map("payment_number") @db.VarChar(60)
+  method                  PaymentMethod
+  amount                  Decimal       @db.Decimal(18, 2)
+  currency                String        @db.Char(3)
+  status                  PaymentStatus @default(SUCCEEDED)
+  paidAt                  DateTime      @map("paid_at") @db.DateTime(3)
+  externalReference       String?       @map("external_reference") @db.VarChar(191)
+
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bill                 SupplierBill          @relation(fields: [supplierBillId], references: [id], onDelete: Restrict)
+  bankAccount          BankAccount?          @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  companyPaymentMethod CompanyPaymentMethod? @relation(fields: [companyPaymentMethodId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, paymentNumber], map: "uq_supplier_payment_number")
+  @@index([supplierBillId, status], map: "idx_supplier_payment_bill_status")
+  @@map("supplier_payments")
+}

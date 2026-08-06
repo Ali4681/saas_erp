@@ -1,0 +1,1749 @@
+{
+  "generatedAt": "2026-07-25T12:57:31.046Z",
+  "codeRouteCount": 158,
+  "postmanRouteCount": 158,
+  "missingInPostman": [],
+  "extraInPostman": [],
+  "codeRoutes": [
+    {
+      "method": "GET",
+      "path": "/",
+      "file": "src/app.controller.ts",
+      "handler": "getHello"
+    },
+    {
+      "method": "POST",
+      "path": "/admin/retention/purge",
+      "file": "src/modules/retention/retention.controller.ts",
+      "handler": "purge"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "file": "src/modules/auth/auth.controller.ts",
+      "handler": "login"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "file": "src/modules/auth/auth.controller.ts",
+      "handler": "logout"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "file": "src/modules/auth/auth.controller.ts",
+      "handler": "refresh"
+    },
+    {
+      "method": "GET",
+      "path": "/companies",
+      "file": "src/modules/companies/companies.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "POST",
+      "path": "/companies",
+      "file": "src/modules/companies/companies.controller.ts",
+      "handler": "create"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/ai-usage",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "listAiUsage"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/ai-usage",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "logAiUsage"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/ai-usage/summary",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "aiSummary"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/attachments",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "listAttachments"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/attachments",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "registerAttachment"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/automation/rules",
+      "file": "src/modules/automation/automation.controller.ts",
+      "handler": "listRules"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/automation/rules",
+      "file": "src/modules/automation/automation.controller.ts",
+      "handler": "createRule"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/automation/rules/:ruleId/execute",
+      "file": "src/modules/automation/automation.controller.ts",
+      "handler": "executeRule"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/automation/rules/:ruleId/status",
+      "file": "src/modules/automation/automation.controller.ts",
+      "handler": "updateRuleStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/automation/runs",
+      "file": "src/modules/automation/automation.controller.ts",
+      "handler": "listRuns"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/crm/activities",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "listActivities"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/crm/activities",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "createActivity"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/crm/activities/:activityId/status",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "updateActivityStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/crm/contacts",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "listContacts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/crm/contacts",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "createContact"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/crm/contacts/:contactId",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "updateContact"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/crm/contracts",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "listContracts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/crm/contracts",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "createContract"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/crm/contracts/:contractId/status",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "updateContractStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/crm/opportunities",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "listOpportunities"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/crm/opportunities",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "createOpportunity"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/crm/opportunities/:opportunityId/status",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "updateOpportunityStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/crm/pipelines",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "listPipelines"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/crm/pipelines/default",
+      "file": "src/modules/crm/crm.controller.ts",
+      "handler": "ensureDefaultPipeline"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/finance/bank-accounts",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "listBankAccounts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/finance/bank-accounts",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "createBankAccount"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/finance/dashboard",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "dashboard"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/finance/expense-categories",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "listCategories"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/finance/expense-categories",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "createCategory"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/finance/expenses",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "listExpenses"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/finance/expenses",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "createExpense"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/finance/expenses/:expenseId/status",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "updateExpenseStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/finance/transactions",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "listTransactions"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/finance/transactions",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "createTransaction"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/finance/transactions/from-order",
+      "file": "src/modules/finance/finance.controller.ts",
+      "handler": "postFromOrder"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/hr/attendance",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "listAttendance"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/hr/attendance",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "upsertAttendance"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/hr/employees",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "listEmployees"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/hr/employees",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "createEmployee"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/hr/employees/:employeeId/status",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "updateEmployeeStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/hr/leaves",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "listLeaves"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/hr/leaves",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "createLeave"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/hr/leaves/:leaveId/decision",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "decideLeave"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/hr/payroll-runs",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "listPayroll"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/hr/payroll-runs",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "createPayroll"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/hr/payroll-runs/:payrollRunId/status",
+      "file": "src/modules/hr/hr.controller.ts",
+      "handler": "updatePayrollStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/integration-center/api-keys",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "listApiKeys"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/integration-center/api-keys",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "createApiKey"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/integration-center/api-keys/:apiKeyId/status",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "updateApiKeyStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/integration-center/api-request-logs",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "listApiLogs"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/integration-center/api-request-logs",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "logApiRequest"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/integration-center/webhook-deliveries",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "listDeliveries"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/integration-center/webhooks",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "listWebhooks"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/integration-center/webhooks",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "createWebhook"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/integration-center/webhooks/:webhookId/deliver",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "deliverWebhook"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/integration-center/webhooks/:webhookId/status",
+      "file": "src/modules/company-integrations/company-integrations.controller.ts",
+      "handler": "updateWebhookStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/inventory/balances",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "listBalances"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/inventory/categories",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "listCategories"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/inventory/categories",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "createCategory"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/inventory/counts",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "listCounts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/inventory/counts",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "createCount"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/inventory/counts/:stockCountId/approve",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "approveCount"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/inventory/counts/:stockCountId/lines",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "submitCountLine"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/inventory/items",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "listItems"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/inventory/items",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "createItem"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/inventory/movements",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "listMovements"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/inventory/movements",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "createMovement"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/inventory/units",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "listUnits"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/inventory/units",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "createUnit"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/inventory/warehouses",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "listWarehouses"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/inventory/warehouses",
+      "file": "src/modules/inventory/inventory.controller.ts",
+      "handler": "createWarehouse"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/marketing/posts",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "listPosts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/marketing/posts",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "createPost"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/marketing/posts/:postId/publish",
+      "file": "src/modules/platform/platform.controller.ts",
+      "handler": "publishPost"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/messaging/channels",
+      "file": "src/modules/messaging/messaging.controller.ts",
+      "handler": "listChannels"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/messaging/channels",
+      "file": "src/modules/messaging/messaging.controller.ts",
+      "handler": "createChannel"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/messaging/deliveries",
+      "file": "src/modules/messaging/messaging.controller.ts",
+      "handler": "listDeliveries"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/messaging/send",
+      "file": "src/modules/messaging/messaging.controller.ts",
+      "handler": "send"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/messaging/templates",
+      "file": "src/modules/messaging/messaging.controller.ts",
+      "handler": "listTemplates"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/messaging/templates",
+      "file": "src/modules/messaging/messaging.controller.ts",
+      "handler": "createTemplate"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/notebook/categories",
+      "file": "src/modules/notebook/notebook.controller.ts",
+      "handler": "listCategories"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/notebook/categories",
+      "file": "src/modules/notebook/notebook.controller.ts",
+      "handler": "createCategory"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/notebook/notes",
+      "file": "src/modules/notebook/notebook.controller.ts",
+      "handler": "listNotes"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/notebook/notes",
+      "file": "src/modules/notebook/notebook.controller.ts",
+      "handler": "createNote"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/notebook/notes/:noteId",
+      "file": "src/modules/notebook/notebook.controller.ts",
+      "handler": "updateNote"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/notebook/notes/:noteId/comments",
+      "file": "src/modules/notebook/notebook.controller.ts",
+      "handler": "addComment"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/notebook/notes/:noteId/revisions",
+      "file": "src/modules/notebook/notebook.controller.ts",
+      "handler": "listRevisions"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/payment-methods",
+      "file": "src/modules/finance/payment-gateways.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/payment-methods",
+      "file": "src/modules/finance/payment-gateways.controller.ts",
+      "handler": "enable"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/payment-methods/:paymentMethodId",
+      "file": "src/modules/finance/payment-gateways.controller.ts",
+      "handler": "update"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects",
+      "file": "src/modules/integrations/projects.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/projects",
+      "file": "src/modules/integrations/projects.controller.ts",
+      "handler": "create"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId",
+      "file": "src/modules/integrations/projects.controller.ts",
+      "handler": "get"
+    },
+    {
+      "method": "PUT",
+      "path": "/companies/:companyId/projects/:projectId/credentials",
+      "file": "src/modules/integrations/projects.controller.ts",
+      "handler": "upsertCredentials"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId/effective-capabilities",
+      "file": "src/modules/integrations/projects.controller.ts",
+      "handler": "effectiveCapabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId/integration-errors",
+      "file": "src/modules/integrations/sync/jobs.controller.ts",
+      "handler": "listErrors"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId/jobs",
+      "file": "src/modules/integrations/sync/jobs.controller.ts",
+      "handler": "listJobs"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/projects/:projectId/jobs/sync",
+      "file": "src/modules/integrations/sync/jobs.controller.ts",
+      "handler": "enqueueSync"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId/mirrors/:entity",
+      "file": "src/modules/integrations/mirrors/mirrors.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId/mirrors/orders/:orderId",
+      "file": "src/modules/integrations/mirrors/mirrors.controller.ts",
+      "handler": "getOrder"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId/operations",
+      "file": "src/modules/integrations/operations.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/projects/:projectId/operations",
+      "file": "src/modules/integrations/operations.controller.ts",
+      "handler": "create"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/projects/:projectId/status",
+      "file": "src/modules/integrations/projects.controller.ts",
+      "handler": "updateStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/projects/:projectId/sync-states",
+      "file": "src/modules/integrations/sync/jobs.controller.ts",
+      "handler": "listSyncStates"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/purchasing/bills",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "listBills"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/purchasing/bills",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "createBill"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/purchasing/payments",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "recordPayment"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/purchasing/purchase-orders",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "listPurchaseOrders"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/purchasing/purchase-orders",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "createPurchaseOrder"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/purchasing/purchase-orders/:purchaseOrderId/receive",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "receivePo"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/purchasing/purchase-orders/:purchaseOrderId/status",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "updatePoStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/purchasing/suppliers",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "listSuppliers"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/purchasing/suppliers",
+      "file": "src/modules/purchasing/purchasing.controller.ts",
+      "handler": "createSupplier"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/reports/executive",
+      "file": "src/modules/reports/reports.controller.ts",
+      "handler": "executive"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/reports/modules/:module",
+      "file": "src/modules/reports/reports.controller.ts",
+      "handler": "moduleReport"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/sales/invoices",
+      "file": "src/modules/sales/sales.controller.ts",
+      "handler": "listInvoices"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/sales/invoices",
+      "file": "src/modules/sales/sales.controller.ts",
+      "handler": "createInvoice"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/sales/payments",
+      "file": "src/modules/sales/sales.controller.ts",
+      "handler": "recordPayment"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/sales/quotes",
+      "file": "src/modules/sales/sales.controller.ts",
+      "handler": "listQuotes"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/sales/quotes",
+      "file": "src/modules/sales/sales.controller.ts",
+      "handler": "createQuote"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/sales/quotes/:quoteId/convert",
+      "file": "src/modules/sales/sales.controller.ts",
+      "handler": "convertQuote"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/sales/quotes/:quoteId/status",
+      "file": "src/modules/sales/sales.controller.ts",
+      "handler": "updateQuoteStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/users",
+      "file": "src/modules/users/users.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/users",
+      "file": "src/modules/users/users.controller.ts",
+      "handler": "invite"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/work/phases/:phaseId/status",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "updatePhaseStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/work/projects",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "listProjects"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/work/projects",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "createProject"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/work/projects/:projectId/members",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "addMember"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/work/projects/:projectId/phases",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "addPhase"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/work/projects/:projectId/status",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "updateProjectStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:companyId/work/projects/:projectId/tasks",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "listTasks"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/work/projects/:projectId/tasks",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "createTask"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:companyId/work/tasks/:taskId/comments",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "addComment"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/:companyId/work/tasks/:taskId/status",
+      "file": "src/modules/work/work.controller.ts",
+      "handler": "updateTaskStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:id",
+      "file": "src/modules/companies/companies.controller.ts",
+      "handler": "get"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/:id/branches",
+      "file": "src/modules/companies/companies.controller.ts",
+      "handler": "listBranches"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/:id/branches",
+      "file": "src/modules/companies/companies.controller.ts",
+      "handler": "createBranch"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "file": "src/modules/health/health.controller.ts",
+      "handler": "getHealth"
+    },
+    {
+      "method": "GET",
+      "path": "/health/db",
+      "file": "src/modules/health/health.controller.ts",
+      "handler": "getDbHealth"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/capabilities",
+      "file": "src/modules/integrations/catalog.controller.ts",
+      "handler": "listCapabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/categories",
+      "file": "src/modules/integrations/catalog.controller.ts",
+      "handler": "listCategories"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/providers",
+      "file": "src/modules/integrations/catalog.controller.ts",
+      "handler": "listProviders"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/providers/:code",
+      "file": "src/modules/integrations/catalog.controller.ts",
+      "handler": "getProvider"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/sync-engine",
+      "file": "src/modules/integrations/sync/jobs.controller.ts",
+      "handler": "engineStatus"
+    },
+    {
+      "method": "GET",
+      "path": "/payment-gateways",
+      "file": "src/modules/finance/payment-gateways.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "GET",
+      "path": "/plans",
+      "file": "src/modules/plans/plans.controller.ts",
+      "handler": "list"
+    },
+    {
+      "method": "GET",
+      "path": "/plans/:code",
+      "file": "src/modules/plans/plans.controller.ts",
+      "handler": "getByCode"
+    },
+    {
+      "method": "POST",
+      "path": "/sandbox/encrypt-roundtrip",
+      "file": "src/modules/sandbox/sandbox.controller.ts",
+      "handler": "encryptRoundtrip"
+    },
+    {
+      "method": "GET",
+      "path": "/sandbox/items",
+      "file": "src/modules/sandbox/sandbox.controller.ts",
+      "handler": "listItems"
+    },
+    {
+      "method": "POST",
+      "path": "/sandbox/items",
+      "file": "src/modules/sandbox/sandbox.controller.ts",
+      "handler": "createItem"
+    },
+    {
+      "method": "POST",
+      "path": "/webhooks/:projectId",
+      "file": "src/modules/integrations/webhooks.controller.ts",
+      "handler": "ingest"
+    }
+  ],
+  "pmRoutes": [
+    {
+      "method": "POST",
+      "path": "/admin/retention/purge",
+      "name": "POST /admin/retention/purge"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/ai-usage",
+      "name": "GET /companies/:companyId/ai-usage"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/ai-usage/summary",
+      "name": "GET /companies/:companyId/ai-usage/summary"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/ai-usage",
+      "name": "POST /companies/:companyId/ai-usage"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "name": "GET /"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/attachments",
+      "name": "GET /companies/:companyId/attachments"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/attachments",
+      "name": "POST /companies/:companyId/attachments"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "name": "POST /auth/login"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "name": "POST /auth/refresh"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "name": "POST /auth/logout"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/automation/rules",
+      "name": "GET /companies/:companyId/automation/rules"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/automation/rules",
+      "name": "POST /companies/:companyId/automation/rules"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/automation/rules/{{ruleId}}/status",
+      "name": "PATCH /companies/:companyId/automation/rules/:ruleId/status"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/automation/rules/{{ruleId}}/execute",
+      "name": "POST /companies/:companyId/automation/rules/:ruleId/execute"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/automation/runs",
+      "name": "GET /companies/:companyId/automation/runs"
+    },
+    {
+      "method": "GET",
+      "path": "/companies",
+      "name": "GET /companies"
+    },
+    {
+      "method": "POST",
+      "path": "/companies",
+      "name": "POST /companies"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/crm/contacts",
+      "name": "GET /companies/:companyId/crm/contacts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/crm/contacts",
+      "name": "POST /companies/:companyId/crm/contacts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/crm/contacts/{{contactId}}",
+      "name": "PATCH /companies/:companyId/crm/contacts/:contactId"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/crm/pipelines",
+      "name": "GET /companies/:companyId/crm/pipelines"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/crm/pipelines/default",
+      "name": "POST /companies/:companyId/crm/pipelines/default"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/crm/opportunities",
+      "name": "GET /companies/:companyId/crm/opportunities"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/crm/opportunities",
+      "name": "POST /companies/:companyId/crm/opportunities"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/crm/opportunities/{{opportunityId}}/status",
+      "name": "PATCH /companies/:companyId/crm/opportunities/:opportunityId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/crm/activities",
+      "name": "GET /companies/:companyId/crm/activities"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/crm/activities",
+      "name": "POST /companies/:companyId/crm/activities"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/crm/activities/{{activityId}}/status",
+      "name": "PATCH /companies/:companyId/crm/activities/:activityId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/crm/contracts",
+      "name": "GET /companies/:companyId/crm/contracts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/crm/contracts",
+      "name": "POST /companies/:companyId/crm/contracts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/crm/contracts/{{contractId}}/status",
+      "name": "PATCH /companies/:companyId/crm/contracts/:contractId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/finance/dashboard",
+      "name": "GET /companies/:companyId/finance/dashboard"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/finance/bank-accounts",
+      "name": "GET /companies/:companyId/finance/bank-accounts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/finance/bank-accounts",
+      "name": "POST /companies/:companyId/finance/bank-accounts"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/finance/expense-categories",
+      "name": "GET /companies/:companyId/finance/expense-categories"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/finance/expense-categories",
+      "name": "POST /companies/:companyId/finance/expense-categories"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/finance/expenses",
+      "name": "GET /companies/:companyId/finance/expenses"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/finance/expenses",
+      "name": "POST /companies/:companyId/finance/expenses"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/finance/expenses/{{expenseId}}/status",
+      "name": "PATCH /companies/:companyId/finance/expenses/:expenseId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/finance/transactions",
+      "name": "GET /companies/:companyId/finance/transactions"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/finance/transactions",
+      "name": "POST /companies/:companyId/finance/transactions"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/finance/transactions/from-order",
+      "name": "POST /companies/:companyId/finance/transactions/from-order"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "name": "GET /health"
+    },
+    {
+      "method": "GET",
+      "path": "/health/db",
+      "name": "GET /health/db"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/hr/employees",
+      "name": "GET /companies/:companyId/hr/employees"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/hr/employees",
+      "name": "POST /companies/:companyId/hr/employees"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/hr/employees/{{employeeId}}/status",
+      "name": "PATCH /companies/:companyId/hr/employees/:employeeId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/hr/attendance",
+      "name": "GET /companies/:companyId/hr/attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/hr/attendance",
+      "name": "POST /companies/:companyId/hr/attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/hr/leaves",
+      "name": "GET /companies/:companyId/hr/leaves"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/hr/leaves",
+      "name": "POST /companies/:companyId/hr/leaves"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/hr/leaves/{{leaveId}}/decision",
+      "name": "PATCH /companies/:companyId/hr/leaves/:leaveId/decision"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/hr/payroll-runs",
+      "name": "GET /companies/:companyId/hr/payroll-runs"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/hr/payroll-runs",
+      "name": "POST /companies/:companyId/hr/payroll-runs"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/hr/payroll-runs/{{payrollRunId}}/status",
+      "name": "PATCH /companies/:companyId/hr/payroll-runs/:payrollRunId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/integration-center/api-keys",
+      "name": "GET /companies/:companyId/integration-center/api-keys"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/integration-center/api-keys",
+      "name": "POST /companies/:companyId/integration-center/api-keys"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/integration-center/api-keys/{{apiKeyId}}/status",
+      "name": "PATCH /companies/:companyId/integration-center/api-keys/:apiKeyId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/integration-center/api-request-logs",
+      "name": "GET /companies/:companyId/integration-center/api-request-logs"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/integration-center/api-request-logs",
+      "name": "POST /companies/:companyId/integration-center/api-request-logs"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/integration-center/webhooks",
+      "name": "GET /companies/:companyId/integration-center/webhooks"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/integration-center/webhooks",
+      "name": "POST /companies/:companyId/integration-center/webhooks"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/integration-center/webhooks/{{webhookId}}/status",
+      "name": "PATCH /companies/:companyId/integration-center/webhooks/:webhookId/status"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/integration-center/webhooks/{{webhookId}}/deliver",
+      "name": "POST /companies/:companyId/integration-center/webhooks/:webhookId/deliver"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/integration-center/webhook-deliveries",
+      "name": "GET /companies/:companyId/integration-center/webhook-deliveries"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/categories",
+      "name": "GET /integrations/categories"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/providers",
+      "name": "GET /integrations/providers"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/providers/{{providerCode}}",
+      "name": "GET /integrations/providers/:code"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/capabilities",
+      "name": "GET /integrations/capabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/integrations/sync-engine",
+      "name": "GET /integrations/sync-engine"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/jobs",
+      "name": "GET /companies/:companyId/projects/:projectId/jobs"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/jobs/sync",
+      "name": "POST /companies/:companyId/projects/:projectId/jobs/sync"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/sync-states",
+      "name": "GET /companies/:companyId/projects/:projectId/sync-states"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/mirrors/orders/{{orderId}}",
+      "name": "GET /companies/:companyId/projects/:projectId/mirrors/orders/:orderId"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/mirrors/{{entity}}",
+      "name": "GET /companies/:companyId/projects/:projectId/mirrors/:entity"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/operations",
+      "name": "GET /companies/:companyId/projects/:projectId/operations"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/operations",
+      "name": "POST /companies/:companyId/projects/:projectId/operations"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects",
+      "name": "GET /companies/:companyId/projects"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/projects",
+      "name": "POST /companies/:companyId/projects"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}",
+      "name": "GET /companies/:companyId/projects/:projectId"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/status",
+      "name": "PATCH /companies/:companyId/projects/:projectId/status"
+    },
+    {
+      "method": "PUT",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/credentials",
+      "name": "PUT /companies/:companyId/projects/:projectId/credentials"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/effective-capabilities",
+      "name": "GET /companies/:companyId/projects/:projectId/effective-capabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/projects/{{projectId}}/integration-errors",
+      "name": "GET /companies/:companyId/projects/:projectId/integration-errors"
+    },
+    {
+      "method": "POST",
+      "path": "/webhooks/{{projectId}}",
+      "name": "POST /webhooks/:projectId"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/inventory/categories",
+      "name": "GET /companies/:companyId/inventory/categories"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/inventory/categories",
+      "name": "POST /companies/:companyId/inventory/categories"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/inventory/units",
+      "name": "GET /companies/:companyId/inventory/units"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/inventory/units",
+      "name": "POST /companies/:companyId/inventory/units"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/inventory/items",
+      "name": "GET /companies/:companyId/inventory/items"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/inventory/items",
+      "name": "POST /companies/:companyId/inventory/items"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/inventory/warehouses",
+      "name": "GET /companies/:companyId/inventory/warehouses"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/inventory/warehouses",
+      "name": "POST /companies/:companyId/inventory/warehouses"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/inventory/balances",
+      "name": "GET /companies/:companyId/inventory/balances"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/inventory/movements",
+      "name": "GET /companies/:companyId/inventory/movements"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/inventory/movements",
+      "name": "POST /companies/:companyId/inventory/movements"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/inventory/counts",
+      "name": "GET /companies/:companyId/inventory/counts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/inventory/counts",
+      "name": "POST /companies/:companyId/inventory/counts"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/inventory/counts/{{stockCountId}}/lines",
+      "name": "PATCH /companies/:companyId/inventory/counts/:stockCountId/lines"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/inventory/counts/{{stockCountId}}/approve",
+      "name": "POST /companies/:companyId/inventory/counts/:stockCountId/approve"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/marketing/posts",
+      "name": "GET /companies/:companyId/marketing/posts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/marketing/posts",
+      "name": "POST /companies/:companyId/marketing/posts"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/marketing/posts/{{postId}}/publish",
+      "name": "POST /companies/:companyId/marketing/posts/:postId/publish"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/messaging/channels",
+      "name": "GET /companies/:companyId/messaging/channels"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/messaging/channels",
+      "name": "POST /companies/:companyId/messaging/channels"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/messaging/templates",
+      "name": "GET /companies/:companyId/messaging/templates"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/messaging/templates",
+      "name": "POST /companies/:companyId/messaging/templates"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/messaging/deliveries",
+      "name": "GET /companies/:companyId/messaging/deliveries"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/messaging/send",
+      "name": "POST /companies/:companyId/messaging/send"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/notebook/categories",
+      "name": "GET /companies/:companyId/notebook/categories"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/notebook/categories",
+      "name": "POST /companies/:companyId/notebook/categories"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/notebook/notes",
+      "name": "GET /companies/:companyId/notebook/notes"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/notebook/notes",
+      "name": "POST /companies/:companyId/notebook/notes"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/notebook/notes/{{noteId}}",
+      "name": "PATCH /companies/:companyId/notebook/notes/:noteId"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/notebook/notes/{{noteId}}/comments",
+      "name": "POST /companies/:companyId/notebook/notes/:noteId/comments"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/notebook/notes/{{noteId}}/revisions",
+      "name": "GET /companies/:companyId/notebook/notes/:noteId/revisions"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{id}}",
+      "name": "GET /companies/:id"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{id}}/branches",
+      "name": "GET /companies/:id/branches"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{id}}/branches",
+      "name": "POST /companies/:id/branches"
+    },
+    {
+      "method": "GET",
+      "path": "/payment-gateways",
+      "name": "GET /payment-gateways"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/payment-methods",
+      "name": "GET /companies/:companyId/payment-methods"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/payment-methods",
+      "name": "POST /companies/:companyId/payment-methods"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/payment-methods/{{paymentMethodId}}",
+      "name": "PATCH /companies/:companyId/payment-methods/:paymentMethodId"
+    },
+    {
+      "method": "GET",
+      "path": "/plans",
+      "name": "GET /plans"
+    },
+    {
+      "method": "GET",
+      "path": "/plans/{{planCode}}",
+      "name": "GET /plans/:code"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/purchasing/suppliers",
+      "name": "GET /companies/:companyId/purchasing/suppliers"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/purchasing/suppliers",
+      "name": "POST /companies/:companyId/purchasing/suppliers"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/purchasing/purchase-orders",
+      "name": "GET /companies/:companyId/purchasing/purchase-orders"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/purchasing/purchase-orders",
+      "name": "POST /companies/:companyId/purchasing/purchase-orders"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/purchasing/purchase-orders/{{purchaseOrderId}}/status",
+      "name": "PATCH /companies/:companyId/purchasing/purchase-orders/:purchaseOrderId/status"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/purchasing/purchase-orders/{{purchaseOrderId}}/receive",
+      "name": "POST /companies/:companyId/purchasing/purchase-orders/:purchaseOrderId/receive"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/purchasing/bills",
+      "name": "GET /companies/:companyId/purchasing/bills"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/purchasing/bills",
+      "name": "POST /companies/:companyId/purchasing/bills"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/purchasing/payments",
+      "name": "POST /companies/:companyId/purchasing/payments"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/reports/executive",
+      "name": "GET /companies/:companyId/reports/executive"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/reports/modules/{{module}}",
+      "name": "GET /companies/:companyId/reports/modules/:module"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/sales/quotes",
+      "name": "GET /companies/:companyId/sales/quotes"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/sales/quotes",
+      "name": "POST /companies/:companyId/sales/quotes"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/sales/quotes/{{quoteId}}/status",
+      "name": "PATCH /companies/:companyId/sales/quotes/:quoteId/status"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/sales/quotes/{{quoteId}}/convert",
+      "name": "POST /companies/:companyId/sales/quotes/:quoteId/convert"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/sales/invoices",
+      "name": "GET /companies/:companyId/sales/invoices"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/sales/invoices",
+      "name": "POST /companies/:companyId/sales/invoices"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/sales/payments",
+      "name": "POST /companies/:companyId/sales/payments"
+    },
+    {
+      "method": "POST",
+      "path": "/sandbox/items",
+      "name": "POST /sandbox/items"
+    },
+    {
+      "method": "GET",
+      "path": "/sandbox/items",
+      "name": "GET /sandbox/items"
+    },
+    {
+      "method": "POST",
+      "path": "/sandbox/encrypt-roundtrip",
+      "name": "POST /sandbox/encrypt-roundtrip"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/users",
+      "name": "GET /companies/:companyId/users"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/users",
+      "name": "POST /companies/:companyId/users"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/work/projects",
+      "name": "GET /companies/:companyId/work/projects"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/work/projects",
+      "name": "POST /companies/:companyId/work/projects"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/work/projects/{{projectId}}/status",
+      "name": "PATCH /companies/:companyId/work/projects/:projectId/status"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/work/projects/{{projectId}}/members",
+      "name": "POST /companies/:companyId/work/projects/:projectId/members"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/work/projects/{{projectId}}/phases",
+      "name": "POST /companies/:companyId/work/projects/:projectId/phases"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/work/phases/{{phaseId}}/status",
+      "name": "PATCH /companies/:companyId/work/phases/:phaseId/status"
+    },
+    {
+      "method": "GET",
+      "path": "/companies/{{companyId}}/work/projects/{{projectId}}/tasks",
+      "name": "GET /companies/:companyId/work/projects/:projectId/tasks"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/work/projects/{{projectId}}/tasks",
+      "name": "POST /companies/:companyId/work/projects/:projectId/tasks"
+    },
+    {
+      "method": "PATCH",
+      "path": "/companies/{{companyId}}/work/tasks/{{taskId}}/status",
+      "name": "PATCH /companies/:companyId/work/tasks/:taskId/status"
+    },
+    {
+      "method": "POST",
+      "path": "/companies/{{companyId}}/work/tasks/{{taskId}}/comments",
+      "name": "POST /companies/:companyId/work/tasks/:taskId/comments"
+    }
+  ]
+}

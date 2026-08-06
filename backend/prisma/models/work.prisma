@@ -1,0 +1,101 @@
+model WorkProject {
+  id              String            @id @default(uuid(7)) @db.Char(36)
+  companyId       String            @map("company_id") @db.Char(36)
+  code            String            @db.VarChar(40)
+  name            String            @db.VarChar(180)
+  crmContactId    String?           @map("crm_contact_id") @db.Char(36)
+  status          WorkProjectStatus @default(PLANNED)
+  startsOn        DateTime?         @map("starts_on") @db.Date
+  endsOn          DateTime?         @map("ends_on") @db.Date
+  budget          Decimal?          @db.Decimal(18, 2)
+  currency        String?           @db.Char(3)
+  ownerUserId     String?           @map("owner_user_id") @db.Char(36)
+  progressPercent Decimal           @default(0) @map("progress_percent") @db.Decimal(5, 2)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company  Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact  CrmContact?         @relation(fields: [crmContactId], references: [id], onDelete: SetNull)
+  owner    User?               @relation("WorkProjectOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  members  WorkProjectMember[]
+  phases   WorkProjectPhase[]
+  tasks    WorkTask[]
+  businessNotes BusinessNote[]
+
+  @@unique([companyId, code], map: "uq_work_project_code")
+  @@index([companyId, status], map: "idx_work_project_status")
+  @@map("work_projects")
+}
+
+model WorkProjectMember {
+  workProjectId String   @map("work_project_id") @db.Char(36)
+  companyUserId String   @map("company_user_id") @db.Char(36)
+  projectRole   String?  @map("project_role") @db.VarChar(80)
+  joinedAt      DateTime @default(now()) @map("joined_at") @db.DateTime(3)
+
+  workProject WorkProject @relation(fields: [workProjectId], references: [id], onDelete: Cascade)
+  companyUser CompanyUser @relation(fields: [companyUserId], references: [id], onDelete: Cascade)
+
+  @@id([workProjectId, companyUserId])
+  @@map("work_project_members")
+}
+
+model WorkProjectPhase {
+  id              String          @id @default(uuid(7)) @db.Char(36)
+  workProjectId   String          @map("work_project_id") @db.Char(36)
+  name            String          @db.VarChar(140)
+  position        Int             @db.SmallInt
+  status          WorkPhaseStatus @default(NOT_STARTED)
+  startsOn        DateTime?       @map("starts_on") @db.Date
+  endsOn          DateTime?       @map("ends_on") @db.Date
+  progressPercent Decimal         @default(0) @map("progress_percent") @db.Decimal(5, 2)
+
+  workProject WorkProject @relation(fields: [workProjectId], references: [id], onDelete: Cascade)
+  tasks       WorkTask[]
+
+  @@unique([workProjectId, position], map: "uq_work_phase_position")
+  @@map("work_project_phases")
+}
+
+model WorkTask {
+  id                     String       @id @default(uuid(7)) @db.Char(36)
+  workProjectId          String       @map("work_project_id") @db.Char(36)
+  workProjectPhaseId     String?      @map("work_project_phase_id") @db.Char(36)
+  assigneeCompanyUserId  String?      @map("assignee_company_user_id") @db.Char(36)
+  parentTaskId           String?      @map("parent_task_id") @db.Char(36)
+  title                  String       @db.VarChar(220)
+  description            String?      @db.Text
+  priority               TaskPriority @default(MEDIUM)
+  status                 TaskStatus   @default(TODO)
+  dueAt                  DateTime?    @map("due_at") @db.DateTime(3)
+  estimatedHours         Decimal?     @map("estimated_hours") @db.Decimal(8, 2)
+  actualHours            Decimal?     @map("actual_hours") @db.Decimal(8, 2)
+  progressPercent        Decimal      @default(0) @map("progress_percent") @db.Decimal(5, 2)
+  createdAt              DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt              DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  workProject WorkProject       @relation(fields: [workProjectId], references: [id], onDelete: Cascade)
+  phase       WorkProjectPhase? @relation(fields: [workProjectPhaseId], references: [id], onDelete: SetNull)
+  assignee    CompanyUser?      @relation(fields: [assigneeCompanyUserId], references: [id], onDelete: SetNull)
+  parent      WorkTask?         @relation("TaskHierarchy", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  children    WorkTask[]        @relation("TaskHierarchy")
+  comments    WorkTaskComment[]
+
+  @@index([workProjectId, status, dueAt], map: "idx_work_task_status_due")
+  @@map("work_tasks")
+}
+
+model WorkTaskComment {
+  id          String    @id @default(uuid(7)) @db.Char(36)
+  workTaskId  String    @map("work_task_id") @db.Char(36)
+  authorUserId String   @map("author_user_id") @db.Char(36)
+  body        String    @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  editedAt    DateTime? @map("edited_at") @db.DateTime(3)
+
+  task   WorkTask @relation(fields: [workTaskId], references: [id], onDelete: Cascade)
+  author User     @relation("WorkTaskCommentAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([workTaskId, createdAt], map: "idx_work_task_comment_created")
+  @@map("work_task_comments")
+}

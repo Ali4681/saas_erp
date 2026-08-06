@@ -1,0 +1,136 @@
+model CrmContact {
+  id          String         @id @default(uuid(7)) @db.Char(36)
+  companyId   String         @map("company_id") @db.Char(36)
+  contactType CrmContactType @map("contact_type")
+  name        String         @db.VarChar(180)
+  companyName String?        @map("company_name") @db.VarChar(180)
+  email       String?        @db.VarChar(254)
+  phone       String?        @db.VarChar(40)
+  source      String?        @db.VarChar(80)
+  status      RecordStatus   @default(ACTIVE)
+  ownerUserId String?        @map("owner_user_id") @db.Char(36)
+  notes       String?        @db.Text
+  createdAt   DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  owner         User?              @relation("CrmContactOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  opportunities CrmOpportunity[]
+  activities    CrmActivity[]
+  contracts     CrmContract[]
+  salesQuotes   SalesQuote[]
+  salesInvoices SalesInvoice[]
+  workProjects  WorkProject[]
+  businessNotes BusinessNote[]
+
+  @@index([companyId, contactType, status], map: "idx_crm_contact_type_status")
+  @@index([companyId, ownerUserId], map: "idx_crm_contact_owner")
+  @@map("crm_contacts")
+}
+
+model CrmPipeline {
+  id               String       @id @default(uuid(7)) @db.Char(36)
+  companyId        String       @map("company_id") @db.Char(36)
+  name             String       @db.VarChar(120)
+  isDefault        Boolean      @default(false) @map("is_default")
+  /// Set to companyId while isDefault=true (MySQL one-default substitute)
+  defaultCompanyId String?      @unique @map("default_company_id") @db.Char(36)
+  status           RecordStatus @default(ACTIVE)
+
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stages        CrmPipelineStage[]
+  opportunities CrmOpportunity[]
+
+  @@unique([companyId, name], map: "uq_crm_pipeline_company_name")
+  @@map("crm_pipelines")
+}
+
+model CrmPipelineStage {
+  id         String  @id @default(uuid(7)) @db.Char(36)
+  pipelineId String  @map("crm_pipeline_id") @db.Char(36)
+  name       String  @db.VarChar(120)
+  position   Int     @db.SmallInt
+  probability Decimal @default(0) @db.Decimal(5, 2)
+  isClosed   Boolean @default(false) @map("is_closed")
+
+  pipeline      CrmPipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  opportunities CrmOpportunity[]
+
+  @@unique([pipelineId, position], map: "uq_crm_stage_pipeline_position")
+  @@map("crm_pipeline_stages")
+}
+
+model CrmOpportunity {
+  id                 String            @id @default(uuid(7)) @db.Char(36)
+  companyId          String            @map("company_id") @db.Char(36)
+  contactId          String            @map("crm_contact_id") @db.Char(36)
+  pipelineId         String            @map("crm_pipeline_id") @db.Char(36)
+  stageId            String            @map("crm_pipeline_stage_id") @db.Char(36)
+  ownerUserId        String?           @map("owner_user_id") @db.Char(36)
+  title              String            @db.VarChar(180)
+  estimatedValue     Decimal?          @map("estimated_value") @db.Decimal(18, 2)
+  currency           String?           @db.Char(3)
+  expectedCloseDate  DateTime?         @map("expected_close_date") @db.Date
+  status             OpportunityStatus @default(OPEN)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact    CrmContact       @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  pipeline   CrmPipeline      @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  stage      CrmPipelineStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  owner      User?            @relation("CrmOpportunityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  activities CrmActivity[]
+  contracts  CrmContract[]
+
+  @@index([companyId, stageId, status], map: "idx_crm_opportunity_stage_status")
+  @@map("crm_opportunities")
+}
+
+model CrmActivity {
+  id             String          @id @default(uuid(7)) @db.Char(36)
+  companyId      String          @map("company_id") @db.Char(36)
+  contactId      String?         @map("crm_contact_id") @db.Char(36)
+  opportunityId  String?         @map("crm_opportunity_id") @db.Char(36)
+  activityType   CrmActivityType @map("activity_type")
+  subject        String          @db.VarChar(180)
+  notes          String?         @db.Text
+  scheduledAt    DateTime?       @map("scheduled_at") @db.DateTime(3)
+  occurredAt     DateTime?       @map("occurred_at") @db.DateTime(3)
+  status         ActivityStatus  @default(PLANNED)
+  assignedToId   String?         @map("assigned_to") @db.Char(36)
+  createdById    String          @map("created_by") @db.Char(36)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact     CrmContact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  assignedTo  User?           @relation("CrmActivityAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy   User            @relation("CrmActivityCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([companyId, assignedToId, status, scheduledAt], map: "idx_crm_activity_assignee_status")
+  @@map("crm_activities")
+}
+
+model CrmContract {
+  id              String         @id @default(uuid(7)) @db.Char(36)
+  companyId       String         @map("company_id") @db.Char(36)
+  contactId       String         @map("crm_contact_id") @db.Char(36)
+  opportunityId   String?        @map("crm_opportunity_id") @db.Char(36)
+  contractNumber  String         @map("contract_number") @db.VarChar(60)
+  title           String         @db.VarChar(180)
+  status          ContractStatus @default(DRAFT)
+  startsOn        DateTime?      @map("starts_on") @db.Date
+  endsOn          DateTime?      @map("ends_on") @db.Date
+  value           Decimal?       @db.Decimal(18, 2)
+  currency        String?        @db.Char(3)
+  notes           String?        @db.Text
+  createdAt       DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact     CrmContact      @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, contractNumber], map: "uq_crm_contract_number")
+  @@map("crm_contracts")
+}

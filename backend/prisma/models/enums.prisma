@@ -1,0 +1,528 @@
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum CompanyBusinessCategory {
+  DELIVERY
+  INSTALLMENT
+  ECOMMERCE
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum RoleScope {
+  PLATFORM
+  TENANT
+}
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum ApiAvailability {
+  PUBLIC_DOCUMENTED
+  PARTNER_PORTAL
+  PRIVATE_CONFIRMED
+  UNVERIFIED_PUBLICLY
+  NOT_SUPPORTED
+}
+
+enum CapabilityDirection {
+  READ
+  WRITE
+  BOTH
+  EVENT
+}
+
+enum CapabilitySupportStatus {
+  VERIFIED
+  PARTNER_ENABLED
+  UNVERIFIED
+  NOT_SUPPORTED
+}
+
+enum ProjectEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum ProjectStatus {
+  DRAFT
+  CONNECTING
+  ACTIVE
+  ERROR
+  DISABLED
+  REVOKED
+}
+
+enum AuthType {
+  OAUTH2
+  API_KEY
+  BASIC
+  HMAC
+  CUSTOM
+}
+
+enum CredentialStatus {
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  REVOKED
+  INVALID
+}
+
+enum SyncDirection {
+  IMPORT
+  EXPORT
+  BIDIRECTIONAL
+}
+
+enum SyncStatus {
+  NEVER_RUN
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum OperationStatus {
+  PENDING
+  VALIDATING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum NormalizedOrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  IN_DELIVERY
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REJECTED
+  FAILED
+  UNKNOWN
+}
+
+enum FinancialStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+  VOIDED
+  UNKNOWN
+}
+
+enum FulfillmentStatus {
+  UNFULFILLED
+  PROCESSING
+  READY
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  RETURNED
+  CANCELLED
+  FAILED
+  UNKNOWN
+}
+
+enum RefundStatus {
+  REQUESTED
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum SettlementStatus {
+  PENDING
+  EXPECTED
+  PROCESSING
+  PAID
+  PARTIALLY_PAID
+  DISPUTED
+  FAILED
+}
+
+enum InstallmentStatus {
+  CREATED
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  PARTIALLY_CAPTURED
+  CLOSED
+  CANCELLED
+  EXPIRED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  FAILED
+  UNKNOWN
+}
+
+enum DisputeStatus {
+  OPEN
+  EVIDENCE_REQUIRED
+  CHALLENGED
+  ACCEPTED
+  WON
+  LOST
+  CLOSED
+}
+
+enum EventSource {
+  POLL
+  WEBHOOK
+  USER_ACTION
+  RECONCILIATION
+}
+
+enum BankAccountType {
+  CASH
+  BANK
+  PAYMENT_GATEWAY
+}
+
+enum ExpenseStatus {
+  DRAFT
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum FinancialTransactionType {
+  PLATFORM_SALE
+  PROVIDER_FEE
+  REFUND
+  SETTLEMENT
+  EXPENSE
+  INTERNAL_SALE
+  INTERNAL_PURCHASE
+  RECEIPT
+  PAYMENT
+  ADJUSTMENT
+}
+
+enum FinancialDirection {
+  INFLOW
+  OUTFLOW
+}
+
+enum CrmContactType {
+  LEAD
+  CUSTOMER
+}
+
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+  CANCELLED
+}
+
+enum CrmActivityType {
+  CALL
+  MEETING
+  FOLLOW_UP
+  TASK
+  EMAIL
+  NOTE
+}
+
+enum ActivityStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  MISSED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  ARCHIVED
+}
+
+enum SalesDocumentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  CLOSED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  PAYMENT_GATEWAY
+  OTHER
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  REQUESTED
+  APPROVED
+  ORDERED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum StockMovementType {
+  OPENING
+  PURCHASE_RECEIPT
+  SALE_ISSUE
+  RETURN_IN
+  RETURN_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  COUNT_ADJUSTMENT
+  MANUAL_ADJUSTMENT
+}
+
+enum StockCountStatus {
+  DRAFT
+  IN_PROGRESS
+  SUBMITTED
+  APPROVED
+  CANCELLED
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+  HOLIDAY
+  REMOTE
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollStatus {
+  DRAFT
+  CALCULATED
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum PayrollItemStatus {
+  DRAFT
+  APPROVED
+  PAID
+  HELD
+}
+
+enum WorkProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkPhaseStatus {
+  NOT_STARTED
+  ACTIVE
+  COMPLETED
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+  CANCELLED
+}
+
+enum AutomationStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  DISABLED
+}
+
+enum AutomationRunStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  SKIPPED
+}
+
+enum MarketingChannel {
+  INTERNAL_DRAFT
+  FACEBOOK
+  INSTAGRAM
+  X
+  LINKEDIN
+  TIKTOK
+  GOOGLE_BUSINESS_PROFILE
+  OTHER
+}
+
+enum MarketingPostStatus {
+  DRAFT
+  READY
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  ARCHIVED
+}
+
+enum MarketingMediaType {
+  IMAGE
+  VIDEO
+}
+
+enum MarketingConnectionStatus {
+  DISCONNECTED
+  CONNECTED
+  ERROR
+  REVOKED
+}
+
+enum NotebookNoteStatus {
+  OPEN
+  UNDER_REVIEW
+  IN_PROGRESS
+  COMPLETED
+  DEFERRED
+}
+
+enum CompanyApiKeyStatus {
+  ACTIVE
+  DISABLED
+  REVOKED
+}
+
+enum CompanyWebhookStatus {
+  ACTIVE
+  DISABLED
+  FAILED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum MessagingProvider {
+  WHATSAPP
+  SMTP
+  SMS
+}
+
+enum MessageDeliveryStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum PaymentGatewayProviderType {
+  GLOBAL
+  REGIONAL
+  CUSTOM
+}
+
+enum CompanyPaymentMethodStatus {
+  ACTIVE
+  DISABLED
+}

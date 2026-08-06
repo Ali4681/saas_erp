@@ -1,0 +1,69 @@
+{
+  "unsupportedLocale": "لغة غير مدعومة",
+  "unsupportedTheme": "مظهر غير مدعوم",
+  "unauthorized": "غير مصرح",
+  "invalidCredentials": "بيانات الدخول غير صحيحة",
+  "noMembership": "لا عضوية نشطة في الشركة",
+  "internal": "خطأ داخلي في الخادم",
+  "forbidden": "غير مسموح",
+  "notFound": "غير موجود",
+  "badRequest": "طلب غير صالح",
+  "conflict": "تعارض في البيانات",
+  "validationFailed": "فشل التحقق من البيانات",
+  "prisma": {
+    "notFound": "السجل المطلوب غير موجود",
+    "modelNotFound": "{model} غير موجود",
+    "duplicate": "قيمة مكررة موجودة مسبقاً",
+    "duplicateField": "قيمة مكررة للحقل: {fields}",
+    "invalidReference": "مرجع غير صالح أو غير موجود",
+    "invalidReferenceField": "مرجع غير صالح للحقل: {fields}",
+    "tooLong": "قيمة أو أكثر تجاوزت الطول المسموح",
+    "requiredNull": "حقل مطلوب مفقود أو فارغ",
+    "relationBreak": "التغيير سيكسر علاقة إلزامية",
+    "invalidQuery": "استعلام أو بيانات غير صالحة"
+  },
+  "auth": {
+    "invalidCredentials": "بيانات الدخول غير صحيحة",
+    "noMembership": "لا عضوية نشطة في الشركة",
+    "invalidRefreshToken": "رمز التحديث غير صالح",
+    "notCompanyMember": "لست عضواً في هذه الشركة",
+    "companyNotFound": "الشركة غير موجودة",
+    "multipleCompanies": "حسابك مرتبط بعدة شركات — حدّد companySlug أو companyId"
+  },
+  "users": {
+    "roleNotFound": "دور الشركة غير موجود",
+    "accountDisabled": "هذا الحساب معطّل ولا يمكن إضافته",
+    "cannotAddPlatformAdmin": "لا يمكن إضافة حساب مدير المنصة كعضو شركة بهذه الطريقة",
+    "alreadyMember": "المستخدم منضم لهذه الشركة مسبقاً",
+    "membershipNotFound": "العضوية غير موجودة",
+    "cannotRemoveLastOwner": "لا يمكن إزالة آخر مالك للشركة — عيّن مالكاً آخر أولاً"
+  },
+  "roles": {
+    "codeFormat": "رمز الدور يجب أن يكون UPPER_SNAKE_CASE (2–40 حرفاً)",
+    "codeReserved": "لا يمكن استخدام رمز دور نظامي محجوز",
+    "codeTaken": "رمز الدور مستخدم مسبقاً في هذه الشركة",
+    "notFound": "الدور غير موجود",
+    "customNotFound": "دور مخصص غير موجود في هذه الشركة",
+    "cannotModifySystem": "لا يمكن تعديل صلاحيات دور نظامي",
+    "useCompanyEndpoint": "استخدم مسار أدوار الشركة",
+    "cannotDeleteLinked": "لا يمكن حذف الدور: مرتبط بـ {count} مستخدم. انقل المستخدمين أولاً.",
+    "blockedPermissions": "صلاحيات غير مسموحة لأدوار الشركة: {codes}",
+    "unknownPermissions": "رموز صلاحيات غير معروفة: {codes}"
+  },
+  "plans": {
+    "noSubscription": "لا يوجد اشتراك نشط للشركة",
+    "featureRequiresPlan": "الميزة {feature} تتطلب باقة تتضمنها (Enterprise)",
+    "featureDisabled": "الميزة {feature} غير مفعّلة",
+    "limitReached": "تم بلوغ حد {feature} ({limit})"
+  },
+  "automation": {
+    "actionsRequired": "يجب إضافة إجراء واحد على الأقل",
+    "cronRequired": "تعبير الجدول (cron) مطلوب لمحفّز الجدولة الزمنية",
+    "templateNotFound": "القالب غير موجود",
+    "templateAlreadyInstalled": "القالب مثبّت مسبقاً لهذه الشركة",
+    "templatePhase": "القالب يتطلب المرحلة {required} (الحالية {current})",
+    "ruleNotFound": "قاعدة الأتمتة غير موجودة",
+    "onlyActiveExecutable": "يمكن تنفيذ القواعد النشطة فقط",
+    "noRunProduced": "لم تُنتج القاعدة عملية تشغيل"
+  }
+}
