@@ -12,6 +12,7 @@ import {
   Public,
   type AuthUser,
 } from '../../common/auth/auth.decorators';
+import { i18nForbidden } from '../../common/i18n/localized-exception';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuthService } from './auth.service';
 
@@ -78,6 +79,22 @@ export class AuthController {
   @Post('login')
   login(@Body() body: LoginBody) {
     return this.auth.login(body);
+  }
+
+  /**
+   * Platform-admin login. Same credentials flow as /auth/login, but rejects
+   * non–platform-admin users. Browser apps normally use the Next BFF at
+   * POST /api/auth/admin-login (frontend); this Nest route exists so reverse
+   * proxies that send /api/* to the backend still work for API clients.
+   */
+  @Public()
+  @Post('admin-login')
+  async adminLogin(@Body() body: LoginBody) {
+    const data = await this.auth.login(body);
+    if (!data.user.isPlatformAdmin) {
+      throw i18nForbidden('errors.auth.notPlatformAdmin');
+    }
+    return data;
   }
 
   @Public()

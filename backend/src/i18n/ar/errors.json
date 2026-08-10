@@ -28,7 +28,8 @@
     "invalidRefreshToken": "رمز التحديث غير صالح",
     "notCompanyMember": "لست عضواً في هذه الشركة",
     "companyNotFound": "الشركة غير موجودة",
-    "multipleCompanies": "حسابك مرتبط بعدة شركات — حدّد companySlug أو companyId"
+    "multipleCompanies": "حسابك مرتبط بعدة شركات — حدّد companySlug أو companyId",
+    "notPlatformAdmin": "هذا الحساب ليس لمدير المنصة"
   },
   "users": {
     "roleNotFound": "دور الشركة غير موجود",

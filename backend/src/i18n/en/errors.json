@@ -28,7 +28,8 @@
     "invalidRefreshToken": "Invalid refresh token",
     "notCompanyMember": "Not a member of that company",
     "companyNotFound": "Company not found",
-    "multipleCompanies": "Multiple companies — provide companySlug or companyId"
+    "multipleCompanies": "Multiple companies — provide companySlug or companyId",
+    "notPlatformAdmin": "This account is not a platform admin"
   },
   "users": {
     "roleNotFound": "Tenant role not found",

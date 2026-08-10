@@ -11,14 +11,14 @@ import {
 /** Resolve i18n JSON dir for both `nest start` (dist) and missing asset copies. */
 function resolveI18nPath(): string {
   const candidates = [
-    // Compiled: dist/src/common/i18n -> dist/src/i18n (when assets copied)
+    // Compiled: dist/common/i18n -> dist/i18n (assets copied next to JS)
     path.join(__dirname, '..', '..', 'i18n'),
-    // Compiled alternate: dist/common/i18n -> dist/i18n
+    // Legacy nested emit: dist/src/common/i18n -> dist/src/i18n
     path.join(__dirname, '..', '..', '..', 'i18n'),
     // Source checkout (dev / when nest did not copy assets)
     path.join(process.cwd(), 'src', 'i18n'),
-    path.join(process.cwd(), 'dist', 'src', 'i18n'),
     path.join(process.cwd(), 'dist', 'i18n'),
+    path.join(process.cwd(), 'dist', 'src', 'i18n'),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
