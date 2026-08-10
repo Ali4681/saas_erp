@@ -1016,29 +1016,62 @@ async function seedPaymentGateways(prisma: PrismaClient) {
   }
 }
 
+async function resolveDbConfig() {
+  const url = process.env.DATABASE_URL;
+  let fromUrl: {
+    host?: string;
+    port?: number;
+    user?: string;
+    password?: string;
+    database?: string;
+  } = {};
+
+  if (url) {
+    try {
+      const u = new URL(url);
+      fromUrl = {
+        host: u.hostname,
+        port: u.port ? Number(u.port) : 3306,
+        user: decodeURIComponent(u.username),
+        password: decodeURIComponent(u.password),
+        database: u.pathname.replace(/^\//, '') || undefined,
+      };
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // On Linux, 127.0.0.1 uses TCP (root@127.0.0.1) while localhost uses the
+  // unix socket (root@localhost). Plesk usually grants the socket user only.
+  let host = process.env.DATABASE_HOST || fromUrl.host || 'localhost';
+  if (process.platform !== 'win32' && host === '127.0.0.1') {
+    host = 'localhost';
+  }
+
+  return {
+    host,
+    port: Number(process.env.DATABASE_PORT || fromUrl.port || 3306),
+    user: process.env.DATABASE_USER || fromUrl.user || 'root',
+    password: process.env.DATABASE_PASSWORD ?? fromUrl.password ?? '',
+    database: process.env.DATABASE_NAME || fromUrl.database || 'saas_erp',
+    connectionLimit: Math.max(
+      Number(process.env.DATABASE_CONNECTION_LIMIT ?? 10),
+      5,
+    ),
+    connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
+    acquireTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
+    allowPublicKeyRetrieval: true,
+  };
+}
+
 async function main() {
-  const host = process.env.DATABASE_HOST ?? '127.0.0.1';
-  const port = Number(process.env.DATABASE_PORT ?? 3306);
-  const user = process.env.DATABASE_USER ?? 'root';
-  const database = process.env.DATABASE_NAME ?? 'saas_erp';
-  const connectionLimit = Number(process.env.DATABASE_CONNECTION_LIMIT ?? 10);
-  const connectTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000);
+  const db = await resolveDbConfig();
 
   console.log(
-    `Connecting to MySQL ${user}@${host}:${port}/${database} (pool=${connectionLimit})…`,
+    `Connecting to MySQL ${db.user}@${db.host}:${db.port}/${db.database} (pool=${db.connectionLimit}, password=${db.password ? 'set' : 'EMPTY'})…`,
   );
 
-  const adapter = new PrismaMariaDb({
-    host,
-    port,
-    user,
-    password: process.env.DATABASE_PASSWORD ?? '',
-    database,
-    connectionLimit: Math.max(connectionLimit, 5),
-    connectTimeout,
-    acquireTimeout: connectTimeout,
-    allowPublicKeyRetrieval: true,
-  });
+  const adapter = new PrismaMariaDb(db);
   const prisma = new PrismaClient({ adapter });
 
   try {
@@ -1048,8 +1081,9 @@ async function main() {
     console.error(
       [
         'Database connection failed before seeding.',
-        `Check backend/.env: DATABASE_HOST/PORT/USER/PASSWORD/NAME`,
-        `Tried: ${user}@${host}:${port}/${database}`,
+        'Run: npx tsx scripts/db-ping.ts',
+        'On Plesk, set DATABASE_HOST=localhost and use the Plesk DB user/password (not empty root).',
+        `Tried: ${db.user}@${db.host}:${db.port}/${db.database}`,
       ].join('\n'),
     );
     throw error;

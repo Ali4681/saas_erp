@@ -21,8 +21,14 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private readonly client: ExtendedPrismaClient;
 
   constructor(config: ConfigService, tenant: TenantContextService) {
+    let host = config.getOrThrow<string>('DATABASE_HOST');
+    // Linux/Plesk: prefer unix socket user (localhost) over TCP (127.0.0.1).
+    if (process.platform !== 'win32' && host === '127.0.0.1') {
+      host = 'localhost';
+    }
+
     const adapter = new PrismaMariaDb({
-      host: config.getOrThrow<string>('DATABASE_HOST'),
+      host,
       port: Number(config.get('DATABASE_PORT') ?? 3306),
       user: config.getOrThrow<string>('DATABASE_USER'),
       password: config.getOrThrow<string>('DATABASE_PASSWORD'),
