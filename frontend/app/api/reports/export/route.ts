@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   const companyId = req.nextUrl.searchParams.get("companyId");
   const kind = req.nextUrl.searchParams.get("kind") ?? "executive";
-  const module = req.nextUrl.searchParams.get("module") ?? "sales";
+  const reportModule = req.nextUrl.searchParams.get("module") ?? "sales";
   const format = (req.nextUrl.searchParams.get("format") ??
     "csv") as ReportExportFormat;
 
@@ -91,16 +91,16 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await nestFetch<Record<string, unknown>>(
-      `/companies/${companyId}/reports/modules/${module}${qs}`,
+      `/companies/${companyId}/reports/modules/${reportModule}${qs}`,
       {
         accessToken: session.accessToken,
         companyId,
       },
     );
-    const baseName = `report-${module}`;
+    const baseName = `report-${reportModule}`;
 
     if (format === "pdf") {
-      const pdf = buildModuleReportPdf(module, data);
+      const pdf = buildModuleReportPdf(reportModule, data);
       return new NextResponse(new Uint8Array(pdf), {
         headers: {
           "Content-Type": "application/pdf",

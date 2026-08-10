@@ -540,14 +540,14 @@ export function HungerStationHub({
   const perfOrders =
     num(performance.total_orders ?? performance.order_count ?? performance.orderCount) ||
     perfRows.reduce(
-      (sum, row) =>
+      (sum: number, row) =>
         sum + num(asRecord(row).orderCount ?? asRecord(row).order_count),
       0,
     );
   const perfRevenue =
     num(performance.total_revenue ?? performance.revenue ?? performance.totalRevenue) ||
     perfRows.reduce(
-      (sum, row) =>
+      (sum: number, row) =>
         sum + num(asRecord(row).revenue ?? asRecord(row).total_revenue),
       0,
     );

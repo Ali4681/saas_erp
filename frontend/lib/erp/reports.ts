@@ -850,8 +850,8 @@ export function buildModuleReportPdf(
     const map: Record<string, string[]> = {
       employees: ["employeesByStatus"],
       leaves: ["leavesByStatus"],
-      rows: ["closingsByStatus", "invoicesByStatus", "quotesByStatus"],
       rows: [
+        "closingsByStatus",
         "invoicesByStatus",
         "quotesByStatus",
         "contactsByType",

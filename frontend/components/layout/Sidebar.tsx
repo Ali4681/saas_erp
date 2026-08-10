@@ -92,7 +92,7 @@ function isPathActive(pathname: string, href: string, exact?: boolean) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function sectionInPath(pathname: string, item: NavItem) {
+function sectionInPath(pathname: string, item: NavItem): boolean {
   if (isPathActive(pathname, item.href)) return true;
   return Boolean(item.children?.some((c) => sectionInPath(pathname, c)));
 }
