@@ -29,6 +29,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
       database: config.getOrThrow<string>('DATABASE_NAME'),
       connectionLimit: Number(config.get('DATABASE_CONNECTION_LIMIT') ?? 10),
       connectTimeout: Number(config.get('DATABASE_CONNECT_TIMEOUT') ?? 10000),
+      allowPublicKeyRetrieval: true,
     });
 
     this.root = new PrismaClient({ adapter });

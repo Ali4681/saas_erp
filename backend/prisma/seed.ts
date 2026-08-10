@@ -1017,20 +1017,43 @@ async function seedPaymentGateways(prisma: PrismaClient) {
 }
 
 async function main() {
+  const host = process.env.DATABASE_HOST ?? '127.0.0.1';
+  const port = Number(process.env.DATABASE_PORT ?? 3306);
+  const user = process.env.DATABASE_USER ?? 'root';
+  const database = process.env.DATABASE_NAME ?? 'saas_erp';
+  const connectionLimit = Number(process.env.DATABASE_CONNECTION_LIMIT ?? 10);
+  const connectTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000);
+
+  console.log(
+    `Connecting to MySQL ${user}@${host}:${port}/${database} (pool=${connectionLimit})…`,
+  );
+
   const adapter = new PrismaMariaDb({
-    host: process.env.DATABASE_HOST ?? '127.0.0.1',
-    port: Number(process.env.DATABASE_PORT ?? 3306),
-    user: process.env.DATABASE_USER ?? 'root',
+    host,
+    port,
+    user,
     password: process.env.DATABASE_PASSWORD ?? '',
-    database: process.env.DATABASE_NAME ?? 'saas_erp',
-    connectionLimit: 1,
-    connectTimeout: 30000,
-    idleTimeout: 30000,
+    database,
+    connectionLimit: Math.max(connectionLimit, 5),
+    connectTimeout,
+    acquireTimeout: connectTimeout,
+    allowPublicKeyRetrieval: true,
   });
   const prisma = new PrismaClient({ adapter });
 
-  const result = await prisma.$queryRaw`SELECT 1`;
-  console.log(result);
+  try {
+    const result = await prisma.$queryRaw`SELECT 1 AS ok`;
+    console.log(result);
+  } catch (error) {
+    console.error(
+      [
+        'Database connection failed before seeding.',
+        `Check backend/.env: DATABASE_HOST/PORT/USER/PASSWORD/NAME`,
+        `Tried: ${user}@${host}:${port}/${database}`,
+      ].join('\n'),
+    );
+    throw error;
+  }
 
   for (const [module, action] of PERMISSIONS) {
     const code = `${module}.${action}`;
