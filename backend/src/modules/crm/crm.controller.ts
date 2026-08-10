@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   IsEnum,
   IsNumberString,
@@ -279,8 +279,11 @@ export class CrmController {
 
   @Get('activities')
   @RequirePermissions('crm.read')
-  listActivities(@Param('companyId') companyId: string) {
-    return this.crm.listActivities(companyId);
+  listActivities(
+    @Param('companyId') companyId: string,
+    @Query('status') status?: ActivityStatus,
+  ) {
+    return this.crm.listActivities(companyId, status);
   }
 
   @Post('activities')

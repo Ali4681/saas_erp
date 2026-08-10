@@ -220,7 +220,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     { code: 'YNB', name: 'Yanbu Branch', city: 'Yanbu' },
     { code: 'JIZ', name: 'Jizan Branch', city: 'Jizan' },
   ];
-  const branches = [];
+  const branches: any[] = [];
   for (const b of branchSpecs) {
     branches.push(
       await ensure(
@@ -256,7 +256,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     'Procurement',
     'Quality',
   ];
-  const departments = [];
+  const departments: any[] = [];
   for (let i = 0; i < deptNames.length; i++) {
     const code = `D${String(i + 1).padStart(2, '0')}`;
     departments.push(
@@ -286,7 +286,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
       defaultTaxRate: '15.00',
       emailFromName: 'Demo Co Billing',
       emailFromAddress: 'billing@demo-co.local',
-      settings: { seedVersion: 'v2-full', locale: 'ar-SA' },
+      settings: { seedVersion: 'v3-ops-hr-finance', locale: 'ar-SA' },
     },
     create: {
       companyId,
@@ -296,7 +296,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
       defaultTaxRate: '15.00',
       emailFromName: 'Demo Co Billing',
       emailFromAddress: 'billing@demo-co.local',
-      settings: { seedVersion: 'v2-full', locale: 'ar-SA' },
+      settings: { seedVersion: 'v3-ops-hr-finance', locale: 'ar-SA' },
     },
   });
 
@@ -304,7 +304,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   const subscription = await prisma.subscription.findFirstOrThrow({
     where: { companyId, status: { in: ['ACTIVE', 'TRIALING'] } },
   });
-  const invoices = [];
+  const invoices: any[] = [];
   for (let i = 1; i <= 10; i++) {
     const invoiceNumber = `SUB-INV-2026-${String(i).padStart(3, '0')}`;
     const issuedAt = day(i * 28 - 280);
@@ -396,7 +396,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     { name: 'Alinma Savings', accountType: 'BANK' as const, last4: '2208' },
     { name: 'HyperPay Gateway', accountType: 'PAYMENT_GATEWAY' as const },
   ];
-  const bankAccounts = [];
+  const bankAccounts: any[] = [];
   for (const spec of bankSpecs) {
     bankAccounts.push(
       await ensure(
@@ -478,7 +478,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     ['DAY', 'Day', 0],
     ['CASE', 'Case', 0],
   ] as const;
-  const units = [];
+  const units: any[] = [];
   for (const [code, name, decimalPlaces] of unitSpecs) {
     units.push(
       await ensure(
@@ -503,7 +503,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     ['ECOM', 'E-commerce Fulfillment'],
     ['TRN', 'Transit Buffer'],
   ] as const;
-  const warehouses = [];
+  const warehouses: any[] = [];
   for (let i = 0; i < warehouseSpecs.length; i++) {
     const [code, name] = warehouseSpecs[i]!;
     warehouses.push(
@@ -537,7 +537,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     ['SPARE', 'Spare Parts'],
     ['OTHER', 'Other'],
   ] as const;
-  const itemCategories = [];
+  const itemCategories: any[] = [];
   for (const [code, name] of itemCatSpecs) {
     itemCategories.push(
       await ensure(
@@ -565,7 +565,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     'Fryer Basket',
     'Gift Card Sleeve',
   ];
-  const items = [];
+  const items: any[] = [];
   for (let i = 0; i < 10; i++) {
     const sku = `SKU-${String(i + 1).padStart(3, '0')}`;
     items.push(
@@ -592,6 +592,70 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     );
   }
   summary.items = items.length;
+
+  // Nested categories (main → sub)
+  const subCategorySpecs = [
+    ['FOOD', 'FOOD-HOT', 'Hot Food'],
+    ['FOOD', 'FOOD-COLD', 'Cold Food'],
+    ['BEV', 'BEV-HOT', 'Hot Beverages'],
+    ['BEV', 'BEV-COLD', 'Cold Beverages'],
+    ['EQUIP', 'EQUIP-POS', 'POS Equipment'],
+  ] as const;
+  const subCategories: any[] = [];
+  for (const [parentCode, code, name] of subCategorySpecs) {
+    const parent = itemCategories.find((c) => c.codeKey === parentCode);
+    if (!parent) continue;
+    subCategories.push(
+      await ensure(
+        () =>
+          prisma.itemCategory.findFirst({
+            where: { companyId, codeKey: code },
+          }),
+        () =>
+          prisma.itemCategory.create({
+            data: {
+              companyId,
+              parentId: parent.id,
+              code,
+              codeKey: code,
+              name,
+            },
+          }),
+      ),
+    );
+  }
+  summary.itemSubCategories = subCategories.length;
+
+  // Sub-items under first 4 main items
+  const childItems: any[] = [];
+  for (let i = 0; i < 4; i++) {
+    const parent = items[i]!;
+    const sku = `${parent.sku}-S1`;
+    childItems.push(
+      await ensure(
+        () => prisma.item.findFirst({ where: { companyId, skuKey: sku } }),
+        () =>
+          prisma.item.create({
+            data: {
+              companyId,
+              parentItemId: parent.id,
+              itemCategoryId: subCategories[i % subCategories.length]?.id ?? parent.itemCategoryId,
+              unitId: parent.unitId,
+              sku,
+              skuKey: sku,
+              barcode: `62810000000${i}`,
+              barcodeKey: `62810000000${i}`,
+              name: `${parent.name} — Variant`,
+              cost: (Number(parent.cost) * 0.6).toFixed(2),
+              salePrice: (Number(parent.salePrice) * 0.7).toFixed(2),
+              minStock: '2.000',
+              taxRate: '15.00',
+            },
+          }),
+      ),
+    );
+  }
+  summary.itemVariants = childItems.length;
 
   for (let i = 0; i < items.length; i++) {
     const qty = (50 + i * 8).toFixed(3);
@@ -783,7 +847,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     ['CUSTOMER', 'Bader Client', 'Eastern Meals'],
     ['CUSTOMER', 'Lama Client', 'Capital Dining'],
   ] as const;
-  const contacts = [];
+  const contacts: any[] = [];
   for (let i = 0; i < contactNames.length; i++) {
     const [contactType, name, companyName] = contactNames[i]!;
     const email = `crm-${String(i + 1).padStart(2, '0')}@demo.local`;
@@ -809,7 +873,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
   summary.crmContacts = contacts.length;
 
-  const opportunities = [];
+  const opportunities: any[] = [];
   for (let i = 0; i < 10; i++) {
     const title = `Opportunity ${String(i + 1).padStart(2, '0')}`;
     const stage = pipeline.stages[Math.min(i % pipeline.stages.length, pipeline.stages.length - 1)]!;
@@ -869,6 +933,40 @@ export async function seedDemoCompanyData(ctx: Ctx) {
         }),
     );
   }
+  // Extra employee activities with varied statuses (newer first in UI)
+  const extraActivityStatuses = [
+    'IN_PROGRESS',
+    'MISSED',
+    'CANCELLED',
+    'PLANNED',
+    'COMPLETED',
+  ] as const;
+  for (let i = 0; i < extraActivityStatuses.length; i++) {
+    const subject = `Staff follow-up ${String(i + 1).padStart(2, '0')}`;
+    await ensure(
+      () => prisma.crmActivity.findFirst({ where: { companyId, subject } }),
+      () =>
+        prisma.crmActivity.create({
+          data: {
+            companyId,
+            contactId: contacts[i % contacts.length]!.id,
+            activityType: 'FOLLOW_UP',
+            subject,
+            notes: 'Employee activity for CRM filter demo',
+            scheduledAt: day(20 + i),
+            status: extraActivityStatuses[i]!,
+            assignedToId: users[(i + 1) % users.length]!.id,
+            createdById: adminUserId,
+          },
+        }),
+    );
+  }
+  // Prefer customer contacts for CRM "customers" UX
+  await prisma.crmContact.updateMany({
+    where: { companyId, contactType: 'LEAD' },
+    data: { contactType: 'CUSTOMER' },
+  });
+  summary.crmActivities = 15;
 
   for (let i = 0; i < 10; i++) {
     const contractNumber = `CTR-2026-${String(i + 1).padStart(3, '0')}`;
@@ -896,7 +994,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
 
   // ── Sales ────────────────────────────────────────────────────────
-  const quotes = [];
+  const quotes: any[] = [];
   for (let i = 0; i < 10; i++) {
     const quoteNumber = `Q-2026-${String(i + 1).padStart(3, '0')}`;
     const unitPrice = 100 + i * 25;
@@ -942,7 +1040,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
   summary.salesQuotes = quotes.length;
 
-  const invoicesSales = [];
+  const invoicesSales: any[] = [];
   for (let i = 0; i < 10; i++) {
     const invoiceNumber = `INV-2026-${String(i + 1).padStart(3, '0')}`;
     const unitPrice = 120 + i * 20;
@@ -1077,7 +1175,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
 
   // ── Purchasing ───────────────────────────────────────────────────
-  const suppliers = [];
+  const suppliers: any[] = [];
   for (let i = 1; i <= 10; i++) {
     const code = `SUP-${String(i).padStart(2, '0')}`;
     suppliers.push(
@@ -1102,7 +1200,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
   summary.suppliers = suppliers.length;
 
-  const purchaseOrders = [];
+  const purchaseOrders: any[] = [];
   for (let i = 0; i < 10; i++) {
     const orderNumber = `PO-2026-${String(i + 1).padStart(3, '0')}`;
     const unitCost = 30 + i * 5;
@@ -1151,7 +1249,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     );
   }
 
-  const bills = [];
+  const bills: any[] = [];
   for (let i = 0; i < 10; i++) {
     const billNumber = `BILL-2026-${String(i + 1).padStart(3, '0')}`;
     const unitCost = 35 + i * 4;
@@ -1356,7 +1454,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
 
   // ── HR ───────────────────────────────────────────────────────────
-  const employees = [];
+  const employees: any[] = [];
   for (let i = 0; i < 10; i++) {
     const employeeNumber = `EMP-${String(i + 1).padStart(3, '0')}`;
     const linkedUser = users[i];
@@ -1395,11 +1493,30 @@ export async function seedDemoCompanyData(ctx: Ctx) {
               hireDate: day(-(365 + i * 30)),
               employmentStatus: i === 9 ? 'ON_LEAVE' : 'ACTIVE',
               basicSalary: (5000 + i * 800).toFixed(2),
+              targetPercent: i % 3 === 0 ? '10.00' : i % 3 === 1 ? '15.00' : '20.00',
+              targetCompletedPercent: (40 + i * 6).toFixed(2),
+              absenceDiscountPerDay: (150 + i * 10).toFixed(2),
+              lateDiscountAmount: (50 + i * 5).toFixed(2),
+              isPurchaseOperator: i === 5 || i === 7,
               currency: 'SAR',
             },
           }),
       ),
     );
+  }
+  // Keep existing employees aligned with the new HR fields on re-seed
+  for (let i = 0; i < employees.length; i++) {
+    employees[i] = await prisma.employee.update({
+      where: { id: employees[i]!.id },
+      data: {
+        basicSalary: (5000 + i * 800).toFixed(2),
+        targetPercent: i % 3 === 0 ? '10.00' : i % 3 === 1 ? '15.00' : '20.00',
+        targetCompletedPercent: Math.min(100, 40 + i * 6).toFixed(2),
+        absenceDiscountPerDay: (150 + i * 10).toFixed(2),
+        lateDiscountAmount: (50 + i * 5).toFixed(2),
+        isPurchaseOperator: i === 5 || i === 7,
+      },
+    });
   }
   summary.employees = employees.length;
 
@@ -1421,9 +1538,22 @@ export async function seedDemoCompanyData(ctx: Ctx) {
             attendanceDate,
             checkInAt: new Date(attendanceDate.getTime() + 8 * 3600_000),
             checkOutAt: new Date(attendanceDate.getTime() + 17 * 3600_000),
-            status: i === 3 ? 'LATE' : i === 7 ? 'REMOTE' : 'PRESENT',
-            workedMinutes: 480,
-            source: 'SEED',
+            status:
+              i === 3
+                ? 'LATE'
+                : i === 5
+                  ? 'ABSENT'
+                  : i === 7
+                    ? 'REMOTE'
+                    : 'PRESENT',
+            workedMinutes: i === 5 ? 0 : 480,
+            source: i === 3 || i === 5 ? 'device:seed' : 'SEED',
+            notes:
+              i === 5
+                ? 'Unjustified absence — salary discount applies'
+                : i === 3
+                  ? 'Late check-in'
+                  : null,
           },
         }),
     );
@@ -1523,8 +1653,245 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     });
   }
 
+  // ── HR extensions: contracts, advances, wallets, devices ─────────
+  for (let i = 0; i < 8; i++) {
+    const contractNumber = `EMP-CTR-2026-${String(i + 1).padStart(3, '0')}`;
+    const contract = await ensure(
+      () =>
+        prisma.employeeContract.findFirst({
+          where: { companyId, contractNumber },
+        }),
+      () =>
+        prisma.employeeContract.create({
+          data: {
+            companyId,
+            employeeId: employees[i]!.id,
+            title: `${employees[i]!.jobTitle ?? 'Employee'} employment contract`,
+            contractNumber,
+            status: i < 5 ? 'ACTIVE' : i < 7 ? 'DRAFT' : 'SUBMITTED',
+            startsOn: day(-(200 - i * 10)),
+            endsOn: day(365 + i * 30),
+            baseSalary: (5000 + i * 800).toFixed(2),
+            targetPercent:
+              i % 3 === 0 ? '10.00' : i % 3 === 1 ? '15.00' : '20.00',
+            notes: 'Seeded employee contract — upload file in UI if needed',
+            submittedAt: i < 5 || i >= 7 ? day(-(30 - i)) : null,
+          },
+        }),
+    );
+    if (contract.status === 'DRAFT' && i >= 5 && i < 7) {
+      // leave draft for submit UI demo
+    } else if (contract.status === 'SUBMITTED') {
+      // leave submitted for submit/activate UI demo
+    }
+  }
+  summary.employeeContracts = 8;
+
+  const advanceStatuses = [
+    'PENDING',
+    'APPROVED',
+    'PAID',
+    'REJECTED',
+    'PENDING',
+    'APPROVED',
+  ] as const;
+  for (let i = 0; i < advanceStatuses.length; i++) {
+    const reason = `Seed salary advance #${i + 1}`;
+    await ensure(
+      () =>
+        prisma.salaryAdvance.findFirst({
+          where: { companyId, employeeId: employees[i]!.id, reason },
+        }),
+      () =>
+        prisma.salaryAdvance.create({
+          data: {
+            companyId,
+            employeeId: employees[i]!.id,
+            amount: (400 + i * 150).toFixed(2),
+            currency: 'SAR',
+            reason,
+            status: advanceStatuses[i]!,
+            requestedAt: day(10 + i),
+            decidedAt:
+              advanceStatuses[i] === 'PENDING' ? null : day(11 + i),
+            decidedById:
+              advanceStatuses[i] === 'PENDING' ? null : adminUserId,
+            paidAt: advanceStatuses[i] === 'PAID' ? day(12 + i) : null,
+          },
+        }),
+    );
+  }
+  summary.salaryAdvances = advanceStatuses.length;
+
+  for (const i of [5, 7]) {
+    const walletCode = `EW-${employees[i]!.employeeNumber}`;
+    await ensure(
+      () =>
+        prisma.employeeEwallet.findFirst({
+          where: { companyId, walletCode },
+        }),
+      () =>
+        prisma.employeeEwallet.create({
+          data: {
+            companyId,
+            employeeId: employees[i]!.id,
+            walletCode,
+            balance: (1500 + i * 250).toFixed(2),
+            currency: 'SAR',
+            status: 'ACTIVE',
+          },
+        }),
+    );
+  }
+  summary.employeeEwallets = 2;
+
+  const deviceSpecs = [
+    {
+      name: 'HQ Entrance Camera',
+      deviceType: 'CAMERA' as const,
+      deviceKey: 'seed-cam-hq-01',
+      location: 'HQ lobby',
+      streamUrl: 'rtsp://demo.local/hq-cam-1',
+    },
+    {
+      name: 'HQ Biometric Gate',
+      deviceType: 'BIOMETRIC' as const,
+      deviceKey: 'seed-bio-hq-01',
+      location: 'HQ staff entrance',
+      streamUrl: null,
+    },
+    {
+      name: 'Jeddah Dual Device',
+      deviceType: 'BOTH' as const,
+      deviceKey: 'seed-both-jed-01',
+      location: 'JED warehouse',
+      streamUrl: 'rtsp://demo.local/jed-cam-1',
+    },
+  ];
+  const devices: Array<{ id: string }> = [];
+  for (const spec of deviceSpecs) {
+    devices.push(
+      await ensure(
+        () =>
+          prisma.attendanceDevice.findFirst({
+            where: { companyId, deviceKey: spec.deviceKey },
+          }),
+        () =>
+          prisma.attendanceDevice.create({
+            data: {
+              companyId,
+              name: spec.name,
+              deviceType: spec.deviceType,
+              deviceKey: spec.deviceKey,
+              location: spec.location,
+              streamUrl: spec.streamUrl,
+              lastSeenAt: day(18),
+              status: 'ACTIVE',
+            },
+          }),
+      ),
+    );
+  }
+  summary.attendanceDevices = devices.length;
+
+  for (let i = 0; i < 6; i++) {
+    const device = devices[i % devices.length]!;
+    const employee = employees[i]!;
+    const occurredAt = new Date(day(16 + (i % 3)).getTime() + (8 + i) * 3600_000);
+    const eventType = i % 2 === 0 ? 'checkin' : 'checkout';
+    await ensure(
+      () =>
+        prisma.attendanceDeviceEvent.findFirst({
+          where: {
+            companyId,
+            deviceId: device.id,
+            employeeId: employee.id,
+            eventType,
+            occurredAt,
+          },
+        }),
+      () =>
+        prisma.attendanceDeviceEvent.create({
+          data: {
+            companyId,
+            deviceId: device.id,
+            employeeId: employee.id,
+            externalRef: `BADGE-${employee.employeeNumber}`,
+            eventType,
+            occurredAt,
+            payload: JSON.stringify({ source: 'seed' }),
+          },
+        }),
+    );
+  }
+  summary.attendanceDeviceEvents = 6;
+
+  // ── Daily cash closings (linked to seeded sales payments) ────────
+  for (let i = 0; i < 7; i++) {
+    const closingDate = day(8 + i);
+    const payments = await prisma.salesPayment.findMany({
+      where: {
+        companyId,
+        status: 'SUCCEEDED',
+        paidAt: {
+          gte: new Date(closingDate.getTime()),
+          lt: new Date(closingDate.getTime() + 86400000),
+        },
+      },
+    });
+    const cashSales = payments.reduce((s, p) => s + Number(p.amount), 0);
+    const expenses = await prisma.financialTransaction.aggregate({
+      where: {
+        companyId,
+        direction: 'OUTFLOW',
+        occurredAt: {
+          gte: new Date(closingDate.getTime()),
+          lt: new Date(closingDate.getTime() + 86400000),
+        },
+      },
+      _sum: { amount: true },
+    });
+    const cashExpenses = Number(expenses._sum.amount ?? 0);
+    const openingCash = 5000 + i * 200;
+    const expectedCash = openingCash + cashSales - cashExpenses;
+    const isClosed = i < 5;
+    await ensure(
+      () =>
+        prisma.dailyCashClosing.findFirst({
+          where: {
+            companyId,
+            closingDate,
+            branchKey: '',
+          },
+        }),
+      () =>
+        prisma.dailyCashClosing.create({
+          data: {
+            companyId,
+            branchKey: '',
+            closingDate,
+            status: isClosed ? 'CLOSED' : 'OPEN',
+            openingCash: openingCash.toFixed(2),
+            cashSales: cashSales.toFixed(2),
+            cashExpenses: cashExpenses.toFixed(2),
+            expectedCash: expectedCash.toFixed(2),
+            countedCash: isClosed
+              ? (expectedCash + (i % 2 === 0 ? 25 : -15)).toFixed(2)
+              : null,
+            variance: isClosed ? (i % 2 === 0 ? 25 : -15).toFixed(2) : null,
+            currency: 'SAR',
+            notes: `Seed daily closing for ${closingDate.toISOString().slice(0, 10)}`,
+            createdById: accountantUserId,
+            closedById: isClosed ? accountantUserId : null,
+            closedAt: isClosed ? day(9 + i) : null,
+          },
+        }),
+    );
+  }
+  summary.dailyCashClosings = 7;
+
   // ── Work ─────────────────────────────────────────────────────────
-  const workProjects = [];
+  const workProjects: any[] = [];
   for (let i = 0; i < 10; i++) {
     const code = `WP-${String(i + 1).padStart(2, '0')}`;
     workProjects.push(
@@ -1594,7 +1961,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     orderBy: [{ workProjectId: 'asc' }, { position: 'asc' }],
   });
 
-  const tasks = [];
+  const tasks: any[] = [];
   for (let i = 0; i < 10; i++) {
     const project = workProjects[i]!;
     const phase = phases.find((p) => p.workProjectId === project.id);
@@ -1658,7 +2025,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     ['OPS', 'Ops Notes'],
     ['FIN', 'Finance Notes'],
   ] as const;
-  const notebookCategories = [];
+  const notebookCategories: any[] = [];
   for (const [code, name] of nbCats) {
     notebookCategories.push(
       await ensure(
@@ -1674,7 +2041,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     );
   }
 
-  const notes = [];
+  const notes: any[] = [];
   for (let i = 0; i < 10; i++) {
     const title = `Business Note ${String(i + 1).padStart(2, '0')}`;
     notes.push(
@@ -1917,7 +2284,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
 
   // ── Messaging + integration center ───────────────────────────────
-  const msgChannels = [];
+  const msgChannels: any[] = [];
   const msgSpecs = [
     ['SMTP', 'Transactional Email'],
     ['SMTP', 'Marketing Email'],
@@ -2112,7 +2479,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     },
   ];
 
-  const projects = [];
+  const projects: any[] = [];
   for (let i = 0; i < projectSpecs.length; i++) {
     const spec = projectSpecs[i]!;
     const desiredStatus = i < 6 ? 'ACTIVE' : 'CONNECTING';
@@ -2168,12 +2535,12 @@ export async function seedDemoCompanyData(ctx: Ctx) {
       create: {
         connectedProjectId: project.id,
         authType: 'API_KEY',
-        credentialsCiphertext: encrypted.ciphertext,
+        credentialsCiphertext: new Uint8Array(encrypted.ciphertext),
         keyVersion: encrypted.keyVersion,
         status: 'ACTIVE',
       },
       update: {
-        credentialsCiphertext: encrypted.ciphertext,
+        credentialsCiphertext: new Uint8Array(encrypted.ciphertext),
         keyVersion: encrypted.keyVersion,
         status: 'ACTIVE',
         authType: 'API_KEY',
@@ -2246,7 +2613,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     where: { connectedProjectId: mirrorProject.id, externalId: 'loc-1' },
   });
 
-  const extCategories = [];
+  const extCategories: any[] = [];
   for (let i = 1; i <= 10; i++) {
     extCategories.push(
       await ensure(
@@ -2272,7 +2639,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     );
   }
 
-  const extProducts = [];
+  const extProducts: any[] = [];
   for (let i = 1; i <= 10; i++) {
     extProducts.push(
       await ensure(
@@ -2344,7 +2711,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     );
   }
 
-  const extCustomers = [];
+  const extCustomers: any[] = [];
   for (let i = 1; i <= 10; i++) {
     extCustomers.push(
       await ensure(
@@ -2368,7 +2735,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     );
   }
 
-  const extOrders = [];
+  const extOrders: any[] = [];
   for (let i = 1; i <= 10; i++) {
     const order = await ensure(
       () =>

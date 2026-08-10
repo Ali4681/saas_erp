@@ -177,7 +177,7 @@ export function IntegrationProviderApiDetails({
           <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--card)]">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30 text-right text-[var(--muted-foreground)]">
+                <tr className="border-b border-[var(--border)] bg-[var(--muted)]/30 text-start text-[var(--muted-foreground)]">
                   <th className="px-3 py-2 font-medium">{t("colCapability")}</th>
                   <th className="px-3 py-2 font-medium">{t("colType")}</th>
                   <th className="px-3 py-2 font-medium">{t("colDirection")}</th>

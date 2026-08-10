@@ -105,7 +105,9 @@ export class InventoryService {
     return this.prisma.item.findMany({
       include: {
         unit: true,
-        category: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, parentId: true } },
+        parentItem: { select: { id: true, name: true, sku: true } },
+        childItems: { select: { id: true, name: true, sku: true } },
       },
       where: { status: 'ACTIVE' },
       orderBy: { name: 'asc' },
@@ -118,6 +120,7 @@ export class InventoryService {
     unitId: string;
     name: string;
     itemCategoryId?: string;
+    parentItemId?: string;
     sku?: string;
     barcode?: string;
     cost?: string | number;
@@ -132,6 +135,14 @@ export class InventoryService {
     if (!unit) {
       throw new BadRequestException('Unit not found');
     }
+    if (input.parentItemId) {
+      const parent = await this.prisma.item.findFirst({
+        where: { id: input.parentItemId, companyId: input.companyId },
+      });
+      if (!parent) {
+        throw new BadRequestException('Parent item not found');
+      }
+    }
 
     const sku = input.sku?.trim() || null;
     const barcode = input.barcode?.trim() || null;
@@ -144,6 +155,7 @@ export class InventoryService {
         companyId: input.companyId,
         unitId: input.unitId,
         itemCategoryId: input.itemCategoryId,
+        parentItemId: input.parentItemId,
         name: input.name,
         sku,
         skuKey,
@@ -155,7 +167,10 @@ export class InventoryService {
         minStock: input.minStock != null ? String(input.minStock) : undefined,
         taxRate: input.taxRate != null ? String(input.taxRate) : undefined,
       },
-      include: { unit: true },
+      include: {
+        unit: true,
+        parentItem: { select: { id: true, name: true } },
+      },
     });
   }
 

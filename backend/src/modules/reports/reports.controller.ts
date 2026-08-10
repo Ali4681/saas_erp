@@ -54,6 +54,8 @@ const MODULES = new Set<string>([
   'purchasing',
   'inventory',
   'hr',
+  'finance',
+  'daily-closing',
   'projects',
   'work',
   'notes',
@@ -88,7 +90,7 @@ export class ReportsController {
   ) {
     if (!MODULES.has(module)) {
       throw new BadRequestException(
-        `Unknown module: ${module}. Use one of: customers, sales, purchases, inventory, hr, projects, notes, automation`,
+        `Unknown module: ${module}. Use one of: customers, sales, purchases, inventory, hr, finance, projects, notes, automation`,
       );
     }
     return this.reports.operationalReport(companyId, module as ReportModule, {

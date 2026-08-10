@@ -297,14 +297,18 @@ export class CrmService {
 
   // --- Activities ---
 
-  listActivities(companyId: string) {
+  listActivities(companyId: string, status?: ActivityStatus) {
     this.tenant.setCompanyId(companyId);
+    const allowed = new Set(Object.values(ActivityStatus));
+    const statusFilter =
+      status && allowed.has(status) ? status : undefined;
     return this.prisma.crmActivity.findMany({
+      where: statusFilter ? { status: statusFilter } : undefined,
       include: {
         contact: { select: { id: true, name: true } },
         opportunity: { select: { id: true, title: true } },
       },
-      orderBy: [{ scheduledAt: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ createdAt: 'desc' }, { scheduledAt: 'desc' }],
       take: 200,
     });
   }

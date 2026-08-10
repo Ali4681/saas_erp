@@ -13,7 +13,7 @@ import { can } from "@/lib/permissions";
 import { getSession } from "@/lib/auth/session";
 import { apiServer } from "@/lib/api/server";
 import { getFormatters } from "@/lib/format-server";
-import { createContact } from "../actions";
+import { createContact, updateContact } from "../actions";
 
 type Contact = {
   id: string;
@@ -23,6 +23,7 @@ type Contact = {
   companyName: string | null;
   email: string | null;
   phone: string | null;
+  notes: string | null;
   createdAt: string;
 };
 
@@ -36,7 +37,7 @@ export default async function ContactsPage({
   const { companyId } = await params;
   const flash = await searchParams;
   const t = await getTranslations("crm");
-  const { formatDate, formatMoney, formatNumber } = await getFormatters();
+  const { formatDate } = await getFormatters();
   const session = await getSession();
   const canWrite = can(session?.user, "crm.write");
 
@@ -70,6 +71,7 @@ export default async function ContactsPage({
               name="contactType"
               label={t("type")}
               required
+              defaultValue="CUSTOMER"
               options={[
                 { value: "CUSTOMER", label: t("contacts.customerType") },
                 { value: "LEAD", label: t("contacts.leadType") },
@@ -79,7 +81,6 @@ export default async function ContactsPage({
             <Input name="companyName" label={t("contacts.companyName")} />
             <Input name="email" label={t("email")} type="email" />
             <Input name="phone" label={t("phone")} />
-            <Input name="source" label={t("contacts.source")} />
             <div className="md:col-span-2">
               <Textarea name="notes" label={t("notes")} />
             </div>
@@ -95,14 +96,15 @@ export default async function ContactsPage({
           <EmptyState message={t("contacts.empty")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--color-border)] text-right text-[var(--color-muted)]">
+                <tr className="border-b border-[var(--color-border)] text-start text-[var(--color-muted)]">
                   <th className="px-2 py-2 font-medium">{t("name")}</th>
                   <th className="px-2 py-2 font-medium">{t("type")}</th>
                   <th className="px-2 py-2 font-medium">{t("communication")}</th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
                   <th className="px-2 py-2 font-medium">{t("createdAt")}</th>
+                  <th className="px-2 py-2 font-medium">{t("action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -128,6 +130,79 @@ export default async function ContactsPage({
                       <StatusBadge status={c.status} />
                     </td>
                     <td className="px-2 py-2">{formatDate(c.createdAt)}</td>
+                    <td className="px-2 py-2">
+                      {canWrite ? (
+                        <CreateFormDialog
+                          title={t("contacts.editTitle")}
+                          triggerLabel={t("contacts.edit")}
+                          triggerVariant="outline"
+                          showPlus={false}
+                        >
+                          <form
+                            action={updateContact.bind(null, companyId, c.id)}
+                            className="grid gap-3 md:grid-cols-2"
+                          >
+                            <Select
+                              name="contactType"
+                              label={t("type")}
+                              required
+                              defaultValue={c.contactType}
+                              options={[
+                                {
+                                  value: "CUSTOMER",
+                                  label: t("contacts.customerType"),
+                                },
+                                {
+                                  value: "LEAD",
+                                  label: t("contacts.leadType"),
+                                },
+                              ]}
+                            />
+                            <Select
+                              name="status"
+                              label={t("status")}
+                              defaultValue={c.status}
+                              options={[
+                                { value: "ACTIVE", label: "ACTIVE" },
+                                { value: "INACTIVE", label: "INACTIVE" },
+                              ]}
+                            />
+                            <Input
+                              name="name"
+                              label={t("name")}
+                              required
+                              defaultValue={c.name}
+                            />
+                            <Input
+                              name="companyName"
+                              label={t("contacts.companyName")}
+                              defaultValue={c.companyName ?? ""}
+                            />
+                            <Input
+                              name="email"
+                              label={t("email")}
+                              type="email"
+                              defaultValue={c.email ?? ""}
+                            />
+                            <Input
+                              name="phone"
+                              label={t("phone")}
+                              defaultValue={c.phone ?? ""}
+                            />
+                            <div className="md:col-span-2">
+                              <Textarea
+                                name="notes"
+                                label={t("notes")}
+                                defaultValue={c.notes ?? ""}
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <Button type="submit">{t("contacts.save")}</Button>
+                            </div>
+                          </form>
+                        </CreateFormDialog>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

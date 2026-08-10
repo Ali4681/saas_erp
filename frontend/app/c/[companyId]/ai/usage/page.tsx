@@ -61,7 +61,7 @@ export default async function AiUsagePage({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[880px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--color-border)] text-right text-[var(--color-muted)]">
+                <tr className="border-b border-[var(--color-border)] text-start text-[var(--color-muted)]">
                   <th className="px-2 py-2 font-medium">{t("colTime")}</th>
                   <th className="px-2 py-2 font-medium">{t("colModule")}</th>
                   <th className="px-2 py-2 font-medium">{t("colModel")}</th>

@@ -364,7 +364,7 @@ export default async function PlatformCompanyDetailPage({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--color-border)] text-right text-[var(--color-muted)]">
+                <tr className="border-b border-[var(--color-border)] text-start text-[var(--color-muted)]">
                   <th className="px-2 py-2 font-medium">{t("colPlan")}</th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
                   <th className="px-2 py-2 font-medium">{t("from")}</th>

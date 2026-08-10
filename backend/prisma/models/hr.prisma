@@ -14,6 +14,15 @@ model Employee {
   hireDate             DateTime?        @map("hire_date") @db.Date
   employmentStatus     EmploymentStatus @default(ACTIVE) @map("employment_status")
   basicSalary          Decimal?         @map("basic_salary") @db.Decimal(18, 2)
+  /// Sales/ops target percent of salary (0–100) when employee has targets
+  targetPercent        Decimal?         @map("target_percent") @db.Decimal(5, 2)
+  /// How much of the target was achieved (0–100)
+  targetCompletedPercent Decimal?       @map("target_completed_percent") @db.Decimal(5, 2)
+  /// Fixed daily discount for unjustified ABSENT days
+  absenceDiscountPerDay Decimal?        @map("absence_discount_per_day") @db.Decimal(18, 2)
+  /// Fixed discount applied when attendance is LATE
+  lateDiscountAmount   Decimal?         @map("late_discount_amount") @db.Decimal(18, 2)
+  isPurchaseOperator   Boolean          @default(false) @map("is_purchase_operator")
   currency             String?          @db.Char(3)
   leaveBalanceDays     Decimal          @default(21) @map("leave_balance_days") @db.Decimal(8, 2)
   createdAt            DateTime         @default(now()) @map("created_at") @db.DateTime(3)
@@ -27,11 +36,121 @@ model Employee {
   leaveRequests LeaveRequest[]
   payrollItems PayrollItem[]
   businessNotes BusinessNote[]
+  salaryAdvances SalaryAdvance[]
+  contracts      EmployeeContract[]
+  ewallet        EmployeeEwallet?
 
   @@unique([companyId, employeeNumber], map: "uq_employee_number")
   @@index([companyId, userId], map: "idx_employee_company_user")
   @@index([companyId, employmentStatus], map: "idx_employee_status")
   @@map("employees")
+}
+
+model EmployeeContract {
+  id             String                 @id @default(uuid(7)) @db.Char(36)
+  companyId      String                 @map("company_id") @db.Char(36)
+  employeeId     String                 @map("employee_id") @db.Char(36)
+  title          String                 @db.VarChar(180)
+  contractNumber String?                @map("contract_number") @db.VarChar(80)
+  status         EmployeeContractStatus @default(DRAFT)
+  startsOn       DateTime?              @map("starts_on") @db.Date
+  endsOn         DateTime?              @map("ends_on") @db.Date
+  baseSalary     Decimal?               @map("base_salary") @db.Decimal(18, 2)
+  targetPercent  Decimal?               @map("target_percent") @db.Decimal(5, 2)
+  notes          String?                @db.Text
+  submittedAt    DateTime?              @map("submitted_at") @db.DateTime(3)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId, status], map: "idx_employee_contract_status")
+  @@map("employee_contracts")
+}
+
+model SalaryAdvance {
+  id           String              @id @default(uuid(7)) @db.Char(36)
+  companyId    String              @map("company_id") @db.Char(36)
+  employeeId   String              @map("employee_id") @db.Char(36)
+  amount       Decimal             @db.Decimal(18, 2)
+  currency     String              @db.Char(3)
+  reason       String?             @db.Text
+  status       SalaryAdvanceStatus @default(PENDING)
+  requestedAt  DateTime            @default(now()) @map("requested_at") @db.DateTime(3)
+  decidedAt    DateTime?           @map("decided_at") @db.DateTime(3)
+  decidedById  String?             @map("decided_by") @db.Char(36)
+  paidAt       DateTime?           @map("paid_at") @db.DateTime(3)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  decidedBy User?    @relation("SalaryAdvanceDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, requestedAt], map: "idx_salary_advance_status")
+  @@index([employeeId, status], map: "idx_salary_advance_employee")
+  @@map("salary_advances")
+}
+
+model EmployeeEwallet {
+  id            String               @id @default(uuid(7)) @db.Char(36)
+  companyId     String               @map("company_id") @db.Char(36)
+  employeeId    String               @unique @map("employee_id") @db.Char(36)
+  walletCode    String               @map("wallet_code") @db.VarChar(40)
+  balance       Decimal              @default(0) @db.Decimal(18, 2)
+  currency      String               @db.Char(3)
+  status        EmployeeEwalletStatus @default(ACTIVE)
+  createdAt     DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime             @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, walletCode], map: "uq_employee_ewallet_code")
+  @@index([companyId, status], map: "idx_employee_ewallet_status")
+  @@map("employee_ewallets")
+}
+
+model AttendanceDevice {
+  id          String                 @id @default(uuid(7)) @db.Char(36)
+  companyId   String                 @map("company_id") @db.Char(36)
+  name        String                 @db.VarChar(140)
+  deviceType  AttendanceDeviceType   @map("device_type")
+  status      AttendanceDeviceStatus @default(ACTIVE)
+  location    String?                @db.VarChar(180)
+  /// Shared secret / API key for device punches (stored hashed in production later)
+  deviceKey   String                 @map("device_key") @db.VarChar(80)
+  streamUrl   String?                @map("stream_url") @db.VarChar(500)
+  lastSeenAt  DateTime?              @map("last_seen_at") @db.DateTime(3)
+  createdAt   DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime               @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  events  AttendanceDeviceEvent[]
+
+  @@unique([companyId, deviceKey], map: "uq_attendance_device_key")
+  @@index([companyId, status], map: "idx_attendance_device_status")
+  @@map("attendance_devices")
+}
+
+model AttendanceDeviceEvent {
+  id         String   @id @default(uuid(7)) @db.Char(36)
+  companyId  String   @map("company_id") @db.Char(36)
+  deviceId   String   @map("device_id") @db.Char(36)
+  employeeId String?  @map("employee_id") @db.Char(36)
+  /// External badge / biometric id from the machine
+  externalRef String? @map("external_ref") @db.VarChar(120)
+  eventType  String   @map("event_type") @db.VarChar(40)
+  occurredAt DateTime @map("occurred_at") @db.DateTime(3)
+  payload    String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  device  AttendanceDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, occurredAt], map: "idx_attendance_device_event_time")
+  @@index([deviceId, occurredAt], map: "idx_attendance_device_event_device")
+  @@map("attendance_device_events")
 }
 
 model AttendanceRecord {

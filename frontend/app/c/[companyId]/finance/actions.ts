@@ -108,3 +108,36 @@ export async function chargePaymentMethod(
     okMessage: "تم تنفيذ طلب التحصيل",
   });
 }
+
+export async function openDailyClosing(companyId: string, formData: FormData) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/finance/daily-closings`,
+    body: {
+      closingDate: str(formData, "closingDate"),
+      openingCash: optStr(formData, "openingCash"),
+      companyBranchId: optStr(formData, "companyBranchId"),
+      currency: optStr(formData, "currency") ?? "SAR",
+      notes: optStr(formData, "notes"),
+    },
+    pagePath: page(companyId, "daily-closing"),
+    okMessage: "Daily closing opened",
+  });
+}
+
+export async function closeDailyClosing(
+  companyId: string,
+  closingId: string,
+  formData: FormData,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/finance/daily-closings/${closingId}/close`,
+    body: {
+      countedCash: str(formData, "countedCash"),
+      notes: optStr(formData, "notes"),
+    },
+    pagePath: page(companyId, "daily-closing"),
+    okMessage: "Daily closing closed",
+  });
+}

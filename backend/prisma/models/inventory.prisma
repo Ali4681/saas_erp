@@ -35,6 +35,8 @@ model Item {
   id             String       @id @default(uuid(7)) @db.Char(36)
   companyId      String       @map("company_id") @db.Char(36)
   itemCategoryId String?      @map("item_category_id") @db.Char(36)
+  /// Parent item when this is a sub-item / variant
+  parentItemId   String?      @map("parent_item_id") @db.Char(36)
   unitId         String       @map("unit_id") @db.Char(36)
   sku            String?      @db.VarChar(120)
   skuKey         String       @default("") @map("sku_key") @db.VarChar(120)
@@ -51,6 +53,8 @@ model Item {
 
   company           Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
   category          ItemCategory?       @relation(fields: [itemCategoryId], references: [id], onDelete: SetNull)
+  parentItem        Item?               @relation("ItemTree", fields: [parentItemId], references: [id], onDelete: SetNull)
+  childItems        Item[]              @relation("ItemTree")
   unit              Unit                @relation(fields: [unitId], references: [id], onDelete: Restrict)
   balances          StockBalance[]
   movements         StockMovement[]
@@ -63,6 +67,7 @@ model Item {
   @@unique([companyId, skuKey], map: "uq_item_company_sku")
   @@unique([companyId, barcodeKey], map: "uq_item_company_barcode")
   @@index([companyId, status], map: "idx_item_company_status")
+  @@index([companyId, parentItemId], map: "idx_item_parent")
   @@map("items")
 }
 

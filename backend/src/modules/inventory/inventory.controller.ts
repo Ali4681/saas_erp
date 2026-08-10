@@ -77,6 +77,10 @@ class CreateItemBody {
   @IsOptional()
   @IsNumberString()
   taxRate?: string;
+
+  @IsOptional()
+  @IsString()
+  parentItemId?: string;
 }
 
 class CreateWarehouseBody {

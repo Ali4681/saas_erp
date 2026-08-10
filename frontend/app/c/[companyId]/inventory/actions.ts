@@ -15,6 +15,7 @@ export async function createItem(companyId: string, formData: FormData) {
       unitId: str(formData, "unitId"),
       name: str(formData, "name"),
       itemCategoryId: optStr(formData, "itemCategoryId"),
+      parentItemId: optStr(formData, "parentItemId"),
       sku: optStr(formData, "sku"),
       barcode: optStr(formData, "barcode"),
       cost: optStr(formData, "cost"),
@@ -24,6 +25,20 @@ export async function createItem(companyId: string, formData: FormData) {
     },
     pagePath: page(companyId, "items"),
     okMessage: "تم إنشاء الصنف",
+  });
+}
+
+export async function createCategory(companyId: string, formData: FormData) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/inventory/categories`,
+    body: {
+      name: str(formData, "name"),
+      code: optStr(formData, "code"),
+      parentId: optStr(formData, "parentId"),
+    },
+    pagePath: page(companyId, "categories"),
+    okMessage: "Category created",
   });
 }
 

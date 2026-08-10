@@ -20,15 +20,35 @@ export default async function HrHubPage({
           hint: t("employeesHint"),
         },
         {
+          href: `${base}/contracts`,
+          label: t("contracts"),
+          hint: t("contractsHint"),
+        },
+        {
+          href: `${base}/advances`,
+          label: t("advances"),
+          hint: t("advancesHint"),
+        },
+        {
           href: `${base}/attendance`,
           label: t("attendance"),
           hint: t("attendanceHint"),
+        },
+        {
+          href: `${base}/devices`,
+          label: t("devices"),
+          hint: t("devicesHint"),
         },
         { href: `${base}/leaves`, label: t("leaves"), hint: t("leavesHint") },
         {
           href: `${base}/payroll`,
           label: t("payroll"),
           hint: t("payrollHint"),
+        },
+        {
+          href: `${base}/me`,
+          label: t("me"),
+          hint: t("meHint"),
         },
       ]}
     />

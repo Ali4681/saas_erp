@@ -307,7 +307,7 @@ export function toExcelXml(
 
   const sheetXml = sheets
     .map((sheet, idx) => {
-      const safeName = (sheet.name || `Sheet${idx + 1}`)
+      const safeName = humanizeReportLabel(sheet.name || `Sheet${idx + 1}`)
         .replace(/[\\/*?:\[\]]/g, " ")
         .slice(0, 31);
       const rows = (sheet.rows.length ? sheet.rows : [{ note: "empty" }]).map(
@@ -379,6 +379,149 @@ export function flattenReportRow(
   return out;
 }
 
+/** Turn camelCase / snake_case / SCREAMING_SNAKE into a readable label. */
+export function humanizeReportLabel(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "—";
+  if (trimmed.includes(" ") && !/[a-z][A-Z]/.test(trimmed) && !/_/.test(trimmed)) {
+    return trimmed;
+  }
+  const spaced = trimmed
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  return spaced.replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
+/** Prisma groupBy `_count` may be a number, bigint, or `{ _all: n }`. */
+export function readReportCount(row: Record<string, unknown>): number {
+  const raw = row._count ?? row.count;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "bigint") return Number(raw);
+  if (typeof raw === "string" && raw.trim() !== "" && !Number.isNaN(Number(raw))) {
+    return Number(raw);
+  }
+  if (raw && typeof raw === "object") {
+    const nested = raw as Record<string, unknown>;
+    if (typeof nested._all === "number") return nested._all;
+    if (typeof nested._all === "bigint") return Number(nested._all);
+    for (const v of Object.values(nested)) {
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+      if (typeof v === "bigint") return Number(v);
+    }
+  }
+  return 0;
+}
+
+const CLASSIFICATION_LABEL_KEYS = [
+  "employmentStatus",
+  "status",
+  "movementType",
+  "priority",
+  "type",
+  "contactType",
+  "leaveType",
+] as const;
+
+export function classificationLabel(
+  row: Record<string, unknown>,
+  fallback = "—",
+): string {
+  for (const key of CLASSIFICATION_LABEL_KEYS) {
+    if (row[key] != null && row[key] !== "") return String(row[key]);
+  }
+  const other = Object.keys(row).find(
+    (k) => !["_count", "count", "_sum", "_avg", "_min", "_max"].includes(k),
+  );
+  return other && row[other] != null ? String(row[other]) : fallback;
+}
+
+function isClassificationKey(key: string): boolean {
+  return (
+    key.endsWith("ByStatus") ||
+    key.endsWith("ByType") ||
+    key.endsWith("ByPriority") ||
+    key === "movementsByType"
+  );
+}
+
+/** Normalize API groupBy arrays into { category, count } rows (+ TOTAL). */
+export function extractClassificationSheets(
+  data: Record<string, unknown>,
+): Array<{ name: string; rows: Array<Record<string, unknown>>; total: number }> {
+  const sheets: Array<{
+    name: string;
+    rows: Array<Record<string, unknown>>;
+    total: number;
+  }> = [];
+
+  for (const [key, value] of Object.entries(data)) {
+    if (!isClassificationKey(key)) continue;
+
+    let rows: Array<Record<string, unknown>> = [];
+
+    if (Array.isArray(value)) {
+      rows = value.map((item) => {
+        const row = (item ?? {}) as Record<string, unknown>;
+        const out: Record<string, unknown> = {
+          category: classificationLabel(row),
+          count: readReportCount(row),
+        };
+        const sum = row._sum;
+        if (sum && typeof sum === "object" && !Array.isArray(sum)) {
+          for (const [field, amount] of Object.entries(
+            sum as Record<string, unknown>,
+          )) {
+            out[field] =
+              amount != null && typeof (amount as { toString?: () => string }).toString === "function"
+                ? String(amount)
+                : amount;
+          }
+        }
+        return out;
+      });
+    } else if (value && typeof value === "object") {
+      rows = Object.entries(value as Record<string, unknown>).map(
+        ([status, count]) => {
+          if (count && typeof count === "object" && !Array.isArray(count)) {
+            const o = count as Record<string, unknown>;
+            return {
+              category: status,
+              count: readReportCount(o),
+              ...o,
+            };
+          }
+          return {
+            category: status,
+            count:
+              typeof count === "number"
+                ? count
+                : typeof count === "bigint"
+                  ? Number(count)
+                  : Number(count) || 0,
+          };
+        },
+      );
+    }
+
+    if (!rows.length) continue;
+    const total = rows.reduce(
+      (sum, row) => sum + (Number(row.count) || 0),
+      0,
+    );
+    sheets.push({
+      name: key,
+      rows: [...rows, { category: "TOTAL", count: total }],
+      total,
+    });
+  }
+
+  return sheets;
+}
+
 export function extractModuleTables(
   data: Record<string, unknown>,
 ): Array<{ name: string; rows: Array<Record<string, unknown>> }> {
@@ -393,9 +536,13 @@ export function extractModuleTables(
     "notes",
     "rules",
     "runs",
+    "invoices",
+    "contacts",
+    "opportunities",
   ];
   const sheets: Array<{ name: string; rows: Array<Record<string, unknown>> }> =
     [];
+
   for (const key of keys) {
     const v = data[key];
     if (Array.isArray(v) && v.length && typeof v[0] === "object") {
@@ -406,27 +553,18 @@ export function extractModuleTables(
     }
   }
 
-  for (const [key, value] of Object.entries(data)) {
-    if (
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      (key.endsWith("ByStatus") ||
-        key.endsWith("ByType") ||
-        key.endsWith("ByPriority") ||
-        key === "movementsByType")
-    ) {
-      const rows = Object.entries(value as Record<string, unknown>).map(
-        ([status, count]) => {
-          if (count && typeof count === "object" && !Array.isArray(count)) {
-            const o = count as Record<string, unknown>;
-            return flattenReportRow({ status, ...o });
-          }
-          return { status, count };
-        },
-      );
-      if (rows.length) sheets.push({ name: key, rows });
-    }
+  // Classification counts after detail tables (status / type + TOTAL row)
+  for (const sheet of extractClassificationSheets(data)) {
+    sheets.push({
+      name: sheet.name,
+      rows: sheet.rows.map((row) => ({
+        ...row,
+        category:
+          row.category === "TOTAL"
+            ? "Total"
+            : humanizeReportLabel(String(row.category ?? "")),
+      })),
+    });
   }
 
   if (!sheets.length) {
@@ -698,6 +836,7 @@ export function buildModuleReportPdf(
   module: string,
   data: Record<string, unknown>,
 ): Buffer {
+  const classifications = extractClassificationSheets(data);
   const sheets = extractModuleTables(data);
   const blocks: PdfBlock[] = [
     { kind: "title", text: `Module Report: ${module}` },
@@ -707,45 +846,110 @@ export function buildModuleReportPdf(
     },
   ];
 
-  for (const sheet of sheets.slice(0, 4)) {
-    blocks.push({ kind: "heading", text: sheet.name });
+  const relatedKeys = (tableKey: string): string[] => {
+    const map: Record<string, string[]> = {
+      employees: ["employeesByStatus"],
+      leaves: ["leavesByStatus"],
+      rows: ["closingsByStatus", "invoicesByStatus", "quotesByStatus"],
+      rows: [
+        "invoicesByStatus",
+        "quotesByStatus",
+        "contactsByType",
+        "contactsByStatus",
+      ],
+      invoices: ["invoicesByStatus", "quotesByStatus"],
+      purchaseOrders: ["ordersByStatus"],
+      bills: ["billsByStatus"],
+      projects: ["projectsByStatus", "tasksByStatus"],
+      notes: ["notesByStatus", "notesByPriority"],
+      rules: ["rulesByStatus"],
+      runs: ["runsByStatus"],
+      balances: ["movementsByType"],
+      contacts: ["contactsByType", "contactsByStatus"],
+      opportunities: ["opportunitiesByStatus"],
+    };
+    return map[tableKey] ?? [];
+  };
+
+  const appendClassification = (group: (typeof classifications)[number]) => {
+    const parts = group.rows
+      .filter((row) => row.category !== "TOTAL" && row.category !== "Total")
+      .map(
+        (row) =>
+          `${humanizeReportLabel(String(row.category ?? ""))}: ${row.count ?? 0}`,
+      );
+    parts.push(`Total: ${group.total}`);
+    blocks.push({ kind: "spacer", size: 6 });
+    blocks.push({
+      kind: "line",
+      text: parts.join("  ·  "),
+    });
+  };
+
+  const detailSheets = sheets.filter(
+    (s) => !isClassificationKey(s.name) && s.name !== "totals",
+  );
+  const usedClassification = new Set<string>();
+
+  for (const sheet of detailSheets.slice(0, 4)) {
+    blocks.push({
+      kind: "heading",
+      text: `${humanizeReportLabel(sheet.name)} (${sheet.rows.length})`,
+    });
     const rows = sheet.rows.slice(0, 25).map(stripIds);
     if (!rows.length) {
       blocks.push({ kind: "line", text: "No data" });
-      continue;
-    }
-    const cols = Object.keys(rows[0]).slice(0, 5);
-    const widths = cols.map((c, i) =>
-      i === 0 ? 28 : i === cols.length - 1 ? 14 : 12,
-    );
-    blocks.push({
-      kind: "mono",
-      text: cols
-        .map((c, i) =>
-          pad(c, widths[i], i === 0 ? "left" : "right"),
-        )
-        .join(""),
-    });
-    blocks.push({
-      kind: "mono",
-      text: "-".repeat(Math.min(90, widths.reduce((a, b) => a + b, 0))),
-    });
-    for (const row of rows) {
+    } else {
+      const cols = Object.keys(rows[0]).slice(0, 5);
+      const widths = cols.map((c, i) =>
+        i === 0 ? 28 : i === cols.length - 1 ? 14 : 12,
+      );
       blocks.push({
         kind: "mono",
         text: cols
-          .map((c, i) => {
-            const raw = row[c];
-            const s =
-              typeof raw === "number" ||
-              (typeof raw === "string" && /^-?\d+(\.\d+)?$/.test(raw))
-                ? money(raw)
-                : latinSafe(String(raw ?? ""), widths[i] - 1);
-            return pad(s, widths[i], i === 0 ? "left" : "right");
-          })
+          .map((c, i) =>
+            pad(
+              humanizeReportLabel(c),
+              widths[i],
+              i === 0 ? "left" : "right",
+            ),
+          )
           .join(""),
       });
+      blocks.push({
+        kind: "mono",
+        text: "-".repeat(Math.min(90, widths.reduce((a, b) => a + b, 0))),
+      });
+      for (const row of rows) {
+        blocks.push({
+          kind: "mono",
+          text: cols
+            .map((c, i) => {
+              const raw = row[c];
+              const s =
+                typeof raw === "number" ||
+                (typeof raw === "string" && /^-?\d+(\.\d+)?$/.test(raw))
+                  ? money(raw)
+                  : typeof raw === "string" && /^[A-Z][A-Z0-9_]*$/.test(raw)
+                    ? latinSafe(humanizeReportLabel(raw), widths[i] - 1)
+                    : latinSafe(String(raw ?? ""), widths[i] - 1);
+              return pad(s, widths[i], i === 0 ? "left" : "right");
+            })
+            .join(""),
+        });
+      }
     }
+
+    for (const group of classifications) {
+      if (!relatedKeys(sheet.name).includes(group.name)) continue;
+      usedClassification.add(group.name);
+      appendClassification(group);
+    }
+  }
+
+  for (const group of classifications) {
+    if (usedClassification.has(group.name)) continue;
+    appendClassification(group);
   }
 
   return buildReportPdf(blocks);
@@ -757,6 +961,7 @@ export const REPORT_MODULES = [
   { value: "purchases", label: "Purchases" },
   { value: "inventory", label: "Inventory" },
   { value: "hr", label: "HR" },
+  { value: "finance", label: "Daily closing" },
   { value: "projects", label: "Projects" },
   { value: "notes", label: "Notes" },
   { value: "automation", label: "Automation" },

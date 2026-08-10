@@ -19,11 +19,30 @@ export async function createContact(companyId: string, formData: FormData) {
       companyName: optStr(formData, "companyName"),
       email: optStr(formData, "email"),
       phone: optStr(formData, "phone"),
-      source: optStr(formData, "source"),
       notes: optStr(formData, "notes"),
     },
     pagePath: page(companyId, "contacts"),
     okMessage: t("flash.contactCreated"),
+  });
+}
+
+export async function updateContact(companyId: string, contactId: string, formData: FormData) {
+  const t = await getTranslations("crm");
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/crm/contacts/${contactId}`,
+    method: "PATCH",
+    body: {
+      contactType: optStr(formData, "contactType"),
+      name: str(formData, "name"),
+      companyName: optStr(formData, "companyName"),
+      email: optStr(formData, "email"),
+      phone: optStr(formData, "phone"),
+      notes: optStr(formData, "notes"),
+      status: optStr(formData, "status"),
+    },
+    pagePath: page(companyId, "contacts"),
+    okMessage: t("flash.contactUpdated"),
   });
 }
 

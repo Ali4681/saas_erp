@@ -22,6 +22,8 @@ export type ReportModule =
   | 'purchasing'
   | 'inventory'
   | 'hr'
+  | 'finance'
+  | 'daily-closing'
   | 'projects'
   | 'work'
   | 'notes'
@@ -641,6 +643,10 @@ export class ReportsService {
                 employmentStatus: true,
                 companyBranchId: true,
                 basicSalary: true,
+                targetPercent: true,
+                targetCompletedPercent: true,
+                absenceDiscountPerDay: true,
+                lateDiscountAmount: true,
               },
               take: top,
               orderBy: { fullName: 'asc' },
@@ -670,8 +676,89 @@ export class ReportsService {
           employees: employees.map((e) => ({
             ...e,
             basicSalary: e.basicSalary?.toString() ?? null,
+            targetPercent: e.targetPercent?.toString() ?? null,
+            targetCompletedPercent: e.targetCompletedPercent?.toString() ?? null,
+            absenceDiscountPerDay: e.absenceDiscountPerDay?.toString() ?? null,
+            lateDiscountAmount: e.lateDiscountAmount?.toString() ?? null,
           })),
           leaves,
+        };
+      }
+      case 'finance': {
+        const closingWhere: Prisma.DailyCashClosingWhereInput = {
+          ...(f.branchId ? { companyBranchId: f.branchId } : {}),
+          ...(f.status ? { status: f.status as never } : {}),
+          ...(f.date('closingDate')
+            ? { closingDate: f.date('closingDate') }
+            : {}),
+        };
+        const [byStatus, rows, totals] = await Promise.all([
+          this.prisma.dailyCashClosing.groupBy({
+            by: ['status'],
+            where: closingWhere,
+            _count: true,
+            _sum: {
+              openingCash: true,
+              cashSales: true,
+              cashExpenses: true,
+              expectedCash: true,
+              countedCash: true,
+              variance: true,
+            },
+          }),
+          this.prisma.dailyCashClosing.findMany({
+            where: closingWhere,
+            include: {
+              branch: { select: { id: true, name: true, code: true } },
+            },
+            orderBy: { closingDate: 'desc' },
+            take: top,
+          }),
+          this.prisma.dailyCashClosing.aggregate({
+            where: closingWhere,
+            _sum: {
+              cashSales: true,
+              cashExpenses: true,
+              expectedCash: true,
+              countedCash: true,
+              variance: true,
+            },
+            _count: true,
+          }),
+        ]);
+        return {
+          module: 'finance',
+          filters: this.publicFilters(f),
+          closingsByStatus: this.serializeGroupMoney(byStatus, [
+            'openingCash',
+            'cashSales',
+            'cashExpenses',
+            'expectedCash',
+            'countedCash',
+            'variance',
+          ]),
+          totals: {
+            count: totals._count,
+            cashSales: (totals._sum.cashSales ?? 0).toString(),
+            cashExpenses: (totals._sum.cashExpenses ?? 0).toString(),
+            expectedCash: (totals._sum.expectedCash ?? 0).toString(),
+            countedCash: (totals._sum.countedCash ?? 0).toString(),
+            variance: (totals._sum.variance ?? 0).toString(),
+          },
+          rows: rows.map((r) => ({
+            id: r.id,
+            closingDate: r.closingDate,
+            status: r.status,
+            branch: r.branch?.name ?? null,
+            openingCash: r.openingCash.toString(),
+            cashSales: r.cashSales.toString(),
+            cashExpenses: r.cashExpenses.toString(),
+            expectedCash: r.expectedCash.toString(),
+            countedCash: r.countedCash?.toString() ?? null,
+            variance: r.variance?.toString() ?? null,
+            currency: r.currency,
+            notes: r.notes,
+          })),
         };
       }
       case 'work': {
@@ -841,6 +928,7 @@ export class ReportsService {
     | 'purchasing'
     | 'inventory'
     | 'hr'
+    | 'finance'
     | 'work'
     | 'notebook'
     | 'automation' {
@@ -852,6 +940,8 @@ export class ReportsService {
       purchasing: 'purchasing',
       inventory: 'inventory',
       hr: 'hr',
+      finance: 'finance',
+      'daily-closing': 'finance',
       projects: 'work',
       work: 'work',
       notes: 'notebook',

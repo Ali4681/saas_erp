@@ -52,6 +52,12 @@ model Company {
   attendanceRecords AttendanceRecord[]
   leaveRequests     LeaveRequest[]
   payrollRuns       PayrollRun[]
+  salaryAdvances    SalaryAdvance[]
+  employeeContracts EmployeeContract[]
+  employeeEwallets  EmployeeEwallet[]
+  attendanceDevices AttendanceDevice[]
+  attendanceDeviceEvents AttendanceDeviceEvent[]
+  dailyCashClosings DailyCashClosing[]
   workProjects      WorkProject[]
   automationRules   AutomationRule[]
   marketingPosts    MarketingPost[]
@@ -111,6 +117,7 @@ model CompanyBranch {
   warehouses  Warehouse[]
   employees   Employee[]
   salesInvoices SalesInvoice[]
+  dailyCashClosings DailyCashClosing[]
 
   @@unique([companyId, code, deletedMarker], map: "uq_branch_company_code")
   @@index([companyId, status], map: "idx_branch_company_status")

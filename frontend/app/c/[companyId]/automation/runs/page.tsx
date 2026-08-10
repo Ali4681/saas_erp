@@ -151,7 +151,7 @@ export default async function AutomationRunsPage({
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--border)] text-right text-[var(--muted-foreground)]">
+                <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("colRule")}</th>
                   <th className="px-2 py-2 font-medium">{t("colTrigger")}</th>
                   <th className="px-2 py-2 font-medium">{t("colStatus")}</th>

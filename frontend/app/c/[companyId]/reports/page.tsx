@@ -216,7 +216,12 @@ export default async function ReportsPage({
             </Card>
             <Card
               title={t("inventoryStatus")}
-              description={t("inventoryStatusDesc")}
+              description={t("inventoryStatusDesc", {
+                count:
+                  report.inventoryStatus.ok +
+                  report.inventoryStatus.low +
+                  report.inventoryStatus.outOfStock,
+              })}
             >
               <DistributionPieChart data={inventoryPie} />
             </Card>

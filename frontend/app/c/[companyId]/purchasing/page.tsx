@@ -29,6 +29,11 @@ export default async function PurchasingHubPage({
           label: t("hub.bills"),
           hint: t("hub.billsHint"),
         },
+        {
+          href: `${base}/operators`,
+          label: t("hub.operators"),
+          hint: t("hub.operatorsHint"),
+        },
       ]}
     />
   );

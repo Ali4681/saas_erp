@@ -6,10 +6,38 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ReportFiltersForm } from "@/components/erp/ReportFiltersForm";
 import { ReportExportButtons } from "@/components/erp/ReportExportButtons";
 import { apiServer } from "@/lib/api/server";
-import { buildQuery, REPORT_MODULES } from "@/lib/erp/reports";
+import {
+  buildQuery,
+  extractClassificationSheets,
+  humanizeReportLabel,
+  REPORT_MODULES,
+} from "@/lib/erp/reports";
 import { getFormatters } from "@/lib/format-server";
 
 type Employee = { id: string; fullName: string; employeeNumber: string };
+
+type RowTable = {
+  key: string;
+  title: string;
+  rows: Array<Record<string, unknown>>;
+};
+
+const ROW_KEYS = [
+  "rows",
+  "balances",
+  "purchaseOrders",
+  "bills",
+  "employees",
+  "leaves",
+  "projects",
+  "notes",
+  "rules",
+  "runs",
+  "invoices",
+  "contacts",
+  "opportunities",
+  "closings",
+] as const;
 
 export default async function ModuleReportPage({
   params,
@@ -25,7 +53,7 @@ export default async function ModuleReportPage({
 }) {
   const { companyId, module } = await params;
   const t = await getTranslations("reports");
-  const { formatDate, formatMoney, formatNumber } = await getFormatters();
+  const { formatMoney, formatNumber } = await getFormatters();
   const filters = await searchParams;
   const qs = buildQuery(filters);
   const known = REPORT_MODULES.find((m) => m.value === module);
@@ -43,12 +71,20 @@ export default async function ModuleReportPage({
     }).catch(() => []),
   ]);
 
-  const rows = extractRows(data);
-  const groups = extractGroups(data, {
-    unspecified: (n) => t("unspecified", { n }),
-    summary: t("summary"),
-    itemCount: t("itemCount"),
-  });
+  const classifications = data
+    ? extractClassificationSheets(data).map((sheet) => ({
+        key: sheet.name,
+        title: resolveGroupTitle(sheet.name, t),
+        items: sheet.rows
+          .filter((row) => row.category !== "TOTAL")
+          .map((row) => ({
+            label: humanizeReportLabel(String(row.category ?? "—")),
+            value: Number(row.count) || 0,
+          })),
+        total: sheet.total,
+      }))
+    : [];
+  const tables = extractTables(data, (key) => resolveTableTitle(key, t));
 
   return (
     <div className="space-y-5">
@@ -82,74 +118,203 @@ export default async function ModuleReportPage({
         </Card>
       ) : (
         <>
-          {groups.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {groups.map((g) => (
-                <Card key={g.title} title={g.title}>
-                  <ul className="space-y-2 text-sm">
-                    {g.items.map((item, idx) => (
-                      <li
-                        key={`${g.title}-${item.label}-${idx}`}
-                        className="flex justify-between gap-2"
-                      >
-                        <span>{item.label}</span>
-                        <span className="font-medium">{item.value}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-              ))}
-            </div>
+          {tables.length === 0 && classifications.length === 0 ? (
+            <Card title={t("rows", { count: 0 })}>
+              <EmptyState message={t("noRows")} />
+            </Card>
           ) : null}
 
-          <Card title={t("rows", { count: rows.length })}>
-            {rows.length === 0 ? (
-              <EmptyState message={t("noRows")} />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--color-border)] text-right text-[var(--color-muted)]">
-                      {Object.keys(rows[0])
-                        .slice(0, 8)
-                        .map((col) => (
-                          <th key={col} className="px-2 py-2 font-medium">
-                            {col}
-                          </th>
-                        ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.slice(0, 50).map((row, i) => (
-                      <tr
-                        key={i}
-                        className="border-b border-[var(--color-border)] last:border-0"
-                      >
-                        {Object.keys(rows[0])
-                          .slice(0, 8)
-                          .map((col) => (
-                            <td key={col} className="px-2 py-2">
-                              {formatCell(row[col], formatMoney)}
-                            </td>
+          {tables.map((table) => {
+            const cols = Object.keys(table.rows[0] ?? {}).slice(0, 8);
+            const related = classifications.filter((g) =>
+              relatedClassificationKeys(table.key).includes(g.key),
+            );
+            return (
+              <Card key={table.key} title={table.title}>
+                {table.rows.length === 0 ? (
+                  <EmptyState message={t("noRows")} />
+                ) : (
+                  <div className="space-y-1">
+                    <div className="overflow-x-auto pb-1">
+                      <table className="w-full min-w-[640px] text-sm">
+                        <thead>
+                          <tr className="border-b border-[var(--color-border)] text-start text-[var(--color-muted)]">
+                            {cols.map((col) => (
+                              <th key={col} className="px-2 py-2 font-medium">
+                                {humanizeReportLabel(col)}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {table.rows.slice(0, 50).map((row, i) => (
+                            <tr
+                              key={`${table.key}-${i}`}
+                              className="border-b border-[var(--color-border)] last:border-0"
+                            >
+                              {cols.map((col) => (
+                                <td key={col} className="px-2 py-2">
+                                  {formatCell(row[col], formatMoney)}
+                                </td>
+                              ))}
+                            </tr>
                           ))}
-                      </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    {related.map((g) => (
+                      <div
+                        key={g.key}
+                        className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--color-border)] pt-4 text-sm"
+                      >
+                        {g.items.map((item, idx) => (
+                          <span
+                            key={`${g.key}-${item.label}-${idx}`}
+                            className="inline-flex items-baseline gap-1.5 text-[var(--muted-foreground)]"
+                          >
+                            {idx > 0 ? (
+                              <span className="me-1 text-[var(--border)]" aria-hidden>
+                                ·
+                              </span>
+                            ) : null}
+                            <span>{item.label}:</span>
+                            <span className="font-semibold tabular-nums text-[var(--foreground)]">
+                              {formatNumber(item.value)}
+                            </span>
+                          </span>
+                        ))}
+                        <span className="inline-flex items-baseline gap-1.5 text-[var(--muted-foreground)]">
+                          <span className="me-1 text-[var(--border)]" aria-hidden>
+                            ·
+                          </span>
+                          <span>{t("total")}:</span>
+                          <span className="font-semibold tabular-nums text-[var(--foreground)]">
+                            {formatNumber(g.total)}
+                          </span>
+                        </span>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+
+          {classifications
+            .filter(
+              (g) =>
+                !tables.some((table) =>
+                  relatedClassificationKeys(table.key).includes(g.key),
+                ),
+            )
+            .map((g) => (
+              <Card key={g.key}>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  {g.items.map((item, idx) => (
+                    <span
+                      key={`${g.key}-${item.label}-${idx}`}
+                      className="inline-flex items-baseline gap-1.5 text-[var(--muted-foreground)]"
+                    >
+                      {idx > 0 ? (
+                        <span className="me-1 text-[var(--border)]" aria-hidden>
+                          ·
+                        </span>
+                      ) : null}
+                      <span>{item.label}:</span>
+                      <span className="font-semibold tabular-nums text-[var(--foreground)]">
+                        {formatNumber(item.value)}
+                      </span>
+                    </span>
+                  ))}
+                  <span className="inline-flex items-baseline gap-1.5 text-[var(--muted-foreground)]">
+                    <span className="me-1 text-[var(--border)]" aria-hidden>
+                      ·
+                    </span>
+                    <span>{t("total")}:</span>
+                    <span className="font-semibold tabular-nums text-[var(--foreground)]">
+                      {formatNumber(g.total)}
+                    </span>
+                  </span>
+                </div>
+              </Card>
+            ))}
         </>
       )}
     </div>
   );
 }
 
-function extractRows(
+function relatedClassificationKeys(tableKey: string): string[] {
+  const map: Record<string, string[]> = {
+    employees: ["employeesByStatus"],
+    leaves: ["leavesByStatus"],
+    rows: ["invoicesByStatus", "quotesByStatus", "contactsByType", "contactsByStatus"],
+    invoices: ["invoicesByStatus", "quotesByStatus"],
+    purchaseOrders: ["ordersByStatus"],
+    bills: ["billsByStatus"],
+    projects: ["projectsByStatus", "tasksByStatus"],
+    notes: ["notesByStatus", "notesByPriority"],
+    rules: ["rulesByStatus"],
+    runs: ["runsByStatus"],
+    balances: ["movementsByType"],
+    contacts: ["contactsByType", "contactsByStatus"],
+    opportunities: ["opportunitiesByStatus"],
+  };
+  return map[tableKey] ?? [];
+}
+
+function extractTables(
   data: Record<string, unknown> | null,
-): Array<Record<string, unknown>> {
+  titleFor: (key: string) => string,
+): RowTable[] {
   if (!data) return [];
-  for (const key of [
+  const out: RowTable[] = [];
+  for (const key of ROW_KEYS) {
+    const v = data[key];
+    if (Array.isArray(v) && v.length && typeof v[0] === "object") {
+      out.push({
+        key,
+        title: titleFor(key),
+        rows: v as Array<Record<string, unknown>>,
+      });
+    }
+  }
+  return out;
+}
+
+function resolveGroupTitle(
+  key: string,
+  t: Awaited<ReturnType<typeof getTranslations<"reports">>>,
+): string {
+  const known = [
+    "employeesByStatus",
+    "leavesByStatus",
+    "invoicesByStatus",
+    "quotesByStatus",
+    "ordersByStatus",
+    "billsByStatus",
+    "projectsByStatus",
+    "tasksByStatus",
+    "notesByStatus",
+    "notesByPriority",
+    "rulesByStatus",
+    "runsByStatus",
+    "opportunitiesByStatus",
+    "contactsByType",
+    "contactsByStatus",
+    "movementsByType",
+  ] as const;
+  if ((known as readonly string[]).includes(key)) {
+    return t(`groups.${key}` as "groups.employeesByStatus");
+  }
+  return humanizeReportLabel(key);
+}
+
+function resolveTableTitle(
+  key: string,
+  t: Awaited<ReturnType<typeof getTranslations<"reports">>>,
+): string {
+  const known = [
     "rows",
     "balances",
     "purchaseOrders",
@@ -160,73 +325,14 @@ function extractRows(
     "notes",
     "rules",
     "runs",
-  ]) {
-    const v = data[key];
-    if (Array.isArray(v) && v.length && typeof v[0] === "object") {
-      return v as Array<Record<string, unknown>>;
-    }
+    "invoices",
+    "contacts",
+    "opportunities",
+  ] as const;
+  if ((known as readonly string[]).includes(key)) {
+    return t(`tables.${key}` as "tables.employees");
   }
-  return [];
-}
-
-function extractGroups(
-  data: Record<string, unknown> | null,
-  labels: {
-    unspecified: (n: number) => string;
-    summary: string;
-    itemCount: string;
-  },
-): Array<{ title: string; items: Array<{ label: string; value: string }> }> {
-  if (!data) return [];
-  const out: Array<{
-    title: string;
-    items: Array<{ label: string; value: string }>;
-  }> = [];
-  for (const [key, value] of Object.entries(data)) {
-    if (
-      key.endsWith("ByStatus") ||
-      key.endsWith("ByType") ||
-      key.endsWith("ByPriority") ||
-      key === "movementsByType"
-    ) {
-      if (Array.isArray(value)) {
-        out.push({
-          title: key,
-          items: value.map((row, idx) => {
-            const r = row as Record<string, unknown>;
-            const statusKey =
-              Object.keys(r).find((k) =>
-                [
-                  "status",
-                  "employmentStatus",
-                  "movementType",
-                  "priority",
-                  "type",
-                ].includes(k),
-              ) ?? Object.keys(r).find((k) => k !== "_count" && k !== "count");
-            const rawLabel = statusKey ? r[statusKey] : null;
-            const count =
-              typeof r._count === "number"
-                ? r._count
-                : typeof r._count === "object" && r._count
-                  ? JSON.stringify(r._count)
-                  : (r.count ?? "—");
-            return {
-              label: String(rawLabel ?? labels.unspecified(idx + 1)),
-              value: String(count),
-            };
-          }),
-        });
-      }
-    }
-    if (key === "itemCount" && typeof value === "number") {
-      out.push({
-        title: labels.summary,
-        items: [{ label: labels.itemCount, value: String(value) }],
-      });
-    }
-  }
-  return out;
+  return humanizeReportLabel(key);
 }
 
 function formatCell(
@@ -239,6 +345,9 @@ function formatCell(
       return String((value as { name: unknown }).name);
     }
     return JSON.stringify(value);
+  }
+  if (typeof value === "string" && /^[A-Z][A-Z0-9_]*$/.test(value)) {
+    return humanizeReportLabel(value);
   }
   if (
     typeof value === "string" &&

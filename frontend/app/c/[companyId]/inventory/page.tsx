@@ -16,6 +16,11 @@ export default async function InventoryHubPage({
       links={[
         { href: `${base}/items`, label: t("items"), hint: t("itemsHint") },
         {
+          href: `${base}/categories`,
+          label: t("categories"),
+          hint: t("categoriesHint"),
+        },
+        {
           href: `${base}/warehouses`,
           label: t("warehouses"),
           hint: t("warehousesHint"),

@@ -15,7 +15,11 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
 import { fetchLocalesLookup, lookupSelectOptions } from "@/lib/lookups";
-import { createEmployee, setEmployeeStatus } from "../actions";
+import {
+  createEmployee,
+  setEmployeeStatus,
+  updateEmployeeCompensation,
+} from "../actions";
 
 type Employee = {
   id: string;
@@ -26,6 +30,10 @@ type Employee = {
   jobTitle: string | null;
   employmentStatus: string;
   basicSalary: string | null;
+  targetPercent: string | null;
+  targetCompletedPercent: string | null;
+  absenceDiscountPerDay: string | null;
+  lateDiscountAmount: string | null;
   currency: string;
 };
 type Attachment = {
@@ -33,6 +41,13 @@ type Attachment = {
   entityType: string;
   entityId: string;
   fileName: string;
+};
+type HrSummary = {
+  total: number;
+  active: number;
+  onLeave: number;
+  suspended: number;
+  terminated: number;
 };
 
 export default async function EmployeesPage({
@@ -45,11 +60,11 @@ export default async function EmployeesPage({
   const { companyId } = await params;
   const flash = await searchParams;
   const t = await getTranslations("hr");
-  const { formatDate, formatMoney, formatNumber } = await getFormatters();
+  const { formatMoney } = await getFormatters();
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
 
-  const [employees, locales, attachments] = await Promise.all([
+  const [employees, locales, attachments, summary] = await Promise.all([
     apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
       companyId,
     }).catch(() => []),
@@ -58,6 +73,9 @@ export default async function EmployeesPage({
       `/companies/${companyId}/attachments?entityType=employee`,
       { companyId },
     ).catch(() => []),
+    apiServer<HrSummary>(`/companies/${companyId}/hr/summary`, {
+      companyId,
+    }).catch(() => null),
   ]);
 
   const cvByEmployee = new Map<string, Attachment>();
@@ -83,6 +101,41 @@ export default async function EmployeesPage({
       />
       <FlashFromSearch searchParams={flash} />
 
+      {summary ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("summaryTotal")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">{summary.total}</p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("summaryActive")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">{summary.active}</p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("onLeave")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">{summary.onLeave}</p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("summarySuspended")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">{summary.suspended}</p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("summaryTerminated")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">{summary.terminated}</p>
+          </Card>
+        </div>
+      ) : null}
+
       {canWrite ? (
         <CreateFormDialog
           title={t("newEmployee")}
@@ -97,6 +150,16 @@ export default async function EmployeesPage({
             <Input name="jobTitle" label={t("jobTitle")} />
             <Input name="hireDate" label={t("hireDate")} type="date" />
             <Input name="basicSalary" label={t("basicSalary")} />
+            <Input name="targetPercent" label={t("targetPercent")} />
+            <Input
+              name="targetCompletedPercent"
+              label={t("targetCompletedPercent")}
+            />
+            <Input
+              name="absenceDiscountPerDay"
+              label={t("absenceDiscountPerDay")}
+            />
+            <Input name="lateDiscountAmount" label={t("lateDiscountAmount")} />
             <Select
               name="currency"
               label={t("currency")}
@@ -129,13 +192,20 @@ export default async function EmployeesPage({
           <EmptyState message={t("emptyEmployees")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-sm">
+            <table className="w-full min-w-[1040px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--border)] text-right text-[var(--muted-foreground)]">
+                <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("number")}</th>
                   <th className="px-2 py-2 font-medium">{t("name")}</th>
                   <th className="px-2 py-2 font-medium">{t("titleCol")}</th>
                   <th className="px-2 py-2 font-medium">{t("salary")}</th>
+                  <th className="px-2 py-2 font-medium">{t("targetPercent")}</th>
+                  <th className="px-2 py-2 font-medium">
+                    {t("targetCompletedPercent")}
+                  </th>
+                  <th className="px-2 py-2 font-medium">
+                    {t("absenceDiscountPerDay")}
+                  </th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
                   <th className="px-2 py-2 font-medium">{t("cv")}</th>
                   <th className="px-2 py-2 font-medium">{t("action")}</th>
@@ -163,6 +233,17 @@ export default async function EmployeesPage({
                         {formatMoney(e.basicSalary, e.currency)}
                       </td>
                       <td className="px-2 py-2">
+                        {e.targetPercent != null ? `${e.targetPercent}%` : "—"}
+                      </td>
+                      <td className="px-2 py-2">
+                        {e.targetCompletedPercent != null
+                          ? `${e.targetCompletedPercent}%`
+                          : "—"}
+                      </td>
+                      <td className="px-2 py-2">
+                        {formatMoney(e.absenceDiscountPerDay, e.currency)}
+                      </td>
+                      <td className="px-2 py-2">
                         <StatusBadge status={e.employmentStatus} />
                       </td>
                       <td className="px-2 py-2">
@@ -181,28 +262,95 @@ export default async function EmployeesPage({
                         )}
                       </td>
                       <td className="px-2 py-2">
-                        {canWrite && e.employmentStatus === "ACTIVE" ? (
-                          <ActionForm
-                            label={t("suspend")}
-                            variant="danger"
-                            action={setEmployeeStatus.bind(
-                              null,
-                              companyId,
-                              e.id,
-                              "SUSPENDED",
-                            )}
-                          />
-                        ) : canWrite && e.employmentStatus === "SUSPENDED" ? (
-                          <ActionForm
-                            label={t("activate")}
-                            action={setEmployeeStatus.bind(
-                              null,
-                              companyId,
-                              e.id,
-                              "ACTIVE",
-                            )}
-                          />
-                        ) : null}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {canWrite ? (
+                            <CreateFormDialog
+                              title={`Compensation — ${e.fullName}`}
+                              triggerLabel="Edit"
+                              triggerVariant="outline"
+                              showPlus={false}
+                              className="!px-2 !py-1 text-xs"
+                            >
+                              <form
+                                action={updateEmployeeCompensation.bind(
+                                  null,
+                                  companyId,
+                                  e.id,
+                                )}
+                                className="grid gap-3 md:grid-cols-2"
+                              >
+                                <Input
+                                  name="basicSalary"
+                                  label={t("basicSalary")}
+                                  defaultValue={e.basicSalary ?? ""}
+                                />
+                                <Input
+                                  name="targetPercent"
+                                  label={t("targetPercent")}
+                                  defaultValue={e.targetPercent ?? ""}
+                                />
+                                <Input
+                                  name="targetCompletedPercent"
+                                  label={t("targetCompletedPercent")}
+                                  defaultValue={e.targetCompletedPercent ?? ""}
+                                />
+                                <Input
+                                  name="absenceDiscountPerDay"
+                                  label={t("absenceDiscountPerDay")}
+                                  defaultValue={e.absenceDiscountPerDay ?? ""}
+                                />
+                                <Input
+                                  name="lateDiscountAmount"
+                                  label={t("lateDiscountAmount")}
+                                  defaultValue={e.lateDiscountAmount ?? ""}
+                                />
+                                <Input
+                                  name="phone"
+                                  label={t("phone")}
+                                  defaultValue={e.phone ?? ""}
+                                />
+                                <Input
+                                  name="email"
+                                  label={t("email")}
+                                  type="email"
+                                  defaultValue={e.email ?? ""}
+                                />
+                                <Input
+                                  name="jobTitle"
+                                  label={t("jobTitle")}
+                                  defaultValue={e.jobTitle ?? ""}
+                                  className="md:col-span-2"
+                                />
+                                <div className="md:col-span-2">
+                                  <Button type="submit">{t("save")}</Button>
+                                </div>
+                              </form>
+                            </CreateFormDialog>
+                          ) : null}
+                          {canWrite && e.employmentStatus === "ACTIVE" ? (
+                            <ActionForm
+                              label={t("suspend")}
+                              variant="danger"
+                              action={setEmployeeStatus.bind(
+                                null,
+                                companyId,
+                                e.id,
+                                "SUSPENDED",
+                              )}
+                            />
+                          ) : canWrite &&
+                            e.employmentStatus === "SUSPENDED" ? (
+                            <ActionForm
+                              label={t("activate")}
+                              action={setEmployeeStatus.bind(
+                                null,
+                                companyId,
+                                e.id,
+                                "ACTIVE",
+                              )}
+                            />
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -81,6 +81,11 @@ export default async function FinanceHubPage({
             label: t("paymentMethods"),
             hint: t("paymentMethodsHint"),
           },
+          {
+            href: `${base}/daily-closing`,
+            label: t("dailyClosing"),
+            hint: t("dailyClosingHint"),
+          },
         ]}
       />
     </div>

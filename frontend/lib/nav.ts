@@ -104,6 +104,7 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/purchasing`, "/suppliers", "purchasingSuppliers"),
         child(`${root}/purchasing`, "/purchase-orders", "purchasingOrders"),
         child(`${root}/purchasing`, "/bills", "purchasingBills"),
+        child(`${root}/purchasing`, "/operators", "purchasingOperators"),
       ],
     },
     {
@@ -112,6 +113,7 @@ export function tenantNav(companyId: string): NavItem[] {
       permissions: ["inventory.read"],
       children: [
         child(`${root}/inventory`, "/items", "inventoryItems"),
+        child(`${root}/inventory`, "/categories", "inventoryCategories"),
         child(`${root}/inventory`, "/warehouses", "inventoryWarehouses"),
         child(`${root}/inventory`, "/movements", "inventoryMovements"),
         child(`${root}/inventory`, "/counts", "inventoryCounts"),
@@ -127,6 +129,7 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/finance`, "/expenses", "financeExpenses"),
         child(`${root}/finance`, "/transactions", "financeTransactions"),
         child(`${root}/finance`, "/payment-methods", "financePaymentMethods"),
+        child(`${root}/finance`, "/daily-closing", "financeDailyClosing"),
       ],
     },
     {
@@ -135,9 +138,13 @@ export function tenantNav(companyId: string): NavItem[] {
       permissions: ["hr.read"],
       children: [
         child(`${root}/hr`, "/employees", "hrEmployees"),
+        child(`${root}/hr`, "/contracts", "hrContracts"),
+        child(`${root}/hr`, "/advances", "hrAdvances"),
         child(`${root}/hr`, "/attendance", "hrAttendance"),
+        child(`${root}/hr`, "/devices", "hrDevices"),
         child(`${root}/hr`, "/leaves", "hrLeaves"),
         child(`${root}/hr`, "/payroll", "hrPayroll"),
+        child(`${root}/hr`, "/me", "hrMe"),
       ],
     },
     {
@@ -187,6 +194,7 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/reports`, "/modules/purchases", "reportsPurchases"),
         child(`${root}/reports`, "/modules/inventory", "reportsInventory"),
         child(`${root}/reports`, "/modules/hr", "reportsHr"),
+        child(`${root}/reports`, "/modules/finance", "reportsFinance"),
         child(`${root}/reports`, "/modules/projects", "reportsProjects"),
         child(`${root}/reports`, "/modules/notes", "reportsNotes"),
         child(`${root}/reports`, "/modules/automation", "reportsAutomation"),

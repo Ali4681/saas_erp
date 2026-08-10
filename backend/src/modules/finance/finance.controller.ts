@@ -170,6 +170,36 @@ class PostOrderBody {
   externalOrderId!: string;
 }
 
+class OpenDailyClosingBody {
+  @IsString()
+  closingDate!: string;
+
+  @IsOptional()
+  @IsNumberString()
+  openingCash?: string;
+
+  @IsOptional()
+  @IsString()
+  companyBranchId?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+class CloseDailyClosingBody {
+  @IsNumberString()
+  countedCash!: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 @Controller('companies/:companyId/finance')
 export class FinanceController {
   constructor(private readonly finance: FinanceService) {}
@@ -268,5 +298,41 @@ export class FinanceController {
     @Body() body: PostOrderBody,
   ) {
     return this.finance.postExternalOrder(companyId, body.externalOrderId);
+  }
+
+  @Get('daily-closings')
+  @RequirePermissions('finance.read')
+  listDailyClosings(@Param('companyId') companyId: string) {
+    return this.finance.listDailyClosings(companyId);
+  }
+
+  @Post('daily-closings')
+  @RequirePermissions('finance.write')
+  openDailyClosing(
+    @Param('companyId') companyId: string,
+    @Body() body: OpenDailyClosingBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.finance.openDailyClosing({
+      companyId,
+      createdById: user.userId,
+      ...body,
+    });
+  }
+
+  @Post('daily-closings/:closingId/close')
+  @RequirePermissions('finance.write')
+  closeDailyClosing(
+    @Param('companyId') companyId: string,
+    @Param('closingId') closingId: string,
+    @Body() body: CloseDailyClosingBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.finance.closeDailyClosing({
+      companyId,
+      closingId,
+      closedById: user.userId,
+      ...body,
+    });
   }
 }

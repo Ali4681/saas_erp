@@ -24,7 +24,9 @@ type Item = {
   cost: string | null;
   salePrice: string | null;
   minStock: string;
+  parentItemId?: string | null;
   unit?: { code: string } | null;
+  parentItem?: { id: string; name: string; sku: string | null } | null;
 };
 
 export default async function ItemsPage({
@@ -37,7 +39,7 @@ export default async function ItemsPage({
   const { companyId } = await params;
   const flash = await searchParams;
   const t = await getTranslations("inventory");
-  const { formatDate, formatMoney, formatNumber } = await getFormatters();
+  const { formatMoney } = await getFormatters();
   const session = await getSession();
   const canWrite = can(session?.user, "inventory.write");
 
@@ -87,6 +89,15 @@ export default async function ItemsPage({
               placeholder={t("optional")}
               options={categories.map((c) => ({ value: c.id, label: c.name }))}
             />
+            <Select
+              name="parentItemId"
+              label="Parent item"
+              placeholder={t("optional")}
+              options={items.map((i) => ({
+                value: i.id,
+                label: i.sku ? `${i.name} (${i.sku})` : i.name,
+              }))}
+            />
             <Input name="sku" label="SKU" />
             <Input name="cost" label={t("cost")} />
             <Input name="salePrice" label={t("salePrice")} />
@@ -104,11 +115,12 @@ export default async function ItemsPage({
           <EmptyState message={t("emptyItems")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] text-sm">
+            <table className="w-full min-w-[880px] text-sm">
               <thead>
-                <tr className="border-b border-[var(--color-border)] text-right text-[var(--color-muted)]">
+                <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("name")}</th>
                   <th className="px-2 py-2 font-medium">SKU</th>
+                  <th className="px-2 py-2 font-medium">Parent</th>
                   <th className="px-2 py-2 font-medium">{t("unit")}</th>
                   <th className="px-2 py-2 font-medium">{t("cost")}</th>
                   <th className="px-2 py-2 font-medium">{t("sale")}</th>
@@ -119,11 +131,14 @@ export default async function ItemsPage({
                 {items.map((item) => (
                   <tr
                     key={item.id}
-                    className="border-b border-[var(--color-border)] last:border-0"
+                    className="border-b border-[var(--border)] last:border-0"
                   >
                     <td className="px-2 py-2 font-medium">{item.name}</td>
                     <td className="px-2 py-2 font-mono text-xs">
                       {item.sku ?? "—"}
+                    </td>
+                    <td className="px-2 py-2">
+                      {item.parentItem?.name ?? "—"}
                     </td>
                     <td className="px-2 py-2">{item.unit?.code ?? "—"}</td>
                     <td className="px-2 py-2">{formatMoney(item.cost)}</td>

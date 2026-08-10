@@ -58,12 +58,12 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.client.$connect();
-    this.logger.log('Prisma connected with tenant-scoping extension');
+    await this.root.$connect();
+    this.logger.log('Prisma connected');
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.client.$disconnect();
+    await this.root.$disconnect();
   }
 
   async isHealthy(): Promise<boolean> {

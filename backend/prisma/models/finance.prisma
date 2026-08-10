@@ -102,3 +102,36 @@ model FinancialTransaction {
   @@index([connectedProjectId, occurredAt(sort: Desc)], map: "idx_finance_tx_project_occurred")
   @@map("financial_transactions")
 }
+
+/// End-of-day cash / checkout closing for a branch or company.
+model DailyCashClosing {
+  id              String             @id @default(uuid(7)) @db.Char(36)
+  companyId       String             @map("company_id") @db.Char(36)
+  companyBranchId String?            @map("company_branch_id") @db.Char(36)
+  /// MySQL null-unique substitute for optional branch
+  branchKey       String             @default("") @map("branch_key") @db.Char(36)
+  closingDate     DateTime           @map("closing_date") @db.Date
+  status          DailyClosingStatus @default(OPEN)
+  openingCash     Decimal            @default(0) @map("opening_cash") @db.Decimal(18, 2)
+  cashSales       Decimal            @default(0) @map("cash_sales") @db.Decimal(18, 2)
+  cashExpenses    Decimal            @default(0) @map("cash_expenses") @db.Decimal(18, 2)
+  expectedCash    Decimal            @default(0) @map("expected_cash") @db.Decimal(18, 2)
+  countedCash     Decimal?           @map("counted_cash") @db.Decimal(18, 2)
+  variance        Decimal?           @db.Decimal(18, 2)
+  currency        String             @db.Char(3)
+  notes           String?            @db.Text
+  closedById      String?            @map("closed_by") @db.Char(36)
+  closedAt        DateTime?          @map("closed_at") @db.DateTime(3)
+  createdById     String             @map("created_by") @db.Char(36)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch    CompanyBranch? @relation(fields: [companyBranchId], references: [id], onDelete: SetNull)
+  createdBy User           @relation("DailyClosingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  closedBy  User?          @relation("DailyClosingCloser", fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, closingDate, branchKey], map: "uq_daily_closing_branch_date")
+  @@index([companyId, closingDate, status], map: "idx_daily_closing_date_status")
+  @@map("daily_cash_closings")
+}

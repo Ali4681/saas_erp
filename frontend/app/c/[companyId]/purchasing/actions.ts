@@ -112,3 +112,21 @@ export async function createBill(companyId: string, formData: FormData) {
     okMessage: t("flash.billCreated"),
   });
 }
+
+export async function upsertPurchaseOperatorEwallet(
+  companyId: string,
+  formData: FormData,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/ewallets`,
+    body: {
+      employeeId: str(formData, "employeeId"),
+      walletCode: optStr(formData, "walletCode"),
+      balance: optStr(formData, "balance"),
+      currency: optStr(formData, "currency"),
+    },
+    pagePath: page(companyId, "operators"),
+    okMessage: "Purchase operator wallet saved",
+  });
+}

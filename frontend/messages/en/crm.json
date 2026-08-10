@@ -4,7 +4,7 @@
   "name": "Name",
   "type": "Type",
   "notes": "Notes",
-  "contact": "Contact",
+  "contact": "Customer",
   "customer": "Customer",
   "titleField": "Title",
   "value": "Value",
@@ -19,26 +19,28 @@
   "schedule": "Schedule",
   "hub": {
     "title": "Customer relationship management",
-    "description": "Contacts, opportunities, activities, and contracts",
-    "contacts": "Contacts",
-    "contactsHint": "Customers and leads",
+    "description": "Customers, opportunities, employee activities, and contracts",
+    "contacts": "Customers",
+    "contactsHint": "Company customers and their details",
     "opportunities": "Opportunities",
     "opportunitiesHint": "Pipeline",
-    "activities": "Activities",
-    "activitiesHint": "Calls and tasks",
+    "activities": "Employee activities",
+    "activitiesHint": "Calls, meetings, and tasks by staff",
     "contracts": "Contracts",
     "contractsHint": "Customer agreements"
   },
   "contacts": {
-    "title": "Contacts",
-    "description": "Customers and leads",
-    "newTitle": "New contact",
-    "add": "Add contact",
+    "title": "Customers",
+    "description": "Customers of the company and their information",
+    "newTitle": "New customer",
+    "add": "Add customer",
+    "edit": "Edit",
+    "editTitle": "Edit customer",
+    "save": "Save changes",
     "customerType": "Customer",
     "leadType": "Lead",
     "companyName": "Company name",
-    "source": "Source",
-    "empty": "No contacts yet"
+    "empty": "No customers yet"
   },
   "opportunities": {
     "title": "Opportunities",
@@ -51,7 +53,7 @@
     "lost": "Lost"
   },
   "activities": {
-    "title": "Activities",
+    "title": "Employee activities",
     "newTitle": "New activity",
     "add": "Add activity",
     "call": "Call",
@@ -61,7 +63,14 @@
     "emailType": "Email",
     "noteType": "Note",
     "empty": "No activities yet",
-    "complete": "Complete"
+    "complete": "Complete",
+    "filterAll": "All",
+    "filterStatus": "Status",
+    "planned": "Planned",
+    "inProgress": "In progress",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "missed": "Missed"
   },
   "contracts": {
     "title": "Contracts",
@@ -73,7 +82,8 @@
     "activate": "Activate"
   },
   "flash": {
-    "contactCreated": "Contact created",
+    "contactCreated": "Customer created",
+    "contactUpdated": "Customer updated",
     "opportunityCreated": "Opportunity created",
     "activityCreated": "Activity created",
     "contractCreated": "Contract created",

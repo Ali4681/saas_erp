@@ -1091,4 +1091,154 @@ export class FinanceService {
     }
     return value.map((item) => String(item).toUpperCase());
   }
+
+  listDailyClosings(companyId: string) {
+    this.tenant.setCompanyId(companyId);
+    return this.prisma.dailyCashClosing.findMany({
+      orderBy: { closingDate: 'desc' },
+      take: 60,
+      include: {
+        branch: { select: { id: true, name: true, code: true } },
+      },
+    });
+  }
+
+  async openDailyClosing(input: {
+    companyId: string;
+    createdById: string;
+    closingDate: string;
+    openingCash?: string | number;
+    companyBranchId?: string;
+    currency?: string;
+    notes?: string;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const closingDate = new Date(input.closingDate);
+    const branchKey = input.companyBranchId ?? '';
+    const dayStart = new Date(closingDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(closingDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const opening = Number(input.openingCash ?? 0);
+    const { cashSales, cashExpenses } = await this.computeDailyCashTotals(
+      dayStart,
+      dayEnd,
+    );
+    const expected = opening + cashSales - cashExpenses;
+
+    return this.prisma.dailyCashClosing.upsert({
+      where: {
+        companyId_closingDate_branchKey: {
+          companyId: input.companyId,
+          closingDate,
+          branchKey,
+        },
+      },
+      create: {
+        companyId: input.companyId,
+        companyBranchId: input.companyBranchId,
+        branchKey,
+        closingDate,
+        openingCash: opening.toFixed(2),
+        cashSales: cashSales.toFixed(2),
+        cashExpenses: cashExpenses.toFixed(2),
+        expectedCash: expected.toFixed(2),
+        currency: input.currency ?? 'SAR',
+        notes: input.notes,
+        createdById: input.createdById,
+      },
+      update: {
+        openingCash: opening.toFixed(2),
+        cashSales: cashSales.toFixed(2),
+        cashExpenses: cashExpenses.toFixed(2),
+        expectedCash: expected.toFixed(2),
+        notes: input.notes,
+      },
+    });
+  }
+
+  async closeDailyClosing(input: {
+    companyId: string;
+    closingId: string;
+    closedById: string;
+    countedCash: string | number;
+    notes?: string;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const row = await this.prisma.dailyCashClosing.findFirst({
+      where: { id: input.closingId, companyId: input.companyId },
+    });
+    if (!row) {
+      throw new BadRequestException('Daily closing not found');
+    }
+    if (row.status === 'CLOSED') {
+      throw new BadRequestException('Already closed');
+    }
+
+    // Refresh sales/expense totals from sales payments + finance before closing
+    const dayStart = new Date(row.closingDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(row.closingDate);
+    dayEnd.setHours(23, 59, 59, 999);
+    const { cashSales, cashExpenses } = await this.computeDailyCashTotals(
+      dayStart,
+      dayEnd,
+    );
+    const opening = Number(row.openingCash);
+    const expected = opening + cashSales - cashExpenses;
+    const counted = Number(input.countedCash);
+
+    return this.prisma.dailyCashClosing.update({
+      where: { id: input.closingId },
+      data: {
+        status: 'CLOSED',
+        cashSales: cashSales.toFixed(2),
+        cashExpenses: cashExpenses.toFixed(2),
+        expectedCash: expected.toFixed(2),
+        countedCash: counted.toFixed(2),
+        variance: (counted - expected).toFixed(2),
+        notes: input.notes ?? row.notes,
+        closedById: input.closedById,
+        closedAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Daily income prefers sales payments (cash collected), plus other inflows
+   * that are not already tied to a sales invoice (avoids double-counting).
+   */
+  private async computeDailyCashTotals(dayStart: Date, dayEnd: Date) {
+    const [salesPayments, otherInflow, expensesOut] = await Promise.all([
+      this.prisma.salesPayment.aggregate({
+        where: {
+          status: 'SUCCEEDED',
+          paidAt: { gte: dayStart, lte: dayEnd },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.financialTransaction.aggregate({
+        where: {
+          direction: 'INFLOW',
+          salesInvoiceId: null,
+          occurredAt: { gte: dayStart, lte: dayEnd },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.financialTransaction.aggregate({
+        where: {
+          direction: 'OUTFLOW',
+          occurredAt: { gte: dayStart, lte: dayEnd },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const cashSales =
+      Number(salesPayments._sum?.amount ?? 0) +
+      Number(otherInflow._sum?.amount ?? 0);
+    const cashExpenses = Number(expensesOut._sum?.amount ?? 0);
+    return { cashSales, cashExpenses };
+  }
 }

@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && prisma migrate deploy && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
@@ -19,11 +19,13 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "npx tsx prisma/seed.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "seed": "tsx prisma/seed.ts",
     "db:mysql:local": "powershell -ExecutionPolicy Bypass -File ./scripts/start-mysql84.ps1"
   },
   "dependencies": {

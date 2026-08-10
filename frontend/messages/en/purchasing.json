@@ -22,13 +22,28 @@
   "back": "Purchasing",
   "hub": {
     "title": "Purchasing",
-    "description": "Suppliers, purchase orders, receiving, and bills",
+    "description": "Suppliers, purchase orders, receiving, bills, and purchase officers",
     "suppliers": "Suppliers",
     "suppliersHint": "Supplier directory",
     "purchaseOrders": "Purchase orders",
     "purchaseOrdersHint": "Order and receive",
     "bills": "Supplier bills",
-    "billsHint": "Purchase payables"
+    "billsHint": "Purchase payables",
+    "operators": "Purchase officers & wallets",
+    "operatorsHint": "Purchase officers with in-app e-wallets"
+  },
+  "operators": {
+    "title": "Purchase officers",
+    "description": "Assign employees as purchase officers and manage their e-wallets",
+    "add": "Assign purchase officer / wallet",
+    "employee": "Employee",
+    "walletCode": "Wallet code",
+    "balance": "Balance",
+    "currency": "Currency",
+    "save": "Save",
+    "empty": "No purchase officers yet",
+    "wallet": "E-wallet",
+    "edit": "Edit"
   },
   "suppliers": {
     "title": "Suppliers",

@@ -154,14 +154,19 @@ function BrandMark({
 function NavGroup({
   item,
   companyId,
+  expandedHref,
+  onExpand,
 }: {
   item: NavItem;
   companyId?: string;
+  /** Accordion: only this sibling href stays open at this level. */
+  expandedHref: string | null;
+  onExpand: (href: string | null) => void;
 }) {
   const pathname = usePathname();
-  const resolveLabel = useResolveNavLabel();
+  const resolveNavLabel = useResolveNavLabel();
   const t = useTranslations("common");
-  const label = resolveLabel(item);
+  const label = resolveNavLabel(item);
   const children = item.children ?? [];
   const hasChildren = children.length > 0;
   const isSectionRoot =
@@ -173,23 +178,28 @@ function NavGroup({
   const sectionActive = isSectionRoot
     ? pathname === item.href
     : sectionInPath(pathname, item);
-  const [open, setOpen] = useState(sectionActive);
-  const [userCollapsed, setUserCollapsed] = useState(false);
+
+  const open = hasChildren && expandedHref === item.href;
+
+  const [nestedExpandedHref, setNestedExpandedHref] = useState<string | null>(
+    () => {
+      const nested = children.find(
+        (c) => c.children?.length && sectionInPath(pathname, c),
+      );
+      return nested?.href ?? null;
+    },
+  );
 
   useEffect(() => {
-    if (!sectionActive) {
-      setUserCollapsed(false);
-      return;
-    }
-    if (!userCollapsed) setOpen(true);
-  }, [sectionActive, userCollapsed]);
+    if (!open) return;
+    const nested = children.find(
+      (c) => c.children?.length && sectionInPath(pathname, c),
+    );
+    if (nested) setNestedExpandedHref(nested.href);
+  }, [open, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleOpen() {
-    setOpen((prev) => {
-      const next = !prev;
-      setUserCollapsed(!next && sectionActive);
-      return next;
-    });
+    onExpand(open ? null : item.href);
   }
 
   const Icon = iconFor(item.href);
@@ -210,10 +220,7 @@ function NavGroup({
           <Link
             href={item.href}
             className="flex min-w-0 flex-1 items-center gap-2.5"
-            onClick={() => {
-              if (!open) setOpen(true);
-              setUserCollapsed(false);
-            }}
+            onClick={() => onExpand(item.href)}
           >
             <Icon
               className={cn(
@@ -264,7 +271,12 @@ function NavGroup({
             if (child.children?.length) {
               return (
                 <li key={child.href}>
-                  <NavGroup item={child} companyId={companyId} />
+                  <NavGroup
+                    item={child}
+                    companyId={companyId}
+                    expandedHref={nestedExpandedHref}
+                    onExpand={setNestedExpandedHref}
+                  />
                 </li>
               );
             }
@@ -280,7 +292,7 @@ function NavGroup({
                       : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-foreground)]",
                   )}
                 >
-                  {resolveLabel(child)}
+                  {resolveNavLabel(child)}
                 </Link>
               </li>
             );
@@ -344,6 +356,20 @@ export function Sidebar({
   // while the pointer is still over the toggle button.
   const [hoverReady, setHoverReady] = useState(true);
   const t = useTranslations("common");
+  const pathname = usePathname();
+
+  const items = companyId
+    ? filterItems(user, tenantNav(companyId))
+    : user.isPlatformAdmin
+      ? filterItems(user, platformNav())
+      : [];
+
+  const [expandedHref, setExpandedHref] = useState<string | null>(() => {
+    const active = items.find(
+      (item) => item.children?.length && sectionInPath(pathname, item),
+    );
+    return active?.href ?? null;
+  });
 
   useEffect(() => {
     if (open) {
@@ -355,11 +381,12 @@ export function Sidebar({
     return () => window.clearTimeout(id);
   }, [open]);
 
-  const items = companyId
-    ? filterItems(user, tenantNav(companyId))
-    : user.isPlatformAdmin
-      ? filterItems(user, platformNav())
-      : [];
+  useEffect(() => {
+    const active = items.find(
+      (item) => item.children?.length && sectionInPath(pathname, item),
+    );
+    if (active) setExpandedHref(active.href);
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <aside
@@ -400,7 +427,13 @@ export function Sidebar({
   
         <nav className="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 pe-1.5">
           {items.map((item) => (
-            <NavGroup key={item.href} item={item} companyId={companyId} />
+            <NavGroup
+              key={item.href}
+              item={item}
+              companyId={companyId}
+              expandedHref={expandedHref}
+              onExpand={setExpandedHref}
+            />
           ))}
         </nav>
   

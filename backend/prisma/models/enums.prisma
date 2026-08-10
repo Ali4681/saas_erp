@@ -396,6 +396,43 @@ enum PayrollItemStatus {
   HELD
 }
 
+enum SalaryAdvanceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
+enum EmployeeContractStatus {
+  DRAFT
+  SUBMITTED
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum DailyClosingStatus {
+  OPEN
+  CLOSED
+}
+
+enum AttendanceDeviceType {
+  CAMERA
+  BIOMETRIC
+  BOTH
+}
+
+enum AttendanceDeviceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EmployeeEwalletStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 enum WorkProjectStatus {
   PLANNED
   ACTIVE

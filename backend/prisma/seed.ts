@@ -10,12 +10,24 @@ import {
 import { seedDemoCompanyData } from './seed-demo-data';
 
 const ROLE_CODES = [
-  { code: 'PLATFORM_SUPER_ADMIN', name: 'Platform Super Admin', scope: 'PLATFORM' as const },
+  {
+    code: 'PLATFORM_SUPER_ADMIN',
+    name: 'Platform Super Admin',
+    scope: 'PLATFORM' as const,
+  },
   { code: 'COMPANY_OWNER', name: 'Company Owner', scope: 'TENANT' as const },
   { code: 'COMPANY_ADMIN', name: 'Company Admin', scope: 'TENANT' as const },
   { code: 'ACCOUNTANT', name: 'Accountant', scope: 'TENANT' as const },
-  { code: 'OPERATIONS_MANAGER', name: 'Operations Manager', scope: 'TENANT' as const },
-  { code: 'EMPLOYEE_VIEWER', name: 'Employee / Viewer', scope: 'TENANT' as const },
+  {
+    code: 'OPERATIONS_MANAGER',
+    name: 'Operations Manager',
+    scope: 'TENANT' as const,
+  },
+  {
+    code: 'EMPLOYEE_VIEWER',
+    name: 'Employee / Viewer',
+    scope: 'TENANT' as const,
+  },
 ];
 
 const PERMISSIONS = [
@@ -100,7 +112,9 @@ const PHASE10_READ = ['reports.read'] as const;
 const PHASE10_WRITE = ['retention.run'] as const;
 
 const ROLE_PERMISSION_MAP: Record<string, string[]> = {
-  PLATFORM_SUPER_ADMIN: PERMISSIONS.map(([module, action]) => `${module}.${action}`),
+  PLATFORM_SUPER_ADMIN: PERMISSIONS.map(
+    ([module, action]) => `${module}.${action}`,
+  ),
   COMPANY_OWNER: [
     'companies.read',
     'companies.write',
@@ -223,46 +237,246 @@ const CAPABILITIES: Array<{
   entityType: string;
   direction: CapabilityDirection;
 }> = [
-  { code: 'ACCOUNT_READ', name: 'Read account', entityType: 'account', direction: 'READ' },
-  { code: 'ACCOUNT_UPDATE', name: 'Update account', entityType: 'account', direction: 'WRITE' },
-  { code: 'LOCATION_READ', name: 'Read locations', entityType: 'location', direction: 'READ' },
-  { code: 'LOCATION_UPDATE', name: 'Update locations', entityType: 'location', direction: 'WRITE' },
-  { code: 'LOCATION_STATUS_UPDATE', name: 'Update location status', entityType: 'location', direction: 'WRITE' },
-  { code: 'CATEGORY_READ', name: 'Read categories', entityType: 'category', direction: 'READ' },
-  { code: 'CATEGORY_WRITE', name: 'Write categories', entityType: 'category', direction: 'WRITE' },
-  { code: 'PRODUCT_READ', name: 'Read products', entityType: 'product', direction: 'READ' },
-  { code: 'PRODUCT_CREATE', name: 'Create products', entityType: 'product', direction: 'WRITE' },
-  { code: 'PRODUCT_UPDATE', name: 'Update products', entityType: 'product', direction: 'WRITE' },
-  { code: 'INVENTORY_READ', name: 'Read inventory', entityType: 'inventory', direction: 'READ' },
-  { code: 'INVENTORY_UPDATE', name: 'Update inventory', entityType: 'inventory', direction: 'WRITE' },
-  { code: 'ORDER_READ', name: 'Read orders', entityType: 'order', direction: 'READ' },
-  { code: 'ORDER_ACCEPT', name: 'Accept orders', entityType: 'order', direction: 'WRITE' },
-  { code: 'ORDER_UPDATE', name: 'Update orders', entityType: 'order', direction: 'WRITE' },
-  { code: 'ORDER_CANCEL', name: 'Cancel orders', entityType: 'order', direction: 'WRITE' },
-  { code: 'ORDER_STATUS_UPDATE', name: 'Update order status', entityType: 'order', direction: 'WRITE' },
-  { code: 'FULFILLMENT_READ', name: 'Read fulfillments', entityType: 'fulfillment', direction: 'READ' },
-  { code: 'FULFILLMENT_UPDATE', name: 'Update fulfillments', entityType: 'fulfillment', direction: 'WRITE' },
-  { code: 'DRIVER_READ', name: 'Read drivers', entityType: 'driver', direction: 'READ' },
-  { code: 'DRIVER_CREATE', name: 'Create drivers', entityType: 'driver', direction: 'WRITE' },
-  { code: 'DRIVER_UPDATE', name: 'Update drivers', entityType: 'driver', direction: 'WRITE' },
-  { code: 'TRACKING_READ', name: 'Read tracking', entityType: 'tracking', direction: 'READ' },
-  { code: 'PROMOTION_READ', name: 'Read promotions', entityType: 'promotion', direction: 'READ' },
-  { code: 'PROMOTION_WRITE', name: 'Write promotions', entityType: 'promotion', direction: 'WRITE' },
-  { code: 'REPORT_READ', name: 'Read reports', entityType: 'report', direction: 'READ' },
-  { code: 'SETTLEMENT_READ', name: 'Read settlements', entityType: 'settlement', direction: 'READ' },
-  { code: 'CHECKOUT_CREATE', name: 'Create checkout', entityType: 'checkout', direction: 'WRITE' },
-  { code: 'PAYMENT_READ', name: 'Read payments', entityType: 'payment', direction: 'READ' },
-  { code: 'PAYMENT_AUTHORIZE', name: 'Authorize payment', entityType: 'payment', direction: 'WRITE' },
-  { code: 'PAYMENT_CAPTURE', name: 'Capture payment', entityType: 'payment', direction: 'WRITE' },
-  { code: 'PAYMENT_CANCEL', name: 'Cancel payment', entityType: 'payment', direction: 'WRITE' },
-  { code: 'PAYMENT_CLOSE', name: 'Close payment', entityType: 'payment', direction: 'WRITE' },
-  { code: 'PAYMENT_REFUND', name: 'Refund payment', entityType: 'payment', direction: 'WRITE' },
-  { code: 'DISPUTE_READ', name: 'Read disputes', entityType: 'dispute', direction: 'READ' },
-  { code: 'DISPUTE_RESPOND', name: 'Respond to disputes', entityType: 'dispute', direction: 'WRITE' },
-  { code: 'CUSTOMER_READ', name: 'Read customers', entityType: 'customer', direction: 'READ' },
-  { code: 'WEBHOOK_REGISTER', name: 'Register webhooks', entityType: 'webhook', direction: 'WRITE' },
-  { code: 'WEBHOOK_RECEIVE', name: 'Receive webhooks', entityType: 'webhook', direction: 'EVENT' },
-  { code: 'BULK_SYNC', name: 'Bulk sync', entityType: 'sync', direction: 'BOTH' },
+  {
+    code: 'ACCOUNT_READ',
+    name: 'Read account',
+    entityType: 'account',
+    direction: 'READ',
+  },
+  {
+    code: 'ACCOUNT_UPDATE',
+    name: 'Update account',
+    entityType: 'account',
+    direction: 'WRITE',
+  },
+  {
+    code: 'LOCATION_READ',
+    name: 'Read locations',
+    entityType: 'location',
+    direction: 'READ',
+  },
+  {
+    code: 'LOCATION_UPDATE',
+    name: 'Update locations',
+    entityType: 'location',
+    direction: 'WRITE',
+  },
+  {
+    code: 'LOCATION_STATUS_UPDATE',
+    name: 'Update location status',
+    entityType: 'location',
+    direction: 'WRITE',
+  },
+  {
+    code: 'CATEGORY_READ',
+    name: 'Read categories',
+    entityType: 'category',
+    direction: 'READ',
+  },
+  {
+    code: 'CATEGORY_WRITE',
+    name: 'Write categories',
+    entityType: 'category',
+    direction: 'WRITE',
+  },
+  {
+    code: 'PRODUCT_READ',
+    name: 'Read products',
+    entityType: 'product',
+    direction: 'READ',
+  },
+  {
+    code: 'PRODUCT_CREATE',
+    name: 'Create products',
+    entityType: 'product',
+    direction: 'WRITE',
+  },
+  {
+    code: 'PRODUCT_UPDATE',
+    name: 'Update products',
+    entityType: 'product',
+    direction: 'WRITE',
+  },
+  {
+    code: 'INVENTORY_READ',
+    name: 'Read inventory',
+    entityType: 'inventory',
+    direction: 'READ',
+  },
+  {
+    code: 'INVENTORY_UPDATE',
+    name: 'Update inventory',
+    entityType: 'inventory',
+    direction: 'WRITE',
+  },
+  {
+    code: 'ORDER_READ',
+    name: 'Read orders',
+    entityType: 'order',
+    direction: 'READ',
+  },
+  {
+    code: 'ORDER_ACCEPT',
+    name: 'Accept orders',
+    entityType: 'order',
+    direction: 'WRITE',
+  },
+  {
+    code: 'ORDER_UPDATE',
+    name: 'Update orders',
+    entityType: 'order',
+    direction: 'WRITE',
+  },
+  {
+    code: 'ORDER_CANCEL',
+    name: 'Cancel orders',
+    entityType: 'order',
+    direction: 'WRITE',
+  },
+  {
+    code: 'ORDER_STATUS_UPDATE',
+    name: 'Update order status',
+    entityType: 'order',
+    direction: 'WRITE',
+  },
+  {
+    code: 'FULFILLMENT_READ',
+    name: 'Read fulfillments',
+    entityType: 'fulfillment',
+    direction: 'READ',
+  },
+  {
+    code: 'FULFILLMENT_UPDATE',
+    name: 'Update fulfillments',
+    entityType: 'fulfillment',
+    direction: 'WRITE',
+  },
+  {
+    code: 'DRIVER_READ',
+    name: 'Read drivers',
+    entityType: 'driver',
+    direction: 'READ',
+  },
+  {
+    code: 'DRIVER_CREATE',
+    name: 'Create drivers',
+    entityType: 'driver',
+    direction: 'WRITE',
+  },
+  {
+    code: 'DRIVER_UPDATE',
+    name: 'Update drivers',
+    entityType: 'driver',
+    direction: 'WRITE',
+  },
+  {
+    code: 'TRACKING_READ',
+    name: 'Read tracking',
+    entityType: 'tracking',
+    direction: 'READ',
+  },
+  {
+    code: 'PROMOTION_READ',
+    name: 'Read promotions',
+    entityType: 'promotion',
+    direction: 'READ',
+  },
+  {
+    code: 'PROMOTION_WRITE',
+    name: 'Write promotions',
+    entityType: 'promotion',
+    direction: 'WRITE',
+  },
+  {
+    code: 'REPORT_READ',
+    name: 'Read reports',
+    entityType: 'report',
+    direction: 'READ',
+  },
+  {
+    code: 'SETTLEMENT_READ',
+    name: 'Read settlements',
+    entityType: 'settlement',
+    direction: 'READ',
+  },
+  {
+    code: 'CHECKOUT_CREATE',
+    name: 'Create checkout',
+    entityType: 'checkout',
+    direction: 'WRITE',
+  },
+  {
+    code: 'PAYMENT_READ',
+    name: 'Read payments',
+    entityType: 'payment',
+    direction: 'READ',
+  },
+  {
+    code: 'PAYMENT_AUTHORIZE',
+    name: 'Authorize payment',
+    entityType: 'payment',
+    direction: 'WRITE',
+  },
+  {
+    code: 'PAYMENT_CAPTURE',
+    name: 'Capture payment',
+    entityType: 'payment',
+    direction: 'WRITE',
+  },
+  {
+    code: 'PAYMENT_CANCEL',
+    name: 'Cancel payment',
+    entityType: 'payment',
+    direction: 'WRITE',
+  },
+  {
+    code: 'PAYMENT_CLOSE',
+    name: 'Close payment',
+    entityType: 'payment',
+    direction: 'WRITE',
+  },
+  {
+    code: 'PAYMENT_REFUND',
+    name: 'Refund payment',
+    entityType: 'payment',
+    direction: 'WRITE',
+  },
+  {
+    code: 'DISPUTE_READ',
+    name: 'Read disputes',
+    entityType: 'dispute',
+    direction: 'READ',
+  },
+  {
+    code: 'DISPUTE_RESPOND',
+    name: 'Respond to disputes',
+    entityType: 'dispute',
+    direction: 'WRITE',
+  },
+  {
+    code: 'CUSTOMER_READ',
+    name: 'Read customers',
+    entityType: 'customer',
+    direction: 'READ',
+  },
+  {
+    code: 'WEBHOOK_REGISTER',
+    name: 'Register webhooks',
+    entityType: 'webhook',
+    direction: 'WRITE',
+  },
+  {
+    code: 'WEBHOOK_RECEIVE',
+    name: 'Receive webhooks',
+    entityType: 'webhook',
+    direction: 'EVENT',
+  },
+  {
+    code: 'BULK_SYNC',
+    name: 'Bulk sync',
+    entityType: 'sync',
+    direction: 'BOTH',
+  },
 ];
 
 type ProviderSeed = {
@@ -294,24 +508,68 @@ const PROVIDERS: ProviderSeed[] = [
     apiAvailability: 'PUBLIC_DOCUMENTED',
     officialDocsUrl: 'https://developer.hungerstation.com/api-specifications',
     caps: [
-      { code: 'ACCOUNT_READ', status: V, notes: 'Session validate + catalogs summary' },
-      { code: 'ORDER_READ', status: V, notes: 'GraphQL ListOrders / order detail' },
-      { code: 'PRODUCT_READ', status: V, notes: 'Vendor catalog (often needs extension)' },
+      {
+        code: 'ACCOUNT_READ',
+        status: V,
+        notes: 'Session validate + catalogs summary',
+      },
+      {
+        code: 'ORDER_READ',
+        status: V,
+        notes: 'GraphQL ListOrders / order detail',
+      },
+      {
+        code: 'PRODUCT_READ',
+        status: V,
+        notes: 'Vendor catalog (often needs extension)',
+      },
       { code: 'CATEGORY_READ', status: V },
       { code: 'BULK_SYNC', status: V },
       { code: 'WEBHOOK_REGISTER', status: V },
       { code: 'WEBHOOK_RECEIVE', status: V },
-      { code: 'ORDER_ACCEPT', status: V, notes: 'Partner API PUT → READY_FOR_PICKUP / DISPATCHED' },
+      {
+        code: 'ORDER_ACCEPT',
+        status: V,
+        notes: 'Partner API PUT → READY_FOR_PICKUP / DISPATCHED',
+      },
       { code: 'ORDER_UPDATE', status: V, notes: 'Partner API PUT UPDATE_CART' },
       { code: 'ORDER_CANCEL', status: V, notes: 'Partner API PUT CANCELLED' },
-      { code: 'ORDER_STATUS_UPDATE', status: V, notes: 'Partner API PUT status (needs clientId/secret/chainId)' },
-      { code: 'LOCATION_READ', status: V, notes: 'GET opening_times_global.data' },
+      {
+        code: 'ORDER_STATUS_UPDATE',
+        status: V,
+        notes: 'Partner API PUT status (needs clientId/secret/chainId)',
+      },
+      {
+        code: 'LOCATION_READ',
+        status: V,
+        notes: 'GET opening_times_global.data',
+      },
       { code: 'LOCATION_UPDATE', status: V, notes: 'PUT opening_times_global' },
-      { code: 'LOCATION_STATUS_UPDATE', status: V, notes: 'PUT /availability open|closed' },
-      { code: 'PRODUCT_CREATE', status: V, notes: 'POST catalogs/products + command poll' },
-      { code: 'PRODUCT_UPDATE', status: V, notes: 'PUT/PATCH/DELETE product, availability, image, translate' },
-      { code: 'CATEGORY_WRITE', status: V, notes: 'Create/update/delete catalog categories' },
-      { code: 'REPORT_READ', status: V, notes: 'Performance + GraphQL sales/ops/reviews' },
+      {
+        code: 'LOCATION_STATUS_UPDATE',
+        status: V,
+        notes: 'PUT /availability open|closed',
+      },
+      {
+        code: 'PRODUCT_CREATE',
+        status: V,
+        notes: 'POST catalogs/products + command poll',
+      },
+      {
+        code: 'PRODUCT_UPDATE',
+        status: V,
+        notes: 'PUT/PATCH/DELETE product, availability, image, translate',
+      },
+      {
+        code: 'CATEGORY_WRITE',
+        status: V,
+        notes: 'Create/update/delete catalog categories',
+      },
+      {
+        code: 'REPORT_READ',
+        status: V,
+        notes: 'Performance + GraphQL sales/ops/reviews',
+      },
       { code: 'SETTLEMENT_READ', status: V, notes: 'GraphQL ListPayouts' },
       { code: 'PROMOTION_READ', status: U },
       { code: 'PROMOTION_WRITE', status: U },
@@ -326,7 +584,11 @@ const PROVIDERS: ProviderSeed[] = [
     category: 'DELIVERY',
     apiAvailability: 'UNVERIFIED_PUBLICLY',
     caps: [
-      { code: 'ACCOUNT_READ', status: U, notes: 'Awaiting official API package' },
+      {
+        code: 'ACCOUNT_READ',
+        status: U,
+        notes: 'Awaiting official API package',
+      },
       { code: 'LOCATION_READ', status: U },
       { code: 'ORDER_READ', status: U },
     ],
@@ -337,9 +599,17 @@ const PROVIDERS: ProviderSeed[] = [
     category: 'DELIVERY',
     apiAvailability: 'UNVERIFIED_PUBLICLY',
     caps: [
-      { code: 'ORDER_READ', status: V, notes: 'Merchant JWT /delivery/v1/merchant/orders' },
+      {
+        code: 'ORDER_READ',
+        status: V,
+        notes: 'Merchant JWT /delivery/v1/merchant/orders',
+      },
       { code: 'PRODUCT_READ', status: V },
-      { code: 'CATEGORY_READ', status: V, notes: 'Mapped from merchant groups' },
+      {
+        code: 'CATEGORY_READ',
+        status: V,
+        notes: 'Mapped from merchant groups',
+      },
       { code: 'BULK_SYNC', status: V },
       { code: 'WEBHOOK_RECEIVE', status: U },
       { code: 'ACCOUNT_READ', status: U },
@@ -351,7 +621,11 @@ const PROVIDERS: ProviderSeed[] = [
     category: 'DELIVERY',
     apiAvailability: 'PRIVATE_CONFIRMED',
     caps: [
-      { code: 'ORDER_READ', status: P, notes: 'Via extension bridge mrsool_rest' },
+      {
+        code: 'ORDER_READ',
+        status: P,
+        notes: 'Via extension bridge mrsool_rest',
+      },
       { code: 'PRODUCT_READ', status: P },
       { code: 'PRODUCT_UPDATE', status: P, notes: 'enable/disable menu item' },
       { code: 'CATEGORY_READ', status: P },
@@ -370,7 +644,11 @@ const PROVIDERS: ProviderSeed[] = [
       { code: 'PRODUCT_READ', status: V },
       { code: 'CATEGORY_READ', status: V },
       { code: 'BULK_SYNC', status: V },
-      { code: 'PRODUCT_UPDATE', status: U, notes: 'Branch availability ops deferred' },
+      {
+        code: 'PRODUCT_UPDATE',
+        status: U,
+        notes: 'Branch availability ops deferred',
+      },
       { code: 'LOCATION_READ', status: U },
       { code: 'DRIVER_CREATE', status: N },
       { code: 'DRIVER_READ', status: U },
@@ -384,7 +662,11 @@ const PROVIDERS: ProviderSeed[] = [
     apiAvailability: 'PARTNER_PORTAL',
     requiresApproval: true,
     caps: [
-      { code: 'ACCOUNT_READ', status: P, notes: 'Activate after Jahez onboarding' },
+      {
+        code: 'ACCOUNT_READ',
+        status: P,
+        notes: 'Activate after Jahez onboarding',
+      },
       { code: 'LOCATION_READ', status: P },
       { code: 'PRODUCT_READ', status: P },
       { code: 'ORDER_READ', status: P },
@@ -400,7 +682,11 @@ const PROVIDERS: ProviderSeed[] = [
     apiAvailability: 'PUBLIC_DOCUMENTED',
     requiresApproval: true,
     caps: [
-      { code: 'ACCOUNT_READ', status: P, notes: 'Scaffold only until OAuth/SIT credentials' },
+      {
+        code: 'ACCOUNT_READ',
+        status: P,
+        notes: 'Scaffold only until OAuth/SIT credentials',
+      },
       { code: 'LOCATION_READ', status: P },
       { code: 'LOCATION_UPDATE', status: P },
       { code: 'LOCATION_STATUS_UPDATE', status: P },
@@ -422,7 +708,11 @@ const PROVIDERS: ProviderSeed[] = [
     category: 'DELIVERY',
     apiAvailability: 'UNVERIFIED_PUBLICLY',
     caps: [
-      { code: 'TRACKING_READ', status: U, notes: 'Partner-app evidence only, not API' },
+      {
+        code: 'TRACKING_READ',
+        status: U,
+        notes: 'Partner-app evidence only, not API',
+      },
       { code: 'DRIVER_READ', status: U },
       { code: 'FULFILLMENT_READ', status: U },
     ],
@@ -440,7 +730,11 @@ const PROVIDERS: ProviderSeed[] = [
       { code: 'BULK_SYNC', status: V },
       { code: 'WEBHOOK_REGISTER', status: V },
       { code: 'WEBHOOK_RECEIVE', status: V },
-      { code: 'CHECKOUT_CREATE', status: U, notes: 'Not exposed as adapter op yet' },
+      {
+        code: 'CHECKOUT_CREATE',
+        status: U,
+        notes: 'Not exposed as adapter op yet',
+      },
       { code: 'DISPUTE_READ', status: U },
       { code: 'DISPUTE_RESPOND', status: U },
     ],
@@ -454,7 +748,11 @@ const PROVIDERS: ProviderSeed[] = [
       { code: 'PAYMENT_AUTHORIZE', status: V },
       { code: 'PAYMENT_CAPTURE', status: V },
       { code: 'PAYMENT_CANCEL', status: V },
-      { code: 'PAYMENT_READ', status: V, notes: 'Webhook-driven; list sync returns empty' },
+      {
+        code: 'PAYMENT_READ',
+        status: V,
+        notes: 'Webhook-driven; list sync returns empty',
+      },
       { code: 'PAYMENT_REFUND', status: V },
       { code: 'WEBHOOK_REGISTER', status: V },
       { code: 'WEBHOOK_RECEIVE', status: V },
@@ -475,11 +773,19 @@ const PROVIDERS: ProviderSeed[] = [
         status: V,
         notes: 'shareOrder operation',
       },
-      { code: 'PAYMENT_READ', status: V, notes: 'OrderGet_OnlinePayment status poll' },
+      {
+        code: 'PAYMENT_READ',
+        status: V,
+        notes: 'OrderGet_OnlinePayment status poll',
+      },
       { code: 'PAYMENT_CANCEL', status: V },
       { code: 'PAYMENT_REFUND', status: V },
       { code: 'WEBHOOK_RECEIVE', status: V },
-      { code: 'BULK_SYNC', status: V, notes: 'Refreshes known installment mirrors only' },
+      {
+        code: 'BULK_SYNC',
+        status: V,
+        notes: 'Refreshes known installment mirrors only',
+      },
     ],
   },
   {
@@ -488,7 +794,11 @@ const PROVIDERS: ProviderSeed[] = [
     category: 'INSTALLMENT',
     apiAvailability: 'PUBLIC_DOCUMENTED',
     caps: [
-      { code: 'CHECKOUT_CREATE', status: U, notes: 'Docs exist; connector not ported' },
+      {
+        code: 'CHECKOUT_CREATE',
+        status: U,
+        notes: 'Docs exist; connector not ported',
+      },
       { code: 'PAYMENT_READ', status: U },
       { code: 'TRACKING_READ', status: U },
       { code: 'PAYMENT_REFUND', status: U },
@@ -503,7 +813,11 @@ const PROVIDERS: ProviderSeed[] = [
     apiAvailability: 'PARTNER_PORTAL',
     requiresApproval: true,
     caps: [
-      { code: 'CHECKOUT_CREATE', status: P, notes: 'Account-gated developer tools' },
+      {
+        code: 'CHECKOUT_CREATE',
+        status: P,
+        notes: 'Account-gated developer tools',
+      },
       { code: 'PAYMENT_READ', status: P },
       { code: 'WEBHOOK_RECEIVE', status: P },
     ],
@@ -545,7 +859,11 @@ const PROVIDERS: ProviderSeed[] = [
       { code: 'BULK_SYNC', status: V },
       { code: 'WEBHOOK_REGISTER', status: V },
       { code: 'WEBHOOK_RECEIVE', status: V },
-      { code: 'ORDER_READ', status: U, notes: 'Order sync not implemented yet' },
+      {
+        code: 'ORDER_READ',
+        status: U,
+        notes: 'Order sync not implemented yet',
+      },
       { code: 'ORDER_UPDATE', status: U },
       { code: 'INVENTORY_READ', status: U },
       { code: 'CUSTOMER_READ', status: U },
@@ -700,21 +1018,19 @@ async function seedPaymentGateways(prisma: PrismaClient) {
 
 async function main() {
   const adapter = new PrismaMariaDb({
-    host: process.env.DATABASE_HOST!,
-    port: Number(process.env.DATABASE_PORT ?? 3307),
-    user: process.env.DATABASE_USER!,
-    password: process.env.DATABASE_PASSWORD!,
-    database: process.env.DATABASE_NAME!,
+    host: process.env.DATABASE_HOST ?? '127.0.0.1',
+    port: Number(process.env.DATABASE_PORT ?? 3306),
+    user: process.env.DATABASE_USER ?? 'root',
+    password: process.env.DATABASE_PASSWORD ?? '',
+    database: process.env.DATABASE_NAME ?? 'saas_erp',
+    connectionLimit: 1,
+    connectTimeout: 30000,
+    idleTimeout: 30000,
   });
   const prisma = new PrismaClient({ adapter });
 
-  for (const role of ROLE_CODES) {
-    await prisma.role.upsert({
-      where: { code: role.code },
-      update: { name: role.name, scope: role.scope, isSystem: true },
-      create: role,
-    });
-  }
+  const result = await prisma.$queryRaw`SELECT 1`;
+  console.log(result);
 
   for (const [module, action] of PERMISSIONS) {
     const code = `${module}.${action}`;
@@ -724,9 +1040,34 @@ async function main() {
       create: { code, module, action, description: `${action} ${module}` },
     });
   }
+  console.log('Seeding roles...');
 
-  for (const [roleCode, permissionCodes] of Object.entries(ROLE_PERMISSION_MAP)) {
-    const role = await prisma.role.findUniqueOrThrow({ where: { code: roleCode } });
+  for (const role of ROLE_CODES) {
+    await prisma.role.upsert({
+      where: {
+        code: role.code,
+      },
+      update: {
+        name: role.name,
+        scope: role.scope,
+        isSystem: true,
+      },
+      create: {
+        code: role.code,
+        name: role.name,
+        scope: role.scope,
+        isSystem: true,
+      },
+    });
+  }
+  
+  console.log('Roles seeded');
+  for (const [roleCode, permissionCodes] of Object.entries(
+    ROLE_PERMISSION_MAP,
+  )) {
+    const role = await prisma.role.findUniqueOrThrow({
+      where: { code: roleCode },
+    });
     for (const permissionCode of permissionCodes) {
       const permission = await prisma.permission.findUniqueOrThrow({
         where: { code: permissionCode },
