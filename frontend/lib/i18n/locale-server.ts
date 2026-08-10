@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import {
   defaultLocale,
@@ -6,9 +7,9 @@ import {
   type AppLocale,
 } from "@/i18n/config";
 
-/** Server-side locale from cookie (for API headers, RSC). */
-export async function getAppLocale(): Promise<AppLocale> {
+/** Server-side locale from cookie (for API headers, RSC). Deduped per request. */
+export const getAppLocale = cache(async (): Promise<AppLocale> => {
   const store = await cookies();
   const raw = store.get(LOCALE_COOKIE)?.value;
   return isAppLocale(raw) ? raw : defaultLocale;
-}
+});

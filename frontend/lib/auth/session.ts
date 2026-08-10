@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 import type { AuthUser, SessionPayload } from "@/lib/types/auth";
 import {
   COOKIE_ACCESS,
@@ -55,7 +56,8 @@ export async function clearSessionCookies() {
   }
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
+/** Deduped per RSC request — layouts/pages share one cookie parse. */
+export const getSession = cache(async (): Promise<SessionPayload | null> => {
   const jar = await cookies();
   const accessToken = jar.get(COOKIE_ACCESS)?.value;
   const refreshToken = jar.get(COOKIE_REFRESH)?.value;
@@ -70,4 +72,4 @@ export async function getSession(): Promise<SessionPayload | null> {
   } catch {
     return null;
   }
-}
+});

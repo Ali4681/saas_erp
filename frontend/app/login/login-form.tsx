@@ -54,7 +54,7 @@ export default function LoginForm() {
       }
       toast.success(t("loginSuccess"));
       if (isAppLocale(data.user.locale)) {
-        await fetch("/api/locale", {
+        void fetch("/api/locale", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ locale: data.user.locale }),
@@ -68,7 +68,6 @@ export default function LoginForm() {
       const dest =
         next && next.startsWith("/c/") ? next : homePathFor(data.user);
       router.replace(dest);
-      router.refresh();
     } catch {
       toast.error(t("serverError"));
     } finally {

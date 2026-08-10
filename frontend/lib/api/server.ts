@@ -50,6 +50,20 @@ export async function apiServer<T>(
     throw new ApiError(401, "غير مسجّل الدخول");
   }
 
+  // Refresh before the request if the access token is near expiry (avoid
+  // fail-then-retry double RTT on soft navigations).
+  const expiresMs = Date.parse(session.expiresAt);
+  if (
+    Number.isFinite(expiresMs) &&
+    expiresMs < Date.now() + 30_000 &&
+    session.refreshToken
+  ) {
+    session = (await refreshSession(session.refreshToken, session)) ?? session;
+    if (!session.accessToken) {
+      throw new ApiError(401, "انتهت الجلسة");
+    }
+  }
+
   const companyId =
     companyIdOverride !== undefined
       ? companyIdOverride

@@ -24,6 +24,14 @@ const membershipInclude = {
       permissions: { include: { permission: true } },
     },
   },
+  company: {
+    select: {
+      id: true,
+      displayName: true,
+      legalName: true,
+      logoAttachmentId: true,
+    },
+  },
 } as const;
 
 @Injectable()
@@ -103,10 +111,13 @@ export class AuthService {
         permissions: [],
       });
 
-      await this.prisma.withoutTenant().user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date(), status: 'ACTIVE' },
-      });
+      void this.prisma
+        .withoutTenant()
+        .user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date(), status: 'ACTIVE' },
+        })
+        .catch(() => undefined);
 
       return {
         user: {
@@ -124,16 +135,9 @@ export class AuthService {
       };
     }
 
-    const companyId = await this.resolveTenantCompanyId(user.id, dto);
+    const membership = await this.loadActiveMembership(user.id, dto);
+    const companyId = membership.companyId;
     this.tenant.setCompanyId(companyId);
-
-    const membership = await this.prisma.withoutTenant().companyUser.findFirst({
-      where: { userId: user.id, companyId, status: 'ACTIVE' },
-      include: membershipInclude,
-    });
-    if (!membership) {
-      throw i18nUnauthorized('errors.auth.noMembership');
-    }
 
     const permissions =
       membership.role.permissions.map((row) => row.permission.code) ?? [];
@@ -147,10 +151,18 @@ export class AuthService {
       permissions,
     });
 
-    await this.prisma.withoutTenant().user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date(), status: 'ACTIVE' },
-    });
+    void this.prisma
+      .withoutTenant()
+      .user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date(), status: 'ACTIVE' },
+      })
+      .catch(() => undefined);
+
+    const companyName =
+      membership.company.displayName?.trim() ||
+      membership.company.legalName?.trim() ||
+      null;
 
     return {
       user: {
@@ -159,6 +171,8 @@ export class AuthService {
         email: user.email,
         isPlatformAdmin: false,
         companyId,
+        companyName,
+        logoAttachmentId: membership.company.logoAttachmentId,
         roleCode: membership.role.code,
         permissions,
         locale: user.locale === 'en' ? 'en' : 'ar',
@@ -234,39 +248,40 @@ export class AuthService {
     return { ok: true };
   }
 
-  private async resolveTenantCompanyId(
-    userId: string,
-    dto: LoginDto,
-  ): Promise<string> {
+  private async loadActiveMembership(userId: string, dto: LoginDto) {
     if (dto.companyId) {
       const membership = await this.prisma.withoutTenant().companyUser.findFirst({
         where: { userId, companyId: dto.companyId, status: 'ACTIVE' },
+        include: membershipInclude,
       });
       if (!membership) {
         throw i18nUnauthorized('errors.auth.notCompanyMember');
       }
-      return dto.companyId;
+      return membership;
     }
 
     if (dto.companySlug) {
-      const company = await this.prisma.withoutTenant().company.findFirst({
-        where: { slug: dto.companySlug.trim().toLowerCase(), deletedAt: null },
-      });
-      if (!company) {
-        throw i18nUnauthorized('errors.auth.companyNotFound');
-      }
       const membership = await this.prisma.withoutTenant().companyUser.findFirst({
-        where: { userId, companyId: company.id, status: 'ACTIVE' },
+        where: {
+          userId,
+          status: 'ACTIVE',
+          company: {
+            slug: dto.companySlug.trim().toLowerCase(),
+            deletedAt: null,
+          },
+        },
+        include: membershipInclude,
       });
       if (!membership) {
         throw i18nUnauthorized('errors.auth.notCompanyMember');
       }
-      return company.id;
+      return membership;
     }
 
     const memberships = await this.prisma.withoutTenant().companyUser.findMany({
       where: { userId, status: 'ACTIVE' },
       take: 2,
+      include: membershipInclude,
     });
     if (memberships.length === 0) {
       throw i18nUnauthorized('errors.auth.noMembership');
@@ -274,7 +289,15 @@ export class AuthService {
     if (memberships.length > 1) {
       throw i18nUnauthorized('errors.auth.multipleCompanies');
     }
-    return memberships[0]!.companyId;
+    return memberships[0]!;
+  }
+
+  private async resolveTenantCompanyId(
+    userId: string,
+    dto: LoginDto,
+  ): Promise<string> {
+    const membership = await this.loadActiveMembership(userId, dto);
+    return membership.companyId;
   }
 
   private async issueTokens(input: {

@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
-import { apiServer } from "@/lib/api/server";
 import { companyLogoUrl } from "@/lib/company-logo";
 import { getSession } from "@/lib/auth/session";
 
@@ -30,21 +29,24 @@ export default async function CompanyLayout({
       : {}),
   };
 
-  const company = await apiServer<{
-    displayName: string;
-    legalName?: string;
-    logoAttachmentId?: string | null;
-  }>(`/companies/${companyId}`, { companyId }).catch(() => null);
-
-  const companyName =
-    company?.displayName?.trim() || company?.legalName?.trim() || null;
+  // Cookie-only branding — never await Nest in this layout (blocks every soft nav).
+  // Tenant sessions get companyName/logoAttachmentId at login; old cookies or
+  // platform-admin browsing another tenant may show a placeholder until re-login
+  // or the page itself loads company details.
+  const sameTenant = session.user.companyId === companyId;
+  const companyName = sameTenant
+    ? session.user.companyName?.trim() || null
+    : null;
+  const logoAttachmentId = sameTenant
+    ? (session.user.logoAttachmentId ?? null)
+    : null;
 
   return (
     <AppShell
       user={user}
       companyId={companyId}
       companyName={companyName}
-      companyLogoUrl={companyLogoUrl(companyId, company?.logoAttachmentId)}
+      companyLogoUrl={companyLogoUrl(companyId, logoAttachmentId)}
     >
       {children}
     </AppShell>

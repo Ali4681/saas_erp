@@ -13,9 +13,13 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 const SKIP_PREFIXES = [
   '/health',
+  '/api/health',
   '/auth/login',
+  '/api/auth/login',
   '/auth/refresh',
+  '/api/auth/refresh',
   '/auth/logout',
+  '/api/auth/logout',
 ];
 
 const MODULE_RULES: Array<{ re: RegExp; module: string; entity: string }> = [

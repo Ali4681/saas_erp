@@ -38,7 +38,7 @@ export default function AdminLoginForm() {
       }
       toast.success(t("adminSuccess"));
       if (isAppLocale(data.user.locale)) {
-        await fetch("/api/locale", {
+        void fetch("/api/locale", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ locale: data.user.locale }),
@@ -51,7 +51,6 @@ export default function AdminLoginForm() {
       const dest =
         next && next.startsWith("/platform") ? next : "/platform";
       router.replace(dest);
-      router.refresh();
     } catch {
       toast.error(t("serverError"));
     } finally {

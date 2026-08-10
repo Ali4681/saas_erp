@@ -4,6 +4,9 @@ export type AuthUser = {
   email: string | null;
   isPlatformAdmin: boolean;
   companyId?: string;
+  /** Cached at login for shell branding (avoids Nest fetch on every nav). */
+  companyName?: string | null;
+  logoAttachmentId?: string | null;
   roleCode?: string;
   permissions: string[];
   locale?: "ar" | "en";

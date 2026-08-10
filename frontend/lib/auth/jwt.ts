@@ -25,10 +25,14 @@ export function userFromAccessToken(
       (payload.email as string | null | undefined) ?? previous?.email ?? null,
     isPlatformAdmin: Boolean(payload.isPlatformAdmin),
     companyId: (payload.companyId as string | undefined) ?? previous?.companyId,
+    companyName: previous?.companyName ?? null,
+    logoAttachmentId: previous?.logoAttachmentId ?? null,
     roleCode: (payload.roleCode as string | undefined) ?? previous?.roleCode,
     permissions: Array.isArray(payload.permissions)
       ? (payload.permissions as string[])
       : (previous?.permissions ?? []),
+    locale: previous?.locale,
+    theme: previous?.theme,
   };
 }
 

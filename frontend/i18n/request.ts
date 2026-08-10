@@ -7,7 +7,9 @@ import {
   type AppLocale,
 } from "./config";
 
-async function loadMessages(locale: AppLocale) {
+const messageCache = new Map<AppLocale, Promise<Record<string, unknown>>>();
+
+async function loadMessagesUncached(locale: AppLocale) {
   const base = (await import(`../messages/${locale}.json`)).default as Record<
     string,
     unknown
@@ -53,6 +55,15 @@ async function loadMessages(locale: AppLocale) {
     }),
   );
   return merged;
+}
+
+function loadMessages(locale: AppLocale) {
+  let hit = messageCache.get(locale);
+  if (!hit) {
+    hit = loadMessagesUncached(locale);
+    messageCache.set(locale, hit);
+  }
+  return hit;
 }
 
 export default getRequestConfig(async () => {

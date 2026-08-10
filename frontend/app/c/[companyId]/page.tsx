@@ -34,7 +34,7 @@ import {
   DistributionPieChart,
   GroupedBarChart,
   RevenueAreaChart,
-} from "@/components/charts/ErpCharts";
+} from "@/components/charts/HomeCharts";
 
 type ExecutiveReport = {
   currency: string;
@@ -148,33 +148,40 @@ export default async function CompanyHomePage({
   const session = await getSession();
   const user = session?.user;
   const t = await getTranslations("home");
-  const { formatDate, formatMoney, formatNumber } = await getFormatters();
+  const { formatMoney, formatNumber } = await getFormatters();
   const tRoles = await getTranslations("roles");
 
-  const company = await apiServer<{
-    displayName: string;
-    logoAttachmentId?: string | null;
-  }>(`/companies/${companyId}`, { companyId }).catch(() => null);
-
-  let unread = 0;
-  if (user && can(user, "notifications.read")) {
-    try {
-      const data = await apiServer<{ count: number }>(
-        `/companies/${companyId}/notifications/unread-count`,
-        { companyId },
-      );
-      unread = data.count;
-    } catch {
-      unread = 0;
-    }
-  }
-
-  const report = can(user, "reports.read")
-    ? await apiServer<ExecutiveReport>(
-        `/companies/${companyId}/reports/executive`,
-        { companyId },
-      ).catch(() => null)
+  const sameTenant = user?.companyId === companyId;
+  const sessionCompanyName = sameTenant
+    ? user?.companyName?.trim() || null
     : null;
+  const sessionLogoId = sameTenant ? (user?.logoAttachmentId ?? null) : null;
+
+  const [company, unreadRes, report] = await Promise.all([
+    sessionCompanyName
+      ? Promise.resolve({
+          displayName: sessionCompanyName,
+          logoAttachmentId: sessionLogoId,
+        })
+      : apiServer<{
+          displayName: string;
+          logoAttachmentId?: string | null;
+        }>(`/companies/${companyId}`, { companyId }).catch(() => null),
+    user && can(user, "notifications.read")
+      ? apiServer<{ count: number }>(
+          `/companies/${companyId}/notifications/unread-count`,
+          { companyId },
+        ).catch(() => ({ count: 0 }))
+      : Promise.resolve({ count: 0 }),
+    can(user, "reports.read")
+      ? apiServer<ExecutiveReport>(
+          `/companies/${companyId}/reports/executive`,
+          { companyId },
+        ).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+
+  const unread = unreadRes.count;
 
   const tileDefs = [
     { key: "crm", href: `/c/${companyId}/crm`, perm: "crm.read" },
@@ -407,7 +414,7 @@ export default async function CompanyHomePage({
             </Badge>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {tiles.map((tile, index) => {
+            {tiles.map((tile) => {
               const meta = tileMeta[tile.key] ?? {
                 icon: SparklesFallback,
                 tone: "bg-[var(--secondary)] text-[var(--foreground)]",
@@ -417,8 +424,8 @@ export default async function CompanyHomePage({
                 <Link
                   key={tile.href}
                   href={tile.href}
-                  className="group animate-fade-up"
-                  style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
+                  prefetch={false}
+                  className="group"
                 >
                   <Card className="h-full p-4 transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[var(--primary)] group-hover:shadow-[0_14px_30px_rgba(15,23,32,0.08)]">
                     <div className="flex items-start gap-3">

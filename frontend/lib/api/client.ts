@@ -13,10 +13,11 @@ export class ApiError extends Error {
 }
 
 export function getApiBaseUrl(): string {
-  return (
+  const raw =
     process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-    "http://127.0.0.1:3000"
-  );
+    "http://127.0.0.1:3000";
+  // Nest uses global prefix `api` (see backend/src/main.ts)
+  return raw.endsWith("/api") ? raw : `${raw}/api`;
 }
 
 export async function nestFetch<T>(

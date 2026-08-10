@@ -108,11 +108,16 @@ export function NotificationBellDropdown({ companyId }: { companyId: string }) {
   }, [companyId]);
 
   useEffect(() => {
-    void loadUnreadCount();
+    const start = window.setTimeout(() => {
+      void loadUnreadCount();
+    }, 800);
     const timer = window.setInterval(() => {
       void loadUnreadCount();
-    }, 60_000);
-    return () => window.clearInterval(timer);
+    }, 120_000);
+    return () => {
+      window.clearTimeout(start);
+      window.clearInterval(timer);
+    };
   }, [loadUnreadCount]);
 
   useEffect(() => {

@@ -75,10 +75,9 @@ export function Topbar({
   const title = useSectionTitle(pathname, companyId);
   const displayCompany = companyName?.trim() || null;
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+  function logout() {
+    void fetch("/api/auth/logout", { method: "POST" });
     router.replace(user.isPlatformAdmin ? "/admin/login" : "/login");
-    router.refresh();
   }
 
   return (

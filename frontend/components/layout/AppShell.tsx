@@ -4,9 +4,15 @@ import { useEffect, useState } from "react";
 import type { AuthUser } from "@/lib/types/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
-import { AiChatWidget } from "@/components/erp/AiChatWidget";
 import { FcmAutoRegister } from "@/components/erp/FcmAutoRegister";
 import { can } from "@/lib/permissions";
+import dynamic from "next/dynamic";
+
+const AiChatWidget = dynamic(
+  () =>
+    import("@/components/erp/AiChatWidget").then((m) => m.AiChatWidget),
+  { ssr: false },
+);
 
 const STORAGE_KEY = "saas-erp-sidebar-open";
 
@@ -25,6 +31,7 @@ export function AppShell({
 }) {
   const [open, setOpen] = useState(true);
   const [hydrated, setHydrated] = useState(false);
+  const [showAi, setShowAi] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -37,6 +44,39 @@ export function AppShell({
     if (!hydrated) return;
     window.localStorage.setItem(STORAGE_KEY, open ? "1" : "0");
   }, [open, hydrated]);
+
+  // Defer AI widget until after first paint so navigation stays responsive.
+  useEffect(() => {
+    if (!companyId || !can(user, "ai.write")) return;
+    let cancelled = false;
+    const enable = () => {
+      if (!cancelled) setShowAi(true);
+    };
+
+    const idle = (
+      window as Window & {
+        requestIdleCallback?: (
+          cb: () => void,
+          opts?: { timeout: number },
+        ) => number;
+        cancelIdleCallback?: (id: number) => void;
+      }
+    ).requestIdleCallback;
+
+    if (typeof idle === "function") {
+      const id = idle(enable, { timeout: 2500 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(id);
+      };
+    }
+
+    const t = setTimeout(enable, 1200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [companyId, user]);
 
   const toggle = () => setOpen((v) => !v);
 
@@ -58,11 +98,9 @@ export function AppShell({
           companyName={companyName}
           companyLogoUrl={companyLogoUrl}
         />
-        <main className="animate-fade-up flex-1 p-5 md:p-7">{children}</main>
+        <main className="flex-1 p-5 md:p-7">{children}</main>
       </div>
-      {companyId && can(user, "ai.write") ? (
-        <AiChatWidget companyId={companyId} />
-      ) : null}
+      {showAi && companyId ? <AiChatWidget companyId={companyId} /> : null}
     </div>
   );
 }
