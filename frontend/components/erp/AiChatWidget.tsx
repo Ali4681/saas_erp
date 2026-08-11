@@ -90,7 +90,7 @@ export function AiChatWidget({ companyId }: { companyId: string }) {
   }
 
   return (
-    <div className="pointer-events-none fixed bottom-5 end-5 z-50 flex flex-col items-end gap-3">
+    <div className="pointer-events-none fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] end-[max(1.25rem,env(safe-area-inset-right))] z-50 flex flex-col items-end gap-3">
       {open ? (
         <div
           className="pointer-events-auto flex h-[min(28rem,70vh)] w-[min(22rem,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[0_18px_50px_rgba(15,23,32,0.18)]"

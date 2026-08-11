@@ -80,29 +80,29 @@ export default function AdminLoginForm() {
         PLATFORM
       </p>
 
-      <header className="relative z-10 flex items-center justify-between border-b border-[var(--sidebar-border)] px-5 py-4 md:px-8">
-        <div className="flex items-center gap-3">
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--sidebar-border)] px-4 py-4 sm:px-5 md:px-8">
+        <div className="flex min-w-0 items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.svg"
             alt="SaaS ERP"
-            className="h-9 w-9 rounded-lg bg-white object-contain p-0.5"
+            className="h-9 w-9 shrink-0 rounded-lg bg-white object-contain p-0.5"
           />
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-semibold">SaaS ERP</p>
             <p className="text-[11px] text-[var(--sidebar-muted)]">
               {t("platformConsole")}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <ThemeToggle />
           <LanguageToggle />
           <Link
             href="/login"
             className="inline-flex items-center gap-1.5 text-xs text-[var(--sidebar-muted)] transition hover:text-white"
           >
-            {t("companyLoginLink")}
+            <span className="hidden sm:inline">{t("companyLoginLink")}</span>
             <ArrowLeft className="h-3.5 w-3.5 rtl:rotate-180" />
           </Link>
         </div>

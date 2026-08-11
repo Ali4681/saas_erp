@@ -135,7 +135,7 @@ export function RankingBarChart({
   const longLabels = rows.some((r) => r.name.length > 14);
 
   return (
-    <ChartShell className={cn("pt-1", className)} height={300}>
+    <ChartShell className={cn("pt-1", className)} height={260}>
       <BarChart
         data={rows}
         margin={{ top: 28, right: 12, left: 4, bottom: longLabels ? 16 : 4 }}
@@ -226,14 +226,14 @@ export function DistributionPieChart({
   }
 
   return (
-    <ChartShell className={className} height={280}>
+    <ChartShell className={className} height={240}>
       <PieChart>
         <Pie
           data={filtered}
           dataKey="value"
           nameKey="name"
-          innerRadius={58}
-          outerRadius={88}
+          innerRadius={48}
+          outerRadius={72}
           paddingAngle={3}
           stroke="var(--card)"
           strokeWidth={2}

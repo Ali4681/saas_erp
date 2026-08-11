@@ -343,14 +343,19 @@ export function Sidebar({
   companyName,
   companyLogoUrl,
   open,
+  isDesktop,
   onToggle,
+  forceExpanded = false,
 }: {
   user: AuthUser;
   companyId?: string;
   companyName?: string | null;
   companyLogoUrl?: string | null;
   open: boolean;
+  isDesktop: boolean;
   onToggle: () => void;
+  /** Mobile overlay host already sizes the panel — always show full labels. */
+  forceExpanded?: boolean;
 }) {
   // After collapse, ignore hover swap briefly so the logo doesn't flash to PanelLeft
   // while the pointer is still over the toggle button.
@@ -371,15 +376,17 @@ export function Sidebar({
     return active?.href ?? null;
   });
 
+  const showExpanded = forceExpanded || !isDesktop || open;
+
   useEffect(() => {
-    if (open) {
+    if (open || !isDesktop || forceExpanded) {
       setHoverReady(true);
       return;
     }
     setHoverReady(false);
     const id = window.setTimeout(() => setHoverReady(true), 280);
     return () => window.clearTimeout(id);
-  }, [open]);
+  }, [open, isDesktop, forceExpanded]);
 
   useEffect(() => {
     const active = items.find(
@@ -390,121 +397,133 @@ export function Sidebar({
 
   return (
     <aside
-    className={cn(
-      "sidebar-shell relative sticky top-0 z-40 flex h-dvh max-h-dvh shrink-0 flex-col border-l border-[var(--sidebar-border)] text-[var(--sidebar-foreground)]",
-      "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-      open ? "w-64" : "w-[3.75rem] items-center",
-    )}
-  >
-    {open ? (
-      <div className="relative z-[2] flex h-full min-h-0 w-64 flex-col overflow-hidden">
-        <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-3">
-          <div className="flex min-w-0 items-center gap-2.5 px-1">
-            <BrandMark
-              companyId={companyId}
-              companyName={companyName}
-              companyLogoUrl={companyLogoUrl}
-              logoAlt={t("companyLogo")}
-              className="h-8 w-8"
-            />
-            <p className="truncate text-sm font-semibold text-[var(--sidebar-foreground)]">
-              SaaS ERP
+      className={cn(
+        "sidebar-shell z-40 flex h-dvh max-h-dvh flex-col border-e border-[var(--sidebar-border)] text-[var(--sidebar-foreground)]",
+        forceExpanded
+          ? "relative h-full w-full shadow-[0_0_40px_-12px_rgba(15,23,32,0.35)]"
+          : cn(
+              "sticky top-0 shrink-0 transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              open ? "w-64" : "w-[3.75rem] items-center",
+            ),
+      )}
+    >
+      {showExpanded ? (
+        <div
+          className={cn(
+            "relative z-[2] flex h-full min-h-0 flex-col overflow-hidden",
+            forceExpanded ? "w-full" : "w-64",
+          )}
+        >
+          <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-3">
+            <div className="flex min-w-0 items-center gap-2.5 px-1">
+              <BrandMark
+                companyId={companyId}
+                companyName={companyName}
+                companyLogoUrl={companyLogoUrl}
+                logoAlt={t("companyLogo")}
+                className="h-8 w-8"
+              />
+              <p className="truncate text-sm font-semibold text-[var(--sidebar-foreground)]">
+                SaaS ERP
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label={t("closeSidebar")}
+              title={t("closeSidebarShort")}
+              className="sidebar-toggle-hit flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--sidebar-muted)] transition hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-foreground)]"
+            >
+              <PanelLeft
+                className="h-[18px] w-[18px] rtl:rotate-180"
+                strokeWidth={1.75}
+              />
+            </button>
+          </div>
+
+          <Separator className="shrink-0 bg-[var(--sidebar-border)]" />
+
+          <nav className="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 pe-1.5">
+            {items.map((item) => (
+              <NavGroup
+                key={item.href}
+                item={item}
+                companyId={companyId}
+                expandedHref={expandedHref}
+                onExpand={setExpandedHref}
+              />
+            ))}
+          </nav>
+
+          <div className="shrink-0 border-t border-[var(--sidebar-border)] px-4 py-3">
+            <p
+              className="truncate text-sm font-semibold text-[var(--sidebar-foreground)]"
+              title={
+                companyId
+                  ? companyName?.trim() || undefined
+                  : t("platformSpace")
+              }
+            >
+              {companyId ? companyName?.trim() || "—" : t("platformSpace")}
             </p>
           </div>
-  
+        </div>
+      ) : (
+        <div className="relative z-[2] flex h-full min-h-0 w-full flex-col items-center overflow-hidden">
           <button
             type="button"
             onClick={onToggle}
-            aria-label={t("closeSidebar")}
-            title={t("closeSidebarShort")}
-            className="sidebar-toggle-hit flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--sidebar-muted)] transition hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-foreground)]"
+            aria-label={t("openSidebar")}
+            title={t("openSidebarShort")}
+            className={cn(
+              "sidebar-toggle-hit group relative mt-3 mb-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              "transition-colors duration-200 hover:bg-[var(--sidebar-accent)]",
+            )}
           >
-            <PanelLeft className="h-[18px] w-[18px] rtl:rotate-180" strokeWidth={1.75} />
+            <span
+              className={cn(
+                "absolute inset-0 flex items-center justify-center transition-opacity duration-200 ease-out",
+                hoverReady ? "group-hover:opacity-0" : "opacity-100",
+              )}
+            >
+              <BrandMark
+                companyId={companyId}
+                companyName={companyName}
+                companyLogoUrl={companyLogoUrl}
+                logoAlt={t("companyLogo")}
+                className="h-8 w-8"
+              />
+            </span>
+            <span
+              className={cn(
+                "absolute inset-0 flex items-center justify-center transition-opacity duration-200 ease-out",
+                hoverReady
+                  ? "opacity-0 group-hover:opacity-100"
+                  : "opacity-0",
+              )}
+              aria-hidden
+            >
+              <PanelLeft
+                className="h-[18px] w-[18px] text-[var(--sidebar-foreground)] rtl:rotate-180"
+                strokeWidth={1.75}
+              />
+            </span>
           </button>
+
+          <Separator className="mb-2 w-8 shrink-0 bg-[var(--sidebar-border)]" />
+
+          <nav className="sidebar-scroll flex min-h-0 w-full flex-1 flex-col items-center gap-1.5 overflow-y-auto overscroll-contain px-1.5 pb-3">
+            {items.map((item) => (
+              <CollapsedNavLink
+                key={item.href}
+                item={item}
+                companyId={companyId}
+              />
+            ))}
+          </nav>
         </div>
-  
-        <Separator className="shrink-0 bg-[var(--sidebar-border)]" />
-  
-        <nav className="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 pe-1.5">
-          {items.map((item) => (
-            <NavGroup
-              key={item.href}
-              item={item}
-              companyId={companyId}
-              expandedHref={expandedHref}
-              onExpand={setExpandedHref}
-            />
-          ))}
-        </nav>
-  
-        <div className="shrink-0 border-t border-[var(--sidebar-border)] px-4 py-3">
-          <p
-            className="truncate text-sm font-semibold text-[var(--sidebar-foreground)]"
-            title={
-              companyId
-                ? companyName?.trim() || undefined
-                : t("platformSpace")
-            }
-          >
-            {companyId ? companyName?.trim() || "—" : t("platformSpace")}
-          </p>
-        </div>
-      </div>
-    ) : (
-      <div className="relative z-[2] flex h-full min-h-0 w-full flex-col items-center overflow-hidden">
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label={t("openSidebar")}
-          title={t("openSidebarShort")}
-          className={cn(
-            "sidebar-toggle-hit group relative mt-3 mb-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-            "transition-colors duration-200 hover:bg-[var(--sidebar-accent)]",
-          )}
-        >
-          <span
-            className={cn(
-              "absolute inset-0 flex items-center justify-center transition-opacity duration-200 ease-out",
-              hoverReady ? "group-hover:opacity-0" : "opacity-100",
-            )}
-          >
-            <BrandMark
-              companyId={companyId}
-              companyName={companyName}
-              companyLogoUrl={companyLogoUrl}
-              logoAlt={t("companyLogo")}
-              className="h-8 w-8"
-            />
-          </span>
-          <span
-            className={cn(
-              "absolute inset-0 flex items-center justify-center transition-opacity duration-200 ease-out",
-              hoverReady
-                ? "opacity-0 group-hover:opacity-100"
-                : "opacity-0",
-            )}
-            aria-hidden
-          >
-            <PanelLeft
-              className="h-[18px] w-[18px] text-[var(--sidebar-foreground)] rtl:rotate-180"
-              strokeWidth={1.75}
-            />
-          </span>
-        </button>
-  
-        <Separator className="mb-2 w-8 shrink-0 bg-[var(--sidebar-border)]" />
-  
-        <nav className="sidebar-scroll flex min-h-0 w-full flex-1 flex-col items-center gap-1.5 overflow-y-auto overscroll-contain px-1.5 pb-3">
-          {items.map((item) => (
-            <CollapsedNavLink
-              key={item.href}
-              item={item}
-              companyId={companyId}
-            />
-          ))}
-        </nav>
-      </div>
-    )}
-  </aside>  
+      )}
+    </aside>
   );
 }
