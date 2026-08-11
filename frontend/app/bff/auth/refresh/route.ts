@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { nestFetch, ApiError } from "@/lib/api/client";
 import {
-  clearSessionCookies,
+  applySessionCookies,
+  clearSessionCookiesOn,
   getSession,
-  setSessionCookies,
 } from "@/lib/auth/session";
 import { userFromAccessToken } from "@/lib/auth/jwt";
 
@@ -24,22 +24,23 @@ export async function POST() {
     });
 
     const user = userFromAccessToken(tokens.accessToken, session.user);
-    await setSessionCookies({
+    const res = NextResponse.json({ user });
+    applySessionCookies(res, {
       user,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.expiresAt,
     });
-
-    return NextResponse.json({ user });
+    return res;
   } catch (error) {
-    await clearSessionCookies();
-    if (error instanceof ApiError) {
-      return NextResponse.json(
-        { message: error.message },
-        { status: error.status },
-      );
-    }
-    return NextResponse.json({ message: "فشل تجديد الجلسة" }, { status: 500 });
+    const res =
+      error instanceof ApiError
+        ? NextResponse.json(
+            { message: error.message },
+            { status: error.status },
+          )
+        : NextResponse.json({ message: "فشل تجديد الجلسة" }, { status: 500 });
+    clearSessionCookiesOn(res);
+    return res;
   }
 }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { BFF_AUTH } from "@/lib/auth/bff-paths";
 import { homePathFor } from "@/lib/permissions";
 import { registerFcmDevice } from "@/lib/fcm/client";
 import { toast } from "@/lib/toast";
@@ -31,7 +32,7 @@ export default function LoginForm() {
     event.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(BFF_AUTH.login, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

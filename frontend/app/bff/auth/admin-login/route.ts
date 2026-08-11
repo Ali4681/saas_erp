@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { nestFetch, ApiError } from "@/lib/api/client";
-import { setSessionCookies } from "@/lib/auth/session";
+import { applySessionCookies } from "@/lib/auth/session";
 import type { LoginResponse } from "@/lib/types/auth";
 import { isAppTheme, THEME_COOKIE } from "@/lib/theme";
 
@@ -10,8 +9,6 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       email?: string;
       password?: string;
-      companyId?: string;
-      companySlug?: string;
     };
 
     if (!body.email || !body.password) {
@@ -26,22 +23,21 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         email: body.email,
         password: body.password,
-        ...(body.companyId ? { companyId: body.companyId } : {}),
-        ...(body.companySlug ? { companySlug: body.companySlug } : {}),
       }),
     });
 
-    if (data.user.isPlatformAdmin) {
+    if (!data.user.isPlatformAdmin) {
       return NextResponse.json(
         {
           message:
-            "حساب مدير المنصة — استخدم /admin/login لتسجيل الدخول",
+            "هذا الحساب ليس لمدير المنصة. استخدم صفحة دخول الشركات.",
         },
         { status: 403 },
       );
     }
 
-    await setSessionCookies({
+    const res = NextResponse.json({ user: data.user });
+    applySessionCookies(res, {
       user: data.user,
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
@@ -49,15 +45,15 @@ export async function POST(request: Request) {
     });
 
     if (isAppTheme(data.user.theme)) {
-      const jar = await cookies();
-      jar.set(THEME_COOKIE, data.user.theme, {
+      res.cookies.set(THEME_COOKIE, data.user.theme, {
         path: "/",
         maxAge: 60 * 60 * 24 * 365,
         sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
       });
     }
 
-    return NextResponse.json({ user: data.user });
+    return res;
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json(

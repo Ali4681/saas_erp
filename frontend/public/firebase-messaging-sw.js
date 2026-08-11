@@ -23,7 +23,7 @@ function initMessaging(config) {
   });
 }
 
-fetch("/api/auth/fcm/config")
+fetch("/bff/auth/fcm/config")
   .then((res) => (res.ok ? res.json() : null))
   .then((config) => initMessaging(config))
   .catch(() => {});

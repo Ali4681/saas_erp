@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import { cache } from "react";
 import type { AuthUser, SessionPayload } from "@/lib/types/auth";
 import {
@@ -15,17 +16,38 @@ export {
   COOKIE_USER,
 } from "@/lib/auth/cookie-names";
 
-const secure = process.env.NODE_ENV === "production";
+/** Prefer explicit COOKIE_SECURE; otherwise Secure only in production. */
+function cookieSecure(): boolean {
+  if (process.env.COOKIE_SECURE === "true") return true;
+  if (process.env.COOKIE_SECURE === "false") return false;
+  return process.env.NODE_ENV === "production";
+}
 
-export async function setSessionCookies(session: SessionPayload) {
-  const jar = await cookies();
-  const common = {
+function commonCookieOptions() {
+  return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure,
+    secure: cookieSecure(),
     path: "/",
   };
+}
 
+type CookieJar = {
+  set: (
+    name: string,
+    value: string,
+    options?: {
+      httpOnly?: boolean;
+      sameSite?: "lax" | "strict" | "none";
+      secure?: boolean;
+      path?: string;
+      maxAge?: number;
+    },
+  ) => void;
+};
+
+function writeSessionCookies(jar: CookieJar, session: SessionPayload) {
+  const common = commonCookieOptions();
   jar.set(COOKIE_ACCESS, session.accessToken, {
     ...common,
     maxAge: 60 * 60 * 12,
@@ -44,8 +66,9 @@ export async function setSessionCookies(session: SessionPayload) {
   });
 }
 
-export async function clearSessionCookies() {
-  const jar = await cookies();
+function clearJarSessionCookies(jar: {
+  delete: (name: string) => void;
+}) {
   for (const name of [
     COOKIE_ACCESS,
     COOKIE_REFRESH,
@@ -54,6 +77,31 @@ export async function clearSessionCookies() {
   ]) {
     jar.delete(name);
   }
+}
+
+/** Attach session cookies to a Route Handler response (reliable Set-Cookie). */
+export function applySessionCookies(
+  res: NextResponse,
+  session: SessionPayload,
+) {
+  writeSessionCookies(res.cookies, session);
+  return res;
+}
+
+export function clearSessionCookiesOn(res: NextResponse) {
+  clearJarSessionCookies(res.cookies);
+  return res;
+}
+
+/** For Server Actions / RSC paths that use next/headers cookies(). */
+export async function setSessionCookies(session: SessionPayload) {
+  const jar = await cookies();
+  writeSessionCookies(jar, session);
+}
+
+export async function clearSessionCookies() {
+  const jar = await cookies();
+  clearJarSessionCookies(jar);
 }
 
 /** Deduped per RSC request — layouts/pages share one cookie parse. */

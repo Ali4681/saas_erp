@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { AuthUser } from "@/lib/types/auth";
+import { BFF_AUTH } from "@/lib/auth/bff-paths";
 import { can, roleKey } from "@/lib/permissions";
 import { LanguageToggle } from "@/components/layout/LanguageToggle";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -76,7 +77,7 @@ export function Topbar({
   const displayCompany = companyName?.trim() || null;
 
   function logout() {
-    void fetch("/api/auth/logout", { method: "POST" });
+    void fetch(BFF_AUTH.logout, { method: "POST" });
     router.replace(user.isPlatformAdmin ? "/admin/login" : "/login");
   }
 

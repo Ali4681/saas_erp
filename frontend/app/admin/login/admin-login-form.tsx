@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { toast } from "@/lib/toast";
+import { BFF_AUTH } from "@/lib/auth/bff-paths";
 import type { AuthUser } from "@/lib/types/auth";
 import { isAppLocale } from "@/i18n/config";
 import { applyThemeClass, isAppTheme } from "@/lib/theme";
@@ -26,7 +27,7 @@ export default function AdminLoginForm() {
     event.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/admin-login", {
+      const res = await fetch(BFF_AUTH.adminLogin, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

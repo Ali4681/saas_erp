@@ -83,9 +83,9 @@ export class AuthController {
 
   /**
    * Platform-admin login. Same credentials flow as /auth/login, but rejects
-   * non–platform-admin users. Browser apps normally use the Next BFF at
-   * POST /api/auth/admin-login (frontend); this Nest route exists so reverse
-   * proxies that send /api/* to the backend still work for API clients.
+   * non–platform-admin users. Browser apps use the Next BFF at
+   * POST /bff/auth/admin-login (sets httpOnly cookies). This Nest route is for
+   * API clients / proxies that hit Nest under `/api/*` directly.
    */
   @Public()
   @Post('admin-login')

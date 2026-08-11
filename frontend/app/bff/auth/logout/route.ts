@@ -1,12 +1,16 @@
 import { after, NextResponse } from "next/server";
 import { nestFetch } from "@/lib/api/client";
-import { clearSessionCookies, getSession } from "@/lib/auth/session";
+import {
+  clearSessionCookiesOn,
+  getSession,
+} from "@/lib/auth/session";
 
 export async function POST() {
   const session = await getSession();
   const refreshToken = session?.refreshToken;
-  // Clear cookies first so the client can navigate immediately.
-  await clearSessionCookies();
+  const res = NextResponse.json({ ok: true });
+  // Clear cookies on the response so Set-Cookie reaches the browser.
+  clearSessionCookiesOn(res);
 
   if (refreshToken) {
     after(async () => {
@@ -21,5 +25,5 @@ export async function POST() {
     });
   }
 
-  return NextResponse.json({ ok: true });
+  return res;
 }

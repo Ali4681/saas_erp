@@ -1,5 +1,7 @@
 "use client";
 
+import { BFF_AUTH } from "@/lib/auth/bff-paths";
+
 type FcmConfig = {
   enabled: boolean;
   vapidKey: string | null;
@@ -16,7 +18,7 @@ let registerPromise: Promise<boolean> | null = null;
 
 async function loadConfig(): Promise<FcmConfig | null> {
   try {
-    const res = await fetch("/api/auth/fcm/config", { cache: "no-store" });
+    const res = await fetch(BFF_AUTH.fcmConfig, { cache: "no-store" });
     if (!res.ok) return null;
     return (await res.json()) as FcmConfig;
   } catch {
@@ -81,7 +83,7 @@ export async function registerFcmDevice(companyId?: string): Promise<boolean> {
     const token = await obtainFcmToken();
     if (!token) return false;
 
-    const res = await fetch("/api/auth/fcm/register", {
+    const res = await fetch(BFF_AUTH.fcmRegister, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

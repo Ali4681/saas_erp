@@ -17,6 +17,7 @@ module.exports = {
       autorestart: true,
       max_memory_restart: '512M',
       env: {
+        // Must be production on the live server (Secure session cookies + Next optimizations).
         NODE_ENV: 'production',
         PORT: 3370,
       },

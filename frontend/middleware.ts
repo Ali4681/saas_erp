@@ -18,8 +18,8 @@ function isAuthPage(pathname: string) {
   return (
     pathname === "/login" ||
     pathname === "/admin/login" ||
-    pathname.startsWith("/api/auth/login") ||
-    pathname.startsWith("/api/auth/admin-login")
+    pathname.startsWith("/bff/auth/login") ||
+    pathname.startsWith("/bff/auth/admin-login")
   );
 }
 
@@ -28,7 +28,8 @@ export function middleware(request: NextRequest) {
   const access = request.cookies.get(COOKIE_ACCESS)?.value;
   const userRaw = request.cookies.get(COOKIE_USER)?.value;
 
-  const isPublicApi = pathname.startsWith("/api/auth/");
+  const isPublicBff =
+    pathname.startsWith("/bff/auth/") && pathname !== "/bff/auth/me";
   const isLocaleApi = pathname === "/api/locale";
   const isThemeApi = pathname === "/api/theme";
 
@@ -63,7 +64,7 @@ export function middleware(request: NextRequest) {
     return withPreferenceCookies(NextResponse.next());
   }
 
-  if (isPublicApi && pathname !== "/api/auth/me") {
+  if (isPublicBff) {
     return withPreferenceCookies(NextResponse.next());
   }
 
@@ -76,7 +77,7 @@ export function middleware(request: NextRequest) {
       }
       return withPreferenceCookies(NextResponse.next());
     }
-    if (pathname.startsWith("/api/")) {
+    if (pathname.startsWith("/api/") || pathname.startsWith("/bff/")) {
       return withPreferenceCookies(
         NextResponse.json({ message: "غير مصرح" }, { status: 401 }),
       );
@@ -151,7 +152,7 @@ export const config = {
     "/admin/login",
     "/platform/:path*",
     "/c/:path*",
-    "/api/auth/me",
+    "/bff/auth/me",
     "/api/locale",
     "/api/theme",
   ],
