@@ -42,6 +42,7 @@ function useSectionTitle(pathname: string, companyId?: string) {
     inventory: t("inventory"),
     finance: t("finance"),
     hr: t("hr"),
+    tracking: t("tracking"),
     work: t("work"),
     notebook: t("notebook"),
     marketing: t("marketing"),

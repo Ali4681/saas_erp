@@ -51,30 +51,53 @@ export async function createEmployee(companyId: string, formData: FormData) {
           jobTitle: optStr(formData, "jobTitle"),
           hireDate: optStr(formData, "hireDate"),
           basicSalary: optStr(formData, "basicSalary"),
-          targetPercent: optStr(formData, "targetPercent"),
-          targetCompletedPercent: optStr(formData, "targetCompletedPercent"),
+          salesTargetAmount: optStr(formData, "salesTargetAmount"),
+          salesTargetMode: "AMOUNT",
           absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
-          lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
-          currency: optStr(formData, "currency") ?? "SAR",
+          identityType: optStr(formData, "identityType"),
+          identityNumber: optStr(formData, "identityNumber"),
+          identityExpiresOn: optStr(formData, "identityExpiresOn"),
+          iban: optStr(formData, "iban"),
+          advanceAllowancePercent: optStr(formData, "advanceAllowancePercent"),
+          qiwaContractUrl: optStr(formData, "qiwaContractUrl"),
+          // APPROVED = registered on Qiwa; never REJECTED
+          approvalStatus: (() => {
+            const qiwa = optStr(formData, "qiwaContractUrl");
+            const selected = optStr(formData, "approvalStatus");
+            if (qiwa || selected === "APPROVED") return "APPROVED";
+            return "PENDING";
+          })(),
+          currency: "SAR",
         }),
       },
     );
 
-    if (hasCv && file instanceof File) {
+    async function uploadNamed(
+      field: string,
+      entityType: string,
+      fallbackName: string,
+    ) {
+      const file = formData.get(field);
+      if (!(file instanceof File) || file.size <= 0) return;
       const buf = Buffer.from(await file.arrayBuffer());
       await apiServer(`/companies/${companyId}/attachments`, {
         method: "POST",
         companyId,
         body: JSON.stringify({
-          entityType: "employee",
+          entityType,
           entityId: employee.id,
-          fileName: file.name || "cv.pdf",
+          fileName: file.name || fallbackName,
           mimeType: file.type || "application/octet-stream",
           sizeBytes: String(file.size),
           contentBase64: buf.toString("base64"),
         }),
       });
     }
+
+    if (hasCv && file instanceof File) {
+      await uploadNamed("cv", "employee", "cv.pdf");
+    }
+    await uploadNamed("insurance", "employee_insurance", "insurance.pdf");
 
     revalidatePath(pagePath);
     redirect(
@@ -198,13 +221,23 @@ export async function updateEmployeeCompensation(
     method: "PATCH",
     body: {
       basicSalary: optStr(formData, "basicSalary"),
-      targetPercent: optStr(formData, "targetPercent"),
-      targetCompletedPercent: optStr(formData, "targetCompletedPercent"),
+      salesTargetAmount: optStr(formData, "salesTargetAmount"),
+      salesTargetMode: "AMOUNT",
       absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
-      lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
+      identityType: optStr(formData, "identityType"),
+      identityNumber: optStr(formData, "identityNumber"),
+      identityExpiresOn: optStr(formData, "identityExpiresOn"),
+      iban: optStr(formData, "iban"),
+      advanceAllowancePercent: optStr(formData, "advanceAllowancePercent"),
+      approvalStatus:
+        optStr(formData, "approvalStatus") === "APPROVED"
+          ? "APPROVED"
+          : "PENDING",
+      qiwaContractUrl: optStr(formData, "qiwaContractUrl"),
       phone: optStr(formData, "phone"),
       email: optStr(formData, "email"),
       jobTitle: optStr(formData, "jobTitle"),
+      currency: "SAR",
       ...(isPurchaseRaw != null
         ? {
             isPurchaseOperator:
@@ -213,7 +246,90 @@ export async function updateEmployeeCompensation(
         : {}),
     },
     pagePath: page(companyId, "employees"),
-    okMessage: "Employee compensation updated",
+    okMessage: "Employee updated",
+  });
+}
+
+export async function setEmployeeApproval(
+  companyId: string,
+  employeeId: string,
+  approvalStatus: string,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/employees/${employeeId}`,
+    method: "PATCH",
+    body: { approvalStatus },
+    pagePath: `/c/${companyId}/hr/employees/${employeeId}`,
+    okMessage:
+      approvalStatus === "APPROVED"
+        ? "Marked as registered on Qiwa"
+        : "Marked as not registered on Qiwa",
+  });
+}
+
+export async function uploadEmployeeInsurance(
+  companyId: string,
+  employeeId: string,
+  formData: FormData,
+) {
+  const pagePath = `/c/${companyId}/hr/employees/${employeeId}?tab=personal`;
+  const file = formData.get("insurance");
+  if (!(file instanceof File) || file.size <= 0) {
+    redirect(
+      `${pagePath}?error=${encodeURIComponent("Insurance file required")}`,
+    );
+  }
+  try {
+    const buf = Buffer.from(await file.arrayBuffer());
+    await apiServer(`/companies/${companyId}/attachments`, {
+      method: "POST",
+      companyId,
+      body: JSON.stringify({
+        entityType: "employee_insurance",
+        entityId: employeeId,
+        fileName: file.name || "insurance.pdf",
+        mimeType: file.type || "application/octet-stream",
+        sizeBytes: String(file.size),
+        contentBase64: buf.toString("base64"),
+      }),
+    });
+    // Best-effort link on employee when backend supports it
+    await apiServer(`/companies/${companyId}/hr/employees/${employeeId}`, {
+      method: "PATCH",
+      companyId,
+      body: JSON.stringify({ insuranceUploaded: true }),
+    }).catch(() => undefined);
+    revalidatePath(pagePath);
+    redirect(`${pagePath}&ok=${encodeURIComponent("Insurance uploaded")}`);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      redirect(`${pagePath}&error=${encodeURIComponent(error.message)}`);
+    }
+    throw error;
+  }
+}
+
+export async function updateEmployeeQiwa(
+  companyId: string,
+  employeeId: string,
+  formData: FormData,
+) {
+  const qiwaContractUrl = optStr(formData, "qiwaContractUrl");
+  const qiwaContractRef = optStr(formData, "qiwaContractRef");
+  const registeredOnQiwa = Boolean(qiwaContractUrl || qiwaContractRef);
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/employees/${employeeId}`,
+    method: "PATCH",
+    body: {
+      qiwaContractUrl,
+      qiwaContractRef,
+      // Approved = registered on Qiwa platform
+      approvalStatus: registeredOnQiwa ? "APPROVED" : "PENDING",
+    },
+    pagePath: `/c/${companyId}/hr/employees/${employeeId}?tab=personal`,
+    okMessage: "Qiwa link saved",
   });
 }
 
