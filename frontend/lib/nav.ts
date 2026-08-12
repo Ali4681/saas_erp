@@ -138,13 +138,22 @@ export function tenantNav(companyId: string): NavItem[] {
       permissions: ["hr.read"],
       children: [
         child(`${root}/hr`, "/employees", "hrEmployees"),
-        child(`${root}/hr`, "/contracts", "hrContracts"),
         child(`${root}/hr`, "/advances", "hrAdvances"),
         child(`${root}/hr`, "/attendance", "hrAttendance"),
-        child(`${root}/hr`, "/devices", "hrDevices"),
         child(`${root}/hr`, "/leaves", "hrLeaves"),
         child(`${root}/hr`, "/payroll", "hrPayroll"),
         child(`${root}/hr`, "/me", "hrMe"),
+      ],
+    },
+    {
+      href: `${root}/tracking`,
+      labelKey: "tracking",
+      // tracking.* until backend seeds; hr.read keeps section visible meanwhile
+      permissions: ["tracking.read", "hr.read"],
+      children: [
+        child(`${root}/tracking`, "/cameras", "trackingCameras"),
+        child(`${root}/tracking`, "/biometrics", "trackingBiometrics"),
+        child(`${root}/tracking`, "/events", "trackingEvents"),
       ],
     },
     {
@@ -181,6 +190,8 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/ai`, "/reports", "aiReports"),
         child(`${root}/ai`, "/notes", "aiNotes"),
         child(`${root}/ai`, "/marketing", "aiMarketing"),
+        child(`${root}/ai`, "/bots/whatsapp", "aiBotWhatsapp"),
+        child(`${root}/ai`, "/bots/calls", "aiBotCalls"),
         child(`${root}/ai`, "/usage", "aiUsage"),
       ],
     },

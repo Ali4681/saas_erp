@@ -151,7 +151,7 @@ export default async function HrMePage({
             >
               <Input name="amount" label={t("amount")} required />
               <div className="md:col-span-2">
-                <Textarea name="reason" label={t("reason")} />
+                <Textarea name="reason" label={t("reason")} required />
               </div>
               <div className="md:col-span-2">
                 <Button type="submit">{t("submit")}</Button>
@@ -183,10 +183,36 @@ export default async function HrMePage({
               <Input name="startsOn" label={t("from")} type="date" required />
               <Input name="endsOn" label={t("to")} type="date" required />
               <div className="md:col-span-2">
-                <Textarea name="reason" label={t("reason")} />
+                <Textarea name="reason" label={t("reason")} required />
               </div>
               <div className="md:col-span-2">
                 <Button type="submit">{t("submit")}</Button>
+              </div>
+            </form>
+          </Card>
+
+          <Card>
+            <h2 className="mb-3 text-sm font-semibold">{t("tabTargets")}</h2>
+            <p className="mb-3 text-sm text-[var(--muted-foreground)]">
+              {t("meSalesStub")}
+            </p>
+            <form className="grid gap-3 md:grid-cols-2">
+              <Input name="amount" label={t("amount")} disabled />
+              <Select
+                name="paymentMethod"
+                label={t("paymentMethod")}
+                disabled
+                options={[
+                  { value: "CASH", label: t("payCash") },
+                  { value: "CARD", label: t("payCard") },
+                  { value: "TRANSFER", label: t("payTransfer") },
+                  { value: "NETWORK", label: t("payNetwork") },
+                ]}
+              />
+              <div className="md:col-span-2">
+                <Button type="button" disabled>
+                  {t("submitSale")}
+                </Button>
               </div>
             </form>
           </Card>

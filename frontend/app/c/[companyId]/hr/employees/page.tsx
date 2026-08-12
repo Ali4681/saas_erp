@@ -14,7 +14,6 @@ import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
-import { fetchLocalesLookup, lookupSelectOptions } from "@/lib/lookups";
 import {
   createEmployee,
   setEmployeeStatus,
@@ -30,10 +29,13 @@ type Employee = {
   jobTitle: string | null;
   employmentStatus: string;
   basicSalary: string | null;
+  salesTargetAmount?: string | null;
   targetPercent: string | null;
-  targetCompletedPercent: string | null;
-  absenceDiscountPerDay: string | null;
-  lateDiscountAmount: string | null;
+  identityNumber?: string | null;
+  identityExpiresOn?: string | null;
+  approvalStatus?: string | null;
+  qiwaContractUrl?: string | null;
+  advanceAllowancePercent?: string | null;
   currency: string;
 };
 type Attachment = {
@@ -64,11 +66,10 @@ export default async function EmployeesPage({
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
 
-  const [employees, locales, attachments, summary] = await Promise.all([
+  const [employees, attachments, summary] = await Promise.all([
     apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
       companyId,
     }).catch(() => []),
-    fetchLocalesLookup(companyId),
     apiServer<Attachment[]>(
       `/companies/${companyId}/attachments?entityType=employee`,
       { companyId },
@@ -86,7 +87,6 @@ export default async function EmployeesPage({
   }
 
   const create = createEmployee.bind(null, companyId);
-  const currencyOptions = lookupSelectOptions(locales.currencies);
 
   return (
     <div className="space-y-5">
@@ -149,23 +149,63 @@ export default async function EmployeesPage({
             <Input name="phone" label={t("phone")} />
             <Input name="jobTitle" label={t("jobTitle")} />
             <Input name="hireDate" label={t("hireDate")} type="date" />
-            <Input name="basicSalary" label={t("basicSalary")} />
-            <Input name="targetPercent" label={t("targetPercent")} />
+            <Input name="basicSalary" label={`${t("basicSalary")} (SAR)`} />
             <Input
-              name="targetCompletedPercent"
-              label={t("targetCompletedPercent")}
+              name="salesTargetAmount"
+              label={`${t("salesTargetAmount")} (SAR)`}
+              required
             />
-            <Input
-              name="absenceDiscountPerDay"
-              label={t("absenceDiscountPerDay")}
-            />
-            <Input name="lateDiscountAmount" label={t("lateDiscountAmount")} />
             <Select
-              name="currency"
-              label={t("currency")}
-              defaultValue={locales.defaults.currency}
-              options={currencyOptions}
+              name="identityType"
+              label={t("identityType")}
+              required
+              options={[
+                { value: "RESIDENT", label: t("identityResident") },
+                { value: "CITIZEN", label: t("identityCitizen") },
+              ]}
             />
+            <Input
+              name="identityNumber"
+              label={t("identityNumber")}
+              required
+            />
+            <Input
+              name="identityExpiresOn"
+              label={t("identityExpiresOn")}
+              type="date"
+              required
+            />
+            <Input name="iban" label={t("iban")} />
+            <Input
+              name="advanceAllowancePercent"
+              label={t("advanceAllowancePercent")}
+              placeholder="e.g. 30"
+            />
+            <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+              {t("advanceAllowanceHint")}
+            </p>
+            <Select
+              name="approvalStatus"
+              label={t("approvalStatus")}
+              defaultValue="PENDING"
+              options={[
+                { value: "PENDING", label: t("approvalPending") },
+                { value: "APPROVED", label: t("approvalApproved") },
+              ]}
+            />
+            <Input name="qiwaContractUrl" label={t("qiwaLink")} />
+            <input type="hidden" name="currency" value="SAR" />
+            <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+              <span className="font-medium text-[var(--foreground)]">
+                {t("insuranceCertificate")}
+              </span>
+              <input
+                type="file"
+                name="insurance"
+                accept=".pdf,.jpg,.jpeg,.png,application/pdf"
+                className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
+              />
+            </label>
             <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
               <span className="font-medium text-[var(--foreground)]">
                 {t("cvLabel")}
@@ -199,12 +239,14 @@ export default async function EmployeesPage({
                   <th className="px-2 py-2 font-medium">{t("name")}</th>
                   <th className="px-2 py-2 font-medium">{t("titleCol")}</th>
                   <th className="px-2 py-2 font-medium">{t("salary")}</th>
-                  <th className="px-2 py-2 font-medium">{t("targetPercent")}</th>
                   <th className="px-2 py-2 font-medium">
-                    {t("targetCompletedPercent")}
+                    {t("salesTargetAmount")}
                   </th>
                   <th className="px-2 py-2 font-medium">
-                    {t("absenceDiscountPerDay")}
+                    {t("identityNumber")}
+                  </th>
+                  <th className="px-2 py-2 font-medium">
+                    {t("approvalStatus")}
                   </th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
                   <th className="px-2 py-2 font-medium">{t("cv")}</th>
@@ -233,15 +275,23 @@ export default async function EmployeesPage({
                         {formatMoney(e.basicSalary, e.currency)}
                       </td>
                       <td className="px-2 py-2">
-                        {e.targetPercent != null ? `${e.targetPercent}%` : "—"}
+                        {formatMoney(
+                          e.salesTargetAmount ?? e.targetPercent,
+                          "SAR",
+                        )}
+                      </td>
+                      <td className="px-2 py-2 font-mono text-xs">
+                        {e.identityNumber ?? "—"}
                       </td>
                       <td className="px-2 py-2">
-                        {e.targetCompletedPercent != null
-                          ? `${e.targetCompletedPercent}%`
-                          : "—"}
-                      </td>
-                      <td className="px-2 py-2">
-                        {formatMoney(e.absenceDiscountPerDay, e.currency)}
+                        <StatusBadge
+                          status={
+                            e.approvalStatus === "APPROVED" ||
+                            Boolean(e.qiwaContractUrl)
+                              ? "APPROVED"
+                              : "PENDING"
+                          }
+                        />
                       </td>
                       <td className="px-2 py-2">
                         <StatusBadge status={e.employmentStatus} />
@@ -263,6 +313,13 @@ export default async function EmployeesPage({
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex flex-wrap items-center gap-1">
+                          <Button
+                            href={`/c/${companyId}/hr/employees/${e.id}`}
+                            variant="outline"
+                            className="!px-2 !py-1 text-xs"
+                          >
+                            {t("viewEmployee")}
+                          </Button>
                           {canWrite ? (
                             <CreateFormDialog
                               title={`Compensation — ${e.fullName}`}
@@ -281,28 +338,52 @@ export default async function EmployeesPage({
                               >
                                 <Input
                                   name="basicSalary"
-                                  label={t("basicSalary")}
+                                  label={`${t("basicSalary")} (SAR)`}
                                   defaultValue={e.basicSalary ?? ""}
                                 />
                                 <Input
-                                  name="targetPercent"
-                                  label={t("targetPercent")}
-                                  defaultValue={e.targetPercent ?? ""}
+                                  name="salesTargetAmount"
+                                  label={`${t("salesTargetAmount")} (SAR)`}
+                                  defaultValue={
+                                    e.salesTargetAmount ?? e.targetPercent ?? ""
+                                  }
                                 />
                                 <Input
-                                  name="targetCompletedPercent"
-                                  label={t("targetCompletedPercent")}
-                                  defaultValue={e.targetCompletedPercent ?? ""}
+                                  name="identityNumber"
+                                  label={t("identityNumber")}
+                                  defaultValue={e.identityNumber ?? ""}
                                 />
                                 <Input
-                                  name="absenceDiscountPerDay"
-                                  label={t("absenceDiscountPerDay")}
-                                  defaultValue={e.absenceDiscountPerDay ?? ""}
+                                  name="identityExpiresOn"
+                                  label={t("identityExpiresOn")}
+                                  type="date"
+                                  defaultValue={e.identityExpiresOn ?? ""}
                                 />
                                 <Input
-                                  name="lateDiscountAmount"
-                                  label={t("lateDiscountAmount")}
-                                  defaultValue={e.lateDiscountAmount ?? ""}
+                                  name="advanceAllowancePercent"
+                                  label={t("advanceAllowancePercent")}
+                                  defaultValue={
+                                    e.advanceAllowancePercent ?? ""
+                                  }
+                                />
+                                <Select
+                                  name="approvalStatus"
+                                  label={t("approvalStatus")}
+                                  defaultValue={
+                                    e.approvalStatus === "APPROVED"
+                                      ? "APPROVED"
+                                      : "PENDING"
+                                  }
+                                  options={[
+                                    {
+                                      value: "PENDING",
+                                      label: t("approvalPending"),
+                                    },
+                                    {
+                                      value: "APPROVED",
+                                      label: t("approvalApproved"),
+                                    },
+                                  ]}
                                 />
                                 <Input
                                   name="phone"

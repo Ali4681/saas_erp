@@ -18,6 +18,7 @@ import {
   PanelLeft,
   Plug,
   Receipt,
+  ScanLine,
   Settings,
   Shield,
   ShoppingCart,
@@ -31,7 +32,7 @@ import {
   ChartColumnIncreasing,
 } from "lucide-react";
 import type { AuthUser } from "@/lib/types/auth";
-import { can } from "@/lib/permissions";
+import { canAny } from "@/lib/permissions";
 import { platformNav, tenantNav, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/Separator";
@@ -48,7 +49,7 @@ function filterItems(user: AuthUser, items: NavItem[]): NavItem[] {
     .filter((item) => {
       if (item.platformOnly && !user.isPlatformAdmin) return false;
       if (!item.permissions?.length) return true;
-      return can(user, ...item.permissions);
+      return canAny(user, ...item.permissions);
     })
     .map((item) =>
       item.children?.length
@@ -63,6 +64,7 @@ function iconFor(href: string) {
   if (href.includes("/plans")) return Package;
   if (href.includes("/retention")) return Trash2;
   if (href.match(/\/c\/[^/]+$/)) return Home;
+  if (href.includes("/tracking")) return ScanLine;
   if (href.includes("/channels/delivery")) return Package;
   if (href.includes("/channels/installments")) return Wallet;
   if (href.includes("/channels/stores")) return ShoppingCart;

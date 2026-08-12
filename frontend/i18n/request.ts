@@ -28,6 +28,7 @@ async function loadMessagesUncached(locale: AppLocale) {
     "inventory",
     "finance",
     "hr",
+    "tracking",
     "work",
     "notebook",
     "marketing",

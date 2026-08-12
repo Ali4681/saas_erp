@@ -20,11 +20,6 @@ export default async function HrHubPage({
           hint: t("employeesHint"),
         },
         {
-          href: `${base}/contracts`,
-          label: t("contracts"),
-          hint: t("contractsHint"),
-        },
-        {
           href: `${base}/advances`,
           label: t("advances"),
           hint: t("advancesHint"),
@@ -35,7 +30,7 @@ export default async function HrHubPage({
           hint: t("attendanceHint"),
         },
         {
-          href: `${base}/devices`,
+          href: `/c/${companyId}/tracking`,
           label: t("devices"),
           hint: t("devicesHint"),
         },
