@@ -151,3 +151,20 @@ model AiUsageLog {
   @@index([companyId, createdAt(sort: Desc), module], map: "idx_ai_usage_company_created")
   @@map("ai_usage_logs")
 }
+
+/// Scaffold only — settings storage, no messaging/call runtime in this phase
+model AiBotConfig {
+  id        String       @id @default(uuid(7)) @db.Char(36)
+  companyId String       @map("company_id") @db.Char(36)
+  channel   AiBotChannel
+  status    AiBotStatus  @default(DISABLED)
+  settings  Json         @default("{}")
+  createdAt DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, channel], map: "uq_ai_bot_config_channel")
+  @@index([companyId, status], map: "idx_ai_bot_config_status")
+  @@map("ai_bot_configs")
+}

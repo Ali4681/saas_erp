@@ -1,14 +1,16 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import {
   IsArray,
   IsEnum,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Max,
   Min,
   MinLength,
 } from 'class-validator';
+import { AiBotChannel, AiBotStatus } from '../../generated/prisma/client';
 import {
   CurrentUser,
   RequirePermissions,
@@ -122,6 +124,16 @@ class MarketingBody {
   variants?: number;
 }
 
+class UpsertBotBody {
+  @IsOptional()
+  @IsEnum(AiBotStatus)
+  status?: AiBotStatus;
+
+  @IsOptional()
+  @IsObject()
+  settings?: Record<string, unknown>;
+}
+
 @Controller('companies/:companyId/ai')
 export class AiController {
   constructor(private readonly ai: AiService) {}
@@ -200,5 +212,24 @@ export class AiController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.ai.generateMarketing(companyId, user.userId, body);
+  }
+
+  @Get('bots/:channel')
+  @RequirePermissions('ai.read')
+  getBot(
+    @Param('companyId') companyId: string,
+    @Param('channel') channel: AiBotChannel,
+  ) {
+    return this.ai.getBotConfig(companyId, channel);
+  }
+
+  @Patch('bots/:channel')
+  @RequirePermissions('ai.write')
+  updateBot(
+    @Param('companyId') companyId: string,
+    @Param('channel') channel: AiBotChannel,
+    @Body() body: UpsertBotBody,
+  ) {
+    return this.ai.upsertBotConfig(companyId, channel, body);
   }
 }

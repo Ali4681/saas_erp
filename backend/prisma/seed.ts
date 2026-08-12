@@ -54,6 +54,9 @@ const PERMISSIONS = [
   ['inventory', 'write'],
   ['hr', 'read'],
   ['hr', 'write'],
+  ['hr', 'sales_cash.approve'],
+  ['tracking', 'read'],
+  ['tracking', 'write'],
   ['work', 'read'],
   ['work', 'write'],
   ['automation', 'read'],
@@ -78,6 +81,7 @@ const PERMISSIONS = [
 
 const PHASE8_READ = [
   'hr.read',
+  'tracking.read',
   'work.read',
   'automation.read',
   'marketing.read',
@@ -87,6 +91,8 @@ const PHASE8_READ = [
 
 const PHASE8_WRITE = [
   'hr.write',
+  'hr.sales_cash.approve',
+  'tracking.write',
   'work.write',
   'automation.write',
   'marketing.write',
@@ -182,6 +188,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'purchasing.write',
     'crm.read',
     'hr.read',
+    'tracking.read',
     'attachments.read',
     'notebook.read',
     'reports.read',
@@ -202,6 +209,9 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'inventory.write',
     'hr.read',
     'hr.write',
+    'hr.sales_cash.approve',
+    'tracking.read',
+    'tracking.write',
     'work.read',
     'work.write',
     'automation.read',

@@ -41,6 +41,7 @@ import { WorkModule } from './modules/work/work.module';
 import { AiModule } from './modules/ai/ai.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { LookupsModule } from './modules/lookups/lookups.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
 import { AppI18nModule } from './common/i18n/app-i18n.module';
 
 @Module({
@@ -84,6 +85,7 @@ import { AppI18nModule } from './common/i18n/app-i18n.module';
     PurchasingModule,
     InventoryModule,
     HrModule,
+    TrackingModule,
     WorkModule,
     AutomationModule,
     PlatformModule,

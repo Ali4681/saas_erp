@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   IsBoolean,
   IsEnum,
@@ -11,10 +20,16 @@ import {
 import {
   AttendanceDeviceType,
   AttendanceStatus,
+  EmployeeApprovalStatus,
+  EmployeeContractKind,
+  EmployeeIdentityType,
+  EmployeeSalesStatus,
   EmploymentStatus,
   LeaveStatus,
   PayrollStatus,
   SalaryAdvanceStatus,
+  SalesPaymentMethod,
+  SalesTargetMode,
 } from '../../generated/prisma/client';
 import {
   CurrentUser,
@@ -32,6 +47,49 @@ class CreateEmployeeBody {
   @IsString()
   @MinLength(2)
   fullName!: string;
+
+  @IsEnum(EmployeeIdentityType)
+  identityType!: EmployeeIdentityType;
+
+  @IsString()
+  @MinLength(1)
+  identityNumber!: string;
+
+  @IsOptional()
+  @IsString()
+  identityExpiresOn?: string;
+
+  @IsOptional()
+  @IsString()
+  iban?: string;
+
+  @IsOptional()
+  @IsString()
+  ibanBankName?: string;
+
+  @IsOptional()
+  @IsEnum(SalesTargetMode)
+  salesTargetMode?: SalesTargetMode;
+
+  @IsOptional()
+  @IsNumberString()
+  salesTargetAmount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  lateHourRate?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  advanceAllowanceMonthly?: string;
+
+  @IsOptional()
+  @IsString()
+  advanceAllowanceMonth?: string;
+
+  @IsOptional()
+  @IsEnum(EmployeeApprovalStatus)
+  approvalStatus?: EmployeeApprovalStatus;
 
   @IsOptional()
   @IsString()
@@ -92,28 +150,16 @@ class CreateEmployeeBody {
 
 class UpdateEmployeeBody {
   @IsOptional()
-  @IsNumberString()
-  basicSalary?: string;
+  @IsEnum(EmployeeIdentityType)
+  identityType?: EmployeeIdentityType;
 
   @IsOptional()
-  @IsNumberString()
-  targetPercent?: string;
+  @IsString()
+  identityNumber?: string;
 
   @IsOptional()
-  @IsNumberString()
-  targetCompletedPercent?: string;
-
-  @IsOptional()
-  @IsNumberString()
-  absenceDiscountPerDay?: string;
-
-  @IsOptional()
-  @IsNumberString()
-  lateDiscountAmount?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isPurchaseOperator?: boolean;
+  @IsString()
+  identityExpiresOn?: string;
 
   @IsOptional()
   @IsString()
@@ -126,6 +172,70 @@ class UpdateEmployeeBody {
   @IsOptional()
   @IsString()
   jobTitle?: string;
+
+  @IsOptional()
+  @IsEnum(EmployeeApprovalStatus)
+  approvalStatus?: EmployeeApprovalStatus;
+
+  @IsOptional()
+  @IsNumberString()
+  basicSalary?: string;
+
+  @IsOptional()
+  @IsString()
+  iban?: string;
+
+  @IsOptional()
+  @IsString()
+  ibanBankName?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  lateHourRate?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  lateDiscountAmount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  advanceAllowanceMonthly?: string;
+
+  @IsOptional()
+  @IsString()
+  advanceAllowanceMonth?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  targetPercent?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  targetCompletedPercent?: string;
+
+  @IsOptional()
+  @IsEnum(SalesTargetMode)
+  salesTargetMode?: SalesTargetMode;
+
+  @IsOptional()
+  @IsNumberString()
+  salesTargetAmount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  absenceDiscountPerDay?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPurchaseOperator?: boolean;
+
+  @IsOptional()
+  @IsString()
+  qiwaContractUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  qiwaContractRef?: string;
 }
 
 class UpdateEmployeeStatusBody {
@@ -180,9 +290,9 @@ class CreateLeaveBody {
   @IsNumberString()
   requestedDays!: string;
 
-  @IsOptional()
   @IsString()
-  reason?: string;
+  @MinLength(1)
+  reason!: string;
 }
 
 class DecideLeaveBody {
@@ -214,6 +324,18 @@ class CreateContractBody {
   @IsOptional()
   @IsString()
   contractNumber?: string;
+
+  @IsOptional()
+  @IsEnum(EmployeeContractKind)
+  contractKind?: EmployeeContractKind;
+
+  @IsOptional()
+  @IsString()
+  externalPlatform?: string;
+
+  @IsOptional()
+  @IsString()
+  externalRef?: string;
 
   @IsOptional()
   @IsString()
@@ -368,9 +490,9 @@ class MyLeaveBody {
   @IsNumberString()
   requestedDays!: string;
 
-  @IsOptional()
   @IsString()
-  reason?: string;
+  @MinLength(1)
+  reason!: string;
 }
 
 class MyProfileBody {
@@ -381,6 +503,109 @@ class MyProfileBody {
   @IsOptional()
   @IsString()
   email?: string;
+}
+
+class AttachmentBody {
+  @IsString()
+  fileName!: string;
+
+  @IsString()
+  mimeType!: string;
+
+  @IsNumberString()
+  sizeBytes!: string;
+
+  @IsOptional()
+  @IsString()
+  contentBase64?: string;
+
+  @IsOptional()
+  @IsString()
+  checksumSha256?: string;
+}
+
+class AdvanceAllowanceBody {
+  @IsString()
+  month!: string;
+
+  @IsNumberString()
+  amount!: string;
+}
+
+class QiwaBody {
+  @IsOptional()
+  @IsString()
+  url?: string;
+
+  @IsOptional()
+  @IsString()
+  ref?: string;
+}
+
+class CreateShiftBody {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @IsString()
+  startTime!: string;
+
+  @IsString()
+  endTime!: string;
+
+  @IsOptional()
+  @IsNumber()
+  breakMinutes?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+class AssignShiftBody {
+  @IsString()
+  shiftId!: string;
+
+  @IsString()
+  effectiveFrom!: string;
+
+  @IsOptional()
+  @IsString()
+  effectiveTo?: string;
+}
+
+class SubmitSaleBody {
+  @IsString()
+  saleDate!: string;
+
+  @IsNumberString()
+  amount!: string;
+
+  @IsEnum(SalesPaymentMethod)
+  paymentMethod!: SalesPaymentMethod;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  receiptAttachmentId?: string;
+}
+
+class AdminSubmitSaleBody extends SubmitSaleBody {
+  @IsString()
+  employeeId!: string;
+}
+
+class DecideSaleBody {
+  @IsEnum(['APPROVED', 'REJECTED'] as const)
+  status!: 'APPROVED' | 'REJECTED';
+}
+
+class TargetCompletedBody {
+  @IsNumberString()
+  targetCompletedPercent!: string;
 }
 
 @Controller('companies/:companyId/hr')
@@ -397,6 +622,15 @@ export class HrController {
   @RequirePermissions('hr.read')
   listEmployees(@Param('companyId') companyId: string) {
     return this.hr.listEmployees(companyId);
+  }
+
+  @Get('employees/:employeeId')
+  @RequirePermissions('hr.read')
+  getEmployee(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.hr.getEmployee(companyId, employeeId);
   }
 
   @Post('employees')
@@ -430,6 +664,58 @@ export class HrController {
       employeeId,
       body.employmentStatus,
     );
+  }
+
+  @Post('employees/:employeeId/insurance')
+  @RequirePermissions('hr.write')
+  uploadInsurance(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: AttachmentBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.hr.uploadInsurance(companyId, employeeId, user.userId, body);
+  }
+
+  @Patch('employees/:employeeId/advance-allowance')
+  @RequirePermissions('hr.write')
+  setAdvanceAllowance(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: AdvanceAllowanceBody,
+  ) {
+    return this.hr.setAdvanceAllowance(companyId, employeeId, body);
+  }
+
+  @Post('employees/:employeeId/qiwa')
+  @RequirePermissions('hr.write')
+  setQiwa(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: QiwaBody,
+  ) {
+    return this.hr.setQiwa(companyId, employeeId, body);
+  }
+
+  @Post('employees/:employeeId/shifts')
+  @RequirePermissions('hr.write')
+  assignShift(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: AssignShiftBody,
+  ) {
+    return this.hr.assignEmployeeShift(companyId, employeeId, body);
+  }
+
+  @Get('employees/:employeeId/personal-report')
+  @RequirePermissions('hr.read')
+  personalReport(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.hr.personalReport(companyId, employeeId, from, to);
   }
 
   @Get('attendance')
@@ -582,6 +868,89 @@ export class HrController {
     );
   }
 
+  @Get('shifts')
+  @RequirePermissions('hr.read')
+  listShifts(@Param('companyId') companyId: string) {
+    return this.hr.listShifts(companyId);
+  }
+
+  @Post('shifts')
+  @RequirePermissions('hr.write')
+  createShift(
+    @Param('companyId') companyId: string,
+    @Body() body: CreateShiftBody,
+  ) {
+    return this.hr.createShift({ companyId, ...body });
+  }
+
+  @Get('sales-submissions')
+  @RequirePermissions('hr.read')
+  listSales(
+    @Param('companyId') companyId: string,
+    @Query('status') status?: EmployeeSalesStatus,
+  ) {
+    return this.hr.listSalesSubmissions(companyId, status);
+  }
+
+  @Post('sales-submissions')
+  @RequirePermissions('hr.write')
+  submitSale(
+    @Param('companyId') companyId: string,
+    @Body() body: AdminSubmitSaleBody,
+  ) {
+    if (!body.employeeId?.trim()) {
+      throw new BadRequestException('employeeId is required');
+    }
+    return this.hr.submitSale({
+      companyId,
+      employeeId: body.employeeId,
+      saleDate: body.saleDate,
+      amount: body.amount,
+      paymentMethod: body.paymentMethod,
+      notes: body.notes,
+      receiptAttachmentId: body.receiptAttachmentId,
+    });
+  }
+
+  @Post('sales-submissions/:id/receipt')
+  @RequirePermissions('hr.write')
+  attachReceipt(
+    @Param('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body: AttachmentBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.hr.attachSaleReceipt(companyId, id, user.userId, body);
+  }
+
+  @Patch('sales-submissions/:id/decision')
+  @RequirePermissions('hr.write')
+  decideSale(
+    @Param('companyId') companyId: string,
+    @Param('id') id: string,
+    @Body() body: DecideSaleBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.hr.decideSale(
+      companyId,
+      id,
+      body.status,
+      user.userId,
+      user.permissions ?? [],
+    );
+  }
+
+  @Get('personal-reports')
+  @RequirePermissions('hr.read')
+  listPersonalReports(
+    @Param('companyId') companyId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    return this.hr.listPersonalReports(companyId, from, to, employeeId);
+  }
+
   @Get('purchase-operators')
   @RequirePermissions('purchasing.read')
   listOperators(@Param('companyId') companyId: string) {
@@ -669,5 +1038,38 @@ export class HrController {
     @Body() body: MyLeaveBody,
   ) {
     return this.hr.myRequestLeave(companyId, user.userId, body);
+  }
+
+  @Post('me/sales')
+  @RequirePermissions('hr.read')
+  mySalesSubmit(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: SubmitSaleBody,
+  ) {
+    return this.hr.mySubmitSale(companyId, user.userId, body);
+  }
+
+  @Get('me/sales')
+  @RequirePermissions('hr.read')
+  mySalesList(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.hr.listMySales(companyId, user.userId);
+  }
+
+  @Patch('me/target-completed')
+  @RequirePermissions('hr.read')
+  myTargetCompleted(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: TargetCompletedBody,
+  ) {
+    return this.hr.updateMyTargetCompleted(
+      companyId,
+      user.userId,
+      body.targetCompletedPercent,
+    );
   }
 }

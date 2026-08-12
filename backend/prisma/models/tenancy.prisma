@@ -57,6 +57,9 @@ model Company {
   employeeEwallets  EmployeeEwallet[]
   attendanceDevices AttendanceDevice[]
   attendanceDeviceEvents AttendanceDeviceEvent[]
+  workShifts        WorkShift[]
+  employeeShiftAssignments EmployeeShiftAssignment[]
+  employeeSalesSubmissions EmployeeSalesSubmission[]
   dailyCashClosings DailyCashClosing[]
   workProjects      WorkProject[]
   automationRules   AutomationRule[]
@@ -65,6 +68,7 @@ model Company {
   marketingPlatformConnections MarketingPlatformConnection[]
   attachments       Attachment[]
   aiUsageLogs       AiUsageLog[]
+  aiBotConfigs      AiBotConfig[]
 
   notebookCategories NotebookCategory[]
   businessNotes      BusinessNote[]

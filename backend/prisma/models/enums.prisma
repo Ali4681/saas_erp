@@ -433,6 +433,54 @@ enum EmployeeEwalletStatus {
   SUSPENDED
 }
 
+enum EmployeeIdentityType {
+  RESIDENT
+  CITIZEN
+}
+
+enum EmployeeApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SalesTargetMode {
+  PERCENT
+  AMOUNT
+  BOTH
+}
+
+enum EmployeeContractKind {
+  EMPLOYMENT
+  LOAN
+}
+
+enum SalesPaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  NETWORK
+}
+
+enum EmployeeSalesStatus {
+  SUBMITTED
+  PENDING_CASH_APPROVAL
+  APPROVED
+  REJECTED
+  NEEDS_RECEIPT
+}
+
+enum AiBotChannel {
+  WHATSAPP
+  VOICE_CALL
+}
+
+enum AiBotStatus {
+  DISABLED
+  DRAFT
+  ACTIVE
+}
+
 enum WorkProjectStatus {
   PLANNED
   ACTIVE

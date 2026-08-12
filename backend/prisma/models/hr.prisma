@@ -25,6 +25,25 @@ model Employee {
   isPurchaseOperator   Boolean          @default(false) @map("is_purchase_operator")
   currency             String?          @db.Char(3)
   leaveBalanceDays     Decimal          @default(21) @map("leave_balance_days") @db.Decimal(8, 2)
+
+  identityType         EmployeeIdentityType?  @map("identity_type")
+  identityNumber       String?                @map("identity_number") @db.VarChar(40)
+  identityExpiresOn    DateTime?              @map("identity_expires_on") @db.Date
+  ibanCiphertext       Bytes?                 @map("iban_ciphertext") @db.Blob
+  ibanKeyVersion       Int?                   @map("iban_key_version") @db.SmallInt
+  ibanLast4            String?                @map("iban_last4") @db.Char(4)
+  ibanFingerprint      String?                @map("iban_fingerprint") @db.Char(64)
+  ibanBankName         String?                @map("iban_bank_name") @db.VarChar(120)
+  approvalStatus       EmployeeApprovalStatus @default(PENDING) @map("approval_status")
+  salesTargetMode      SalesTargetMode?       @map("sales_target_mode")
+  salesTargetAmount    Decimal?               @map("sales_target_amount") @db.Decimal(18, 2)
+  lateHourRate         Decimal?               @map("late_hour_rate") @db.Decimal(18, 2)
+  advanceAllowanceMonthly Decimal?            @map("advance_allowance_monthly") @db.Decimal(18, 2)
+  advanceAllowanceMonth   String?             @map("advance_allowance_month") @db.Char(7)
+  insuranceAttachmentId   String?             @map("insurance_attachment_id") @db.Char(36)
+  qiwaContractUrl         String?             @map("qiwa_contract_url") @db.VarChar(500)
+  qiwaContractRef         String?             @map("qiwa_contract_ref") @db.VarChar(120)
+
   createdAt            DateTime         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt            DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
 
@@ -39,10 +58,14 @@ model Employee {
   salaryAdvances SalaryAdvance[]
   contracts      EmployeeContract[]
   ewallet        EmployeeEwallet?
+  shiftAssignments EmployeeShiftAssignment[]
+  salesSubmissions EmployeeSalesSubmission[]
 
   @@unique([companyId, employeeNumber], map: "uq_employee_number")
   @@index([companyId, userId], map: "idx_employee_company_user")
   @@index([companyId, employmentStatus], map: "idx_employee_status")
+  @@index([companyId, approvalStatus], map: "idx_employee_approval")
+  @@index([companyId, identityExpiresOn], map: "idx_employee_identity_expiry")
   @@map("employees")
 }
 
@@ -52,12 +75,15 @@ model EmployeeContract {
   employeeId     String                 @map("employee_id") @db.Char(36)
   title          String                 @db.VarChar(180)
   contractNumber String?                @map("contract_number") @db.VarChar(80)
+  contractKind   EmployeeContractKind   @default(EMPLOYMENT) @map("contract_kind")
   status         EmployeeContractStatus @default(DRAFT)
   startsOn       DateTime?              @map("starts_on") @db.Date
   endsOn         DateTime?              @map("ends_on") @db.Date
   baseSalary     Decimal?               @map("base_salary") @db.Decimal(18, 2)
   targetPercent  Decimal?               @map("target_percent") @db.Decimal(5, 2)
   notes          String?                @db.Text
+  externalPlatform String?              @map("external_platform") @db.VarChar(60)
+  externalRef      String?              @map("external_ref") @db.VarChar(120)
   submittedAt    DateTime?              @map("submitted_at") @db.DateTime(3)
   createdAt      DateTime               @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt      DateTime               @updatedAt @map("updated_at") @db.DateTime(3)
@@ -130,6 +156,7 @@ model AttendanceDevice {
 
   @@unique([companyId, deviceKey], map: "uq_attendance_device_key")
   @@index([companyId, status], map: "idx_attendance_device_status")
+  @@index([companyId, deviceType], map: "idx_attendance_device_type")
   @@map("attendance_devices")
 }
 
@@ -233,4 +260,64 @@ model PayrollItem {
 
   @@unique([payrollRunId, employeeId], map: "uq_payroll_item_run_employee")
   @@map("payroll_items")
+}
+
+/// Stub shift definitions — business rules applied later
+model WorkShift {
+  id           String   @id @default(uuid(7)) @db.Char(36)
+  companyId    String   @map("company_id") @db.Char(36)
+  name         String   @db.VarChar(120)
+  startTime    String   @map("start_time") @db.VarChar(8)
+  endTime      String   @map("end_time") @db.VarChar(8)
+  breakMinutes Int      @default(0) @map("break_minutes")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company     Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  assignments EmployeeShiftAssignment[]
+
+  @@index([companyId, isActive], map: "idx_work_shift_active")
+  @@map("work_shifts")
+}
+
+model EmployeeShiftAssignment {
+  id           String    @id @default(uuid(7)) @db.Char(36)
+  companyId    String    @map("company_id") @db.Char(36)
+  employeeId   String    @map("employee_id") @db.Char(36)
+  shiftId      String    @map("shift_id") @db.Char(36)
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  shift    WorkShift @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, employeeId], map: "idx_employee_shift_assignment")
+  @@map("employee_shift_assignments")
+}
+
+model EmployeeSalesSubmission {
+  id                  String              @id @default(uuid(7)) @db.Char(36)
+  companyId           String              @map("company_id") @db.Char(36)
+  employeeId          String              @map("employee_id") @db.Char(36)
+  saleDate            DateTime            @map("sale_date") @db.Date
+  amount              Decimal             @db.Decimal(18, 2)
+  paymentMethod       SalesPaymentMethod  @map("payment_method")
+  status              EmployeeSalesStatus @default(SUBMITTED)
+  receiptAttachmentId String?             @map("receipt_attachment_id") @db.Char(36)
+  approvedById        String?             @map("approved_by") @db.Char(36)
+  decidedAt           DateTime?           @map("decided_at") @db.DateTime(3)
+  notes               String?             @db.Text
+  createdAt           DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  approvedBy User?    @relation("SalesSubmissionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, saleDate], map: "idx_employee_sales_status")
+  @@index([employeeId, saleDate], map: "idx_employee_sales_employee")
+  @@map("employee_sales_submissions")
 }

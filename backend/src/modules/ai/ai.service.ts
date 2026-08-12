@@ -4,6 +4,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import {
+  AiBotChannel,
+  AiBotStatus,
+  Prisma,
+} from '../../generated/prisma/client';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { PlanLimitsService } from '../plans/plan-limits.service';
@@ -33,6 +38,109 @@ export class AiService {
       planFeature: 'AI_ASSISTANT',
       requiresPlan: 'ENTERPRISE',
     };
+  }
+
+  /** Scaffold — WhatsApp / voice bot settings only (no messaging runtime). */
+  async getBotConfig(
+    companyId: string,
+    channel: AiBotChannel | 'WHATSAPP' | 'VOICE_CALL',
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const config = await this.prisma.aiBotConfig.upsert({
+      where: {
+        companyId_channel: {
+          companyId,
+          channel: channel as AiBotChannel,
+        },
+      },
+      create: {
+        companyId,
+        channel: channel as AiBotChannel,
+        status: 'DISABLED',
+        settings: {},
+      },
+      update: {},
+    });
+    return this.maskBotConfig(config);
+  }
+
+  async upsertBotConfig(
+    companyId: string,
+    channel: AiBotChannel | 'WHATSAPP' | 'VOICE_CALL',
+    input: {
+      status?: AiBotStatus | 'DISABLED' | 'DRAFT' | 'ACTIVE';
+      settings?: Record<string, unknown>;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const existing = await this.getBotConfigRaw(companyId, channel);
+    const currentSettings =
+      existing.settings &&
+      typeof existing.settings === 'object' &&
+      !Array.isArray(existing.settings)
+        ? { ...(existing.settings as Record<string, unknown>) }
+        : {};
+    const mergedSettings = {
+      ...currentSettings,
+      ...(input.settings ?? {}),
+    };
+    const updated = await this.prisma.aiBotConfig.update({
+      where: { id: existing.id },
+      data: {
+        ...(input.status != null
+          ? { status: input.status as AiBotStatus }
+          : {}),
+        ...(input.settings != null
+          ? { settings: mergedSettings as Prisma.InputJsonValue }
+          : {}),
+      },
+    });
+    return this.maskBotConfig(updated);
+  }
+
+  private async getBotConfigRaw(
+    companyId: string,
+    channel: AiBotChannel | 'WHATSAPP' | 'VOICE_CALL',
+  ) {
+    const config = await this.prisma.aiBotConfig.upsert({
+      where: {
+        companyId_channel: {
+          companyId,
+          channel: channel as AiBotChannel,
+        },
+      },
+      create: {
+        companyId,
+        channel: channel as AiBotChannel,
+        status: 'DISABLED',
+        settings: {},
+      },
+      update: {},
+    });
+    return config;
+  }
+
+  private maskBotConfig(config: {
+    id: string;
+    companyId: string;
+    channel: AiBotChannel;
+    status: AiBotStatus;
+    settings: unknown;
+    createdAt: Date;
+    updatedAt: Date;
+  }) {
+    const settings =
+      config.settings &&
+      typeof config.settings === 'object' &&
+      !Array.isArray(config.settings)
+        ? { ...(config.settings as Record<string, unknown>) }
+        : {};
+    if (typeof settings.token === 'string' && settings.token.length > 4) {
+      settings.token = `****${settings.token.slice(-4)}`;
+    } else if (typeof settings.token === 'string') {
+      settings.token = '****';
+    }
+    return { ...config, settings };
   }
 
   /** 16.1 — generate product fields from a short prompt */

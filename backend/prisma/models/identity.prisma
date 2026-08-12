@@ -38,6 +38,7 @@ model User {
   approvedLeaves    LeaveRequest[]          @relation("LeaveApprover")
   createdPayrollRuns PayrollRun[]           @relation("PayrollCreator")
   decidedSalaryAdvances SalaryAdvance[]     @relation("SalaryAdvanceDecider")
+  approvedSalesSubmissions EmployeeSalesSubmission[] @relation("SalesSubmissionApprover")
   createdDailyClosings DailyCashClosing[]   @relation("DailyClosingCreator")
   closedDailyClosings DailyCashClosing[]    @relation("DailyClosingCloser")
   ownedWorkProjects WorkProject[]           @relation("WorkProjectOwner")
