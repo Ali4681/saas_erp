@@ -36,6 +36,11 @@ class LoginBody {
 class RefreshBody {
   @IsString()
   refreshToken!: string;
+
+  /** Keep the same tenant on refresh (avoid findFirst picking another company). */
+  @IsOptional()
+  @IsString()
+  companyId?: string;
 }
 
 class RegisterFcmBody {
@@ -100,7 +105,7 @@ export class AuthController {
   @Public()
   @Post('refresh')
   refresh(@Body() body: RefreshBody) {
-    return this.auth.refresh(body.refreshToken);
+    return this.auth.refresh(body.refreshToken, body.companyId);
   }
 
   @Public()

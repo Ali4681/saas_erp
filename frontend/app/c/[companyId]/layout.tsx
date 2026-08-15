@@ -3,6 +3,9 @@ import { AppShell } from "@/components/layout/AppShell";
 import { companyLogoUrl } from "@/lib/company-logo";
 import { getSession } from "@/lib/auth/session";
 
+/** Always render with the current session — never serve a cached empty shell. */
+export const dynamic = "force-dynamic";
+
 export default async function CompanyLayout({
   children,
   params,

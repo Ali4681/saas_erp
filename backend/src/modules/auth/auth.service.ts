@@ -188,7 +188,7 @@ export class AuthService {
     };
   }
 
-  async refresh(refreshToken: string) {
+  async refresh(refreshToken: string, preferredCompanyId?: string) {
     const tokenHash = hashToken(refreshToken);
     const stored = await this.prisma.withoutTenant().refreshToken.findUnique({
       where: { tokenHash },
@@ -223,10 +223,25 @@ export class AuthService {
       });
     }
 
-    const membership = await this.prisma.withoutTenant().companyUser.findFirst({
-      where: { userId: stored.userId, status: 'ACTIVE' },
-      include: membershipInclude,
-    });
+    const companyFilter = preferredCompanyId?.trim() || undefined;
+    let membership = companyFilter
+      ? await this.prisma.withoutTenant().companyUser.findFirst({
+          where: {
+            userId: stored.userId,
+            companyId: companyFilter,
+            status: 'ACTIVE',
+          },
+          include: membershipInclude,
+        })
+      : null;
+
+    if (!membership) {
+      membership = await this.prisma.withoutTenant().companyUser.findFirst({
+        where: { userId: stored.userId, status: 'ACTIVE' },
+        include: membershipInclude,
+        orderBy: { joinedAt: 'asc' },
+      });
+    }
 
     if (!membership?.companyId) {
       throw i18nUnauthorized('errors.auth.noMembership');

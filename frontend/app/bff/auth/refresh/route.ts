@@ -20,7 +20,10 @@ export async function POST() {
       expiresAt: string;
     }>("/auth/refresh", {
       method: "POST",
-      body: JSON.stringify({ refreshToken: session.refreshToken }),
+      body: JSON.stringify({
+        refreshToken: session.refreshToken,
+        companyId: session.user.companyId,
+      }),
     });
 
     const user = userFromAccessToken(tokens.accessToken, session.user);

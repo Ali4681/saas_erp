@@ -19,7 +19,10 @@ async function refreshSession(
       expiresAt: string;
     }>("/auth/refresh", {
       method: "POST",
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({
+        refreshToken,
+        companyId: previous.user.companyId,
+      }),
     });
     const session: SessionPayload = {
       user: userFromAccessToken(tokens.accessToken, previous.user),
@@ -27,10 +30,20 @@ async function refreshSession(
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.expiresAt,
     };
-    await setSessionCookies(session);
+    // Cookie writes from RSC are flaky in Next — never wipe the session if
+    // only Set-Cookie fails; this request can still use the new tokens.
+    try {
+      await setSessionCookies(session);
+    } catch {
+      /* ignore — Route Handler / next navigation may still refresh */
+    }
     return session;
   } catch {
-    await clearSessionCookies();
+    try {
+      await clearSessionCookies();
+    } catch {
+      /* ignore */
+    }
     return null;
   }
 }
@@ -56,10 +69,11 @@ export async function apiServer<T>(
   const expiresMs = Date.parse(session.expiresAt);
   if (
     Number.isFinite(expiresMs) &&
-    expiresMs < Date.now() + 30_000 &&
+    expiresMs < Date.now() + 60_000 &&
     session.refreshToken
   ) {
-    session = (await refreshSession(session.refreshToken, session)) ?? session;
+    const refreshed = await refreshSession(session.refreshToken, session);
+    if (refreshed) session = refreshed;
     if (!session.accessToken) {
       throw new ApiError(401, "انتهت الجلسة");
     }

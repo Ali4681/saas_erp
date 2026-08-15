@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import { cache } from "react";
 import type { AuthUser, SessionPayload } from "@/lib/types/auth";
+import { userFromAccessToken } from "@/lib/auth/jwt-payload";
 import {
   COOKIE_ACCESS,
   COOKIE_EXPIRES,
@@ -112,6 +113,9 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
 /**
  * Always re-read cookies (no React cache). Use from Route Handlers / apiServer
  * so auth is not polluted by a stale RSC memoization entry.
+ *
+ * Merges live JWT claims (permissions, companyId, role) over the cached
+ * COOKIE_USER blob so clients don't need to log out after role/seed changes.
  */
 export async function readSessionFromCookies(): Promise<SessionPayload | null> {
   const jar = await cookies();
@@ -123,7 +127,8 @@ export async function readSessionFromCookies(): Promise<SessionPayload | null> {
     return null;
   }
   try {
-    const user = JSON.parse(userRaw) as AuthUser;
+    const cached = JSON.parse(userRaw) as AuthUser;
+    const user = userFromAccessToken(accessToken, cached);
     return { user, accessToken, refreshToken, expiresAt };
   } catch {
     return null;
