@@ -109,16 +109,15 @@ export class OperationsService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const existing =
-          await this.prisma.providerOperationRequest.findUnique({
-            where: {
-              connectedProjectId_idempotencyKey: {
-                connectedProjectId: input.projectId,
-                idempotencyKey: input.idempotencyKey,
-              },
+        const existing = await this.prisma.providerOperationRequest.findUnique({
+          where: {
+            connectedProjectId_idempotencyKey: {
+              connectedProjectId: input.projectId,
+              idempotencyKey: input.idempotencyKey,
             },
-            include: { capability: true },
-          });
+          },
+          include: { capability: true },
+        });
         if (existing) {
           return existing;
         }
@@ -195,7 +194,8 @@ export class OperationsService {
       return {
         id: created.id,
         status: fresh?.status ?? 'SUCCEEDED',
-        responseExternalId: fresh?.responseExternalId ?? result?.responseExternalId ?? null,
+        responseExternalId:
+          fresh?.responseExternalId ?? result?.responseExternalId ?? null,
         failureMessage: fresh?.failureMessage ?? null,
         rawResponse: result?.rawResponse ?? null,
       };

@@ -29,10 +29,7 @@ export type ProviderHttpResponse<T = unknown> = {
   text: string;
 };
 
-function buildUrl(
-  url: string,
-  query?: ProviderHttpRequest['query'],
-): string {
+function buildUrl(url: string, query?: ProviderHttpRequest['query']): string {
   if (!query) return url;
   const u = new URL(url);
   for (const [k, v] of Object.entries(query)) {
@@ -73,10 +70,7 @@ export async function providerFetch<T = unknown>(
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    req.timeoutMs ?? 30_000,
-  );
+  const timeout = setTimeout(() => controller.abort(), req.timeoutMs ?? 30_000);
 
   try {
     const res = await fetch(url, {

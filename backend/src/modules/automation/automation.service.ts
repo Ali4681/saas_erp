@@ -7,7 +7,10 @@ import { I18nContext } from 'nestjs-i18n';
 import { AutomationStatus, Prisma } from '../../generated/prisma/client';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
-import { getAutomationCatalog, AUTOMATION_TEMPLATES } from './automation.catalog';
+import {
+  getAutomationCatalog,
+  AUTOMATION_TEMPLATES,
+} from './automation.catalog';
 import { AutomationEngine } from './automation.engine';
 import type { AutomationActionInput } from './automation.actions';
 
@@ -47,10 +50,7 @@ export class AutomationService {
     if (!input.actions?.length) {
       throw i18nBadRequest('errors.automation.actionsRequired');
     }
-    if (
-      input.triggerEvent === 'schedule.cron' &&
-      !input.scheduleCron?.trim()
-    ) {
+    if (input.triggerEvent === 'schedule.cron' && !input.scheduleCron?.trim()) {
       throw i18nBadRequest('errors.automation.cronRequired');
     }
     return this.prisma.automationRule.create({
@@ -234,21 +234,23 @@ export class AutomationService {
 
   async summary(companyId: string) {
     this.tenant.setCompanyId(companyId);
-    const [activeRules, totalRules, recentRuns, failedRuns] = await Promise.all([
-      this.prisma.automationRule.count({
-        where: { companyId, status: 'ACTIVE' },
-      }),
-      this.prisma.automationRule.count({ where: { companyId } }),
-      this.prisma.automationRun.count({
-        where: { rule: { companyId } },
-      }),
-      this.prisma.automationRun.count({
-        where: {
-          rule: { companyId },
-          status: 'FAILED',
-        },
-      }),
-    ]);
+    const [activeRules, totalRules, recentRuns, failedRuns] = await Promise.all(
+      [
+        this.prisma.automationRule.count({
+          where: { companyId, status: 'ACTIVE' },
+        }),
+        this.prisma.automationRule.count({ where: { companyId } }),
+        this.prisma.automationRun.count({
+          where: { rule: { companyId } },
+        }),
+        this.prisma.automationRun.count({
+          where: {
+            rule: { companyId },
+            status: 'FAILED',
+          },
+        }),
+      ],
+    );
     return { activeRules, totalRules, recentRuns, failedRuns };
   }
 
@@ -256,7 +258,7 @@ export class AutomationService {
    * Manual execute: run a specific ACTIVE rule via the engine.
    * Uses event `manual` matching OR forces the rule by id.
    */
-  
+
   async executeRule(
     companyId: string,
     ruleId: string,

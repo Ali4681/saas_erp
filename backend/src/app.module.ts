@@ -6,10 +6,7 @@ import { ClsModule } from 'nestjs-cls';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuditInterceptor } from './common/audit/audit.interceptor';
-import {
-  JwtAuthGuard,
-  PermissionsGuard,
-} from './common/auth/auth.decorators';
+import { JwtAuthGuard, PermissionsGuard } from './common/auth/auth.decorators';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { TenantInterceptor } from './common/tenant/tenant.interceptor';
 import { EncryptionModule } from './common/encryption/encryption.module';
@@ -56,7 +53,10 @@ import { AppI18nModule } from './common/i18n/app-i18n.module';
       global: true,
       middleware: {
         mount: true,
-        setup: (cls, req: { headers: Record<string, string | string[] | undefined> }) => {
+        setup: (
+          cls,
+          req: { headers: Record<string, string | string[] | undefined> },
+        ) => {
           const companyHeader = req.headers['x-company-id'];
           const userHeader = req.headers['x-user-id'];
           if (typeof companyHeader === 'string' && companyHeader.length > 0) {
@@ -118,10 +118,13 @@ import { AppI18nModule } from './common/i18n/app-i18n.module';
               err.property ? `${err.property}: ${msg}` : msg,
             );
           });
+          // Put field errors in `message` so clients always see them
+          // (i18n filters can drop a separate `details` array).
+          const summary =
+            details.length > 0 ? details.join('; ') : 'Validation failed';
           return new BadRequestException({
             statusCode: 400,
-            message: 'errors.validationFailed',
-            i18nKey: 'errors.validationFailed',
+            message: summary,
             error: 'Bad Request',
             details,
           });

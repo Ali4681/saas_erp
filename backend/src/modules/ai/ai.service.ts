@@ -50,12 +50,12 @@ export class AiService {
       where: {
         companyId_channel: {
           companyId,
-          channel: channel as AiBotChannel,
+          channel: channel,
         },
       },
       create: {
         companyId,
-        channel: channel as AiBotChannel,
+        channel: channel,
         status: 'DISABLED',
         settings: {},
       },
@@ -87,9 +87,7 @@ export class AiService {
     const updated = await this.prisma.aiBotConfig.update({
       where: { id: existing.id },
       data: {
-        ...(input.status != null
-          ? { status: input.status as AiBotStatus }
-          : {}),
+        ...(input.status != null ? { status: input.status } : {}),
         ...(input.settings != null
           ? { settings: mergedSettings as Prisma.InputJsonValue }
           : {}),
@@ -106,12 +104,12 @@ export class AiService {
       where: {
         companyId_channel: {
           companyId,
-          channel: channel as AiBotChannel,
+          channel: channel,
         },
       },
       create: {
         companyId,
-        channel: channel as AiBotChannel,
+        channel: channel,
         status: 'DISABLED',
         settings: {},
       },
@@ -213,8 +211,7 @@ Pick suggestedCategoryId from the provided catalog when possible.`;
       user: text,
       stub: () => ({
         improved: `${text} — نسخة محسّنة واحترافية.`,
-        shortVersion:
-          text.length > 120 ? `${text.slice(0, 117)}...` : text,
+        shortVersion: text.length > 120 ? `${text.slice(0, 117)}...` : text,
         notes: [`goal=${goal}`, 'local stub rewrite'],
       }),
     });
@@ -347,10 +344,7 @@ Return JSON: {
 
     const notes = await this.prisma.businessNote.findMany({
       where: {
-        OR: [
-          { title: { contains: query } },
-          { body: { contains: query } },
-        ],
+        OR: [{ title: { contains: query } }, { body: { contains: query } }],
       },
       select: {
         id: true,
@@ -555,13 +549,18 @@ Language=${input.language ?? 'ar'}. Exactly ${variants} variants.`,
     };
   }
 
-  private stubAssistant(question: string, dashboard: {
-    kpis: Record<string, unknown>;
-    bestProducts: Array<{ name: string; revenue: string }>;
-    bestEmployees: Array<{ name: string; revenue: string }>;
-    bestBranches: Array<{ name: string; revenue: string }>;
-    inventoryStatus: { lowStockItems: Array<{ name: string; sku: string | null }> };
-  }): JsonRecord {
+  private stubAssistant(
+    question: string,
+    dashboard: {
+      kpis: Record<string, unknown>;
+      bestProducts: Array<{ name: string; revenue: string }>;
+      bestEmployees: Array<{ name: string; revenue: string }>;
+      bestBranches: Array<{ name: string; revenue: string }>;
+      inventoryStatus: {
+        lowStockItems: Array<{ name: string; sku: string | null }>;
+      };
+    },
+  ): JsonRecord {
     const q = question.toLowerCase();
     const highlights: string[] = [];
     let answer = '';
@@ -571,21 +570,42 @@ Language=${input.language ?? 'ar'}. Exactly ${variants} variants.`,
       answer = top
         ? `أكثر المنتجات مبيعًا حسب الإيراد: ${top.name} (${top.revenue} SAR).`
         : 'لا توجد بيانات منتجات كافية في الفترة المحددة.';
-      highlights.push(...dashboard.bestProducts.slice(0, 3).map((p) => `${p.name}: ${p.revenue}`));
-    } else if (q.includes('موظف') || q.includes('employee') || q.includes('مبيعات')) {
+      highlights.push(
+        ...dashboard.bestProducts
+          .slice(0, 3)
+          .map((p) => `${p.name}: ${p.revenue}`),
+      );
+    } else if (
+      q.includes('موظف') ||
+      q.includes('employee') ||
+      q.includes('مبيعات')
+    ) {
       const top = dashboard.bestEmployees[0];
       answer = top
         ? `أفضل موظف مبيعات حسب الإيراد المنسوب: ${top.name} (${top.revenue} SAR).`
         : 'لا توجد بيانات موظفين كافية.';
-      highlights.push(...dashboard.bestEmployees.slice(0, 3).map((e) => `${e.name}: ${e.revenue}`));
+      highlights.push(
+        ...dashboard.bestEmployees
+          .slice(0, 3)
+          .map((e) => `${e.name}: ${e.revenue}`),
+      );
     } else if (q.includes('فرع') || q.includes('branch')) {
       const top = dashboard.bestBranches[0];
       answer = top
         ? `أكثر فرع يحقق إيرادات: ${top.name} (${top.revenue} SAR).`
         : 'لا توجد بيانات فروع كافية.';
-    } else if (q.includes('متأخر') || q.includes('unpaid') || q.includes('دفع')) {
+    } else if (
+      q.includes('متأخر') ||
+      q.includes('unpaid') ||
+      q.includes('دفع')
+    ) {
       answer = `عدد الفواتير غير المدفوعة: ${dashboard.kpis.unpaidInvoiceCount} بإجمالي مستحق ${dashboard.kpis.balanceDue} SAR.`;
-    } else if (q.includes('إعادة') || q.includes('مخزون') || q.includes('reorder') || q.includes('طلب')) {
+    } else if (
+      q.includes('إعادة') ||
+      q.includes('مخزون') ||
+      q.includes('reorder') ||
+      q.includes('طلب')
+    ) {
       const low = dashboard.inventoryStatus.lowStockItems;
       answer =
         low.length > 0
@@ -615,14 +635,16 @@ Language=${input.language ?? 'ar'}. Exactly ${variants} variants.`,
     const inventoryStatus = p.inventoryStatus as
       | { low?: number; outOfStock?: number; ok?: number; stockValue?: string }
       | undefined;
-    const bestProducts = (p.bestProducts as Array<{ name?: string; revenue?: string }> | undefined) ?? [];
+    const bestProducts =
+      (p.bestProducts as
+        Array<{ name?: string; revenue?: string }> | undefined) ?? [];
     const projectStatus = p.projectStatus as
-      | { total?: number; byStatus?: Record<string, number> }
-      | undefined;
+      { total?: number; byStatus?: Record<string, number> } | undefined;
 
     const kpis: Record<string, string | number> = { ...kpisRaw };
     if (inventoryStatus) {
-      if (inventoryStatus.stockValue != null) kpis.stockValue = inventoryStatus.stockValue;
+      if (inventoryStatus.stockValue != null)
+        kpis.stockValue = inventoryStatus.stockValue;
       if (inventoryStatus.low != null) kpis.lowStock = inventoryStatus.low;
       if (inventoryStatus.outOfStock != null) {
         kpis.outOfStock = inventoryStatus.outOfStock;
@@ -633,7 +655,10 @@ Language=${input.language ?? 'ar'}. Exactly ${variants} variants.`,
     if (typeof p.totalSales === 'string' || typeof p.totalSales === 'number') {
       kpis.totalSales = p.totalSales;
     }
-    if (typeof p.totalExpenses === 'string' || typeof p.totalExpenses === 'number') {
+    if (
+      typeof p.totalExpenses === 'string' ||
+      typeof p.totalExpenses === 'number'
+    ) {
       kpis.totalExpenses = p.totalExpenses;
     }
 
@@ -649,11 +674,11 @@ Language=${input.language ?? 'ar'}. Exactly ${variants} variants.`,
     const balanceDue = Number(kpis.balanceDue ?? 0);
 
     if (unpaid > 0) {
-      weaknesses.push(
-        `يوجد ${unpaid} فاتورة غير مسددة تؤثر على التدفق النقدي`,
-      );
+      weaknesses.push(`يوجد ${unpaid} فاتورة غير مسددة تؤثر على التدفق النقدي`);
       improvements.push('جدولة تذكيرات تحصيل ومتابعة المتأخرين أسبوعيًا');
-      recommendations.push('تصنيف العملاء حسب أقدمية المستحقات وبدء التحصيل من الأعلى');
+      recommendations.push(
+        'تصنيف العملاء حسب أقدمية المستحقات وبدء التحصيل من الأعلى',
+      );
     }
     if (inventoryStatus?.outOfStock && inventoryStatus.outOfStock > 0) {
       weaknesses.push(
@@ -667,10 +692,14 @@ Language=${input.language ?? 'ar'}. Exactly ${variants} variants.`,
     }
     if (expenses > 0 && sales > 0 && expenses / sales > 0.45) {
       weaknesses.push('نسبة المصروفات مرتفعة مقارنة بالمبيعات');
-      improvements.push('مراجعة بنود المصروف الأعلى وتجميد الإنفاق غير الضروري');
+      improvements.push(
+        'مراجعة بنود المصروف الأعلى وتجميد الإنفاق غير الضروري',
+      );
     }
     if (profit > 0) {
-      highlights.push(`الربح التقريبي إيجابي (${profit}) — حافظ على هامش الربح`);
+      highlights.push(
+        `الربح التقريبي إيجابي (${profit}) — حافظ على هامش الربح`,
+      );
     }
     if (bestProducts[0]?.name) {
       highlights.push(
@@ -776,11 +805,7 @@ Language=${input.language ?? 'ar'}. Exactly ${variants} variants.`,
     ];
     const ctas = ['اطلب الآن', 'اكتشف المزيد', 'تواصل معنا اليوم'];
     return {
-      ideas: [
-        `قصة منتج حول ${topic}`,
-        `مقارنة قبل/بعد`,
-        `شهادة عميل قصيرة`,
-      ],
+      ideas: [`قصة منتج حول ${topic}`, `مقارنة قبل/بعد`, `شهادة عميل قصيرة`],
       titles,
       callToActions: ctas,
       variants: Array.from({ length: variants }, (_, i) => ({

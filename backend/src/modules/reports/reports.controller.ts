@@ -7,10 +7,7 @@ import {
 } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
 import { RequirePermissions } from '../../common/auth/auth.decorators';
-import {
-  ReportsService,
-  type ReportModule,
-} from './reports.service';
+import { ReportsService, type ReportModule } from './reports.service';
 
 class ReportQuery {
   @IsOptional()

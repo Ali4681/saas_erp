@@ -1,10 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import {
-  Injectable,
-  Logger,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   type App,
@@ -107,9 +103,7 @@ export class FirebaseAdminService implements OnModuleInit {
       if (!existsSync(full)) {
         throw new Error(`FIREBASE_SERVICE_ACCOUNT_PATH not found: ${full}`);
       }
-      const json = JSON.parse(
-        readFileSync(full, 'utf8'),
-      ) as ServiceAccountJson;
+      const json = JSON.parse(readFileSync(full, 'utf8')) as ServiceAccountJson;
       return initializeApp({
         credential: cert({
           projectId: json.project_id,

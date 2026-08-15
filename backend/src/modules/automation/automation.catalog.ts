@@ -9,12 +9,7 @@ import {
 } from './automation.catalog.en';
 
 export type AutomationModuleCode =
-  | 'crm'
-  | 'sales'
-  | 'inventory'
-  | 'hr'
-  | 'work'
-  | 'general';
+  'crm' | 'sales' | 'inventory' | 'hr' | 'work' | 'general';
 
 export type CatalogTrigger = {
   event: string;
@@ -300,7 +295,8 @@ export const AUTOMATION_TEMPLATES: CatalogTemplate[] = [
     code: 'crm.stale.manager_alert',
     module: 'crm',
     nameAr: 'تنبيه المدير عند عدم المتابعة',
-    descriptionAr: 'عند عدم متابعة العميل لمدة معينة، يتم إرسال تنبيه للمدير وإنشاء تذكير متابعة',
+    descriptionAr:
+      'عند عدم متابعة العميل لمدة معينة، يتم إرسال تنبيه للمدير وإنشاء تذكير متابعة',
     triggerEvent: 'crm.contact.stale',
     conditions: [],
     actions: [
@@ -501,13 +497,21 @@ export const AUTOMATION_VERIFICATION: Array<{
   labelAr: string;
   event: string;
 }> = [
-  { module: 'crm', labelAr: 'Lead جديد → تعيين + مهمة', event: 'crm.lead.created' },
+  {
+    module: 'crm',
+    labelAr: 'Lead جديد → تعيين + مهمة',
+    event: 'crm.lead.created',
+  },
   {
     module: 'crm',
     labelAr: 'مهتم → تذكير متابعة',
     event: 'crm.opportunity.status_changed',
   },
-  { module: 'crm', labelAr: 'عميل خامد → تنبيه/متابعة', event: 'crm.contact.stale' },
+  {
+    module: 'crm',
+    labelAr: 'عميل خامد → تنبيه/متابعة',
+    event: 'crm.contact.stale',
+  },
   {
     module: 'sales',
     labelAr: 'قبول عرض → فاتورة',
@@ -535,7 +539,11 @@ export const AUTOMATION_VERIFICATION: Array<{
     labelAr: 'نهاية الشهر → رواتب',
     event: 'hr.payroll.month_end',
   },
-  { module: 'work', labelAr: 'مهمة متأخرة → إشعار', event: 'work.task.overdue' },
+  {
+    module: 'work',
+    labelAr: 'مهمة متأخرة → إشعار',
+    event: 'work.task.overdue',
+  },
   {
     module: 'work',
     labelAr: 'إكمال مرحلة → فتح التالية',
@@ -588,10 +596,9 @@ export function getAutomationCatalog(locale: string = 'ar') {
         description,
         fields: action.fields.map((field) => {
           const fieldKey = `${action.type}.${field.key}`;
-          const fieldLabel =
-            en
-              ? FIELD_EN[fieldKey] ?? FIELD_EN[field.key] ?? field.labelAr
-              : field.labelAr;
+          const fieldLabel = en
+            ? (FIELD_EN[fieldKey] ?? FIELD_EN[field.key] ?? field.labelAr)
+            : field.labelAr;
           return {
             ...field,
             label: fieldLabel,
@@ -604,8 +611,7 @@ export function getAutomationCatalog(locale: string = 'ar') {
       return {
         ...tmpl,
         name: en && overlay ? overlay.name : tmpl.nameAr,
-        description:
-          en && overlay ? overlay.description : tmpl.descriptionAr,
+        description: en && overlay ? overlay.description : tmpl.descriptionAr,
       };
     }),
     verification: AUTOMATION_VERIFICATION.map((item) => ({

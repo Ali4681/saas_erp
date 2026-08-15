@@ -46,7 +46,9 @@ export class EffectiveCapabilityService {
     return JSON.parse(raw) as CredentialPayload;
   }
 
-  async listForProject(connectedProjectId: string): Promise<EffectiveCapability[]> {
+  async listForProject(
+    connectedProjectId: string,
+  ): Promise<EffectiveCapability[]> {
     const project = await this.prisma.connectedProject.findUnique({
       where: { id: connectedProjectId },
       include: {

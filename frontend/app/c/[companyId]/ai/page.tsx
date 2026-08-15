@@ -152,16 +152,6 @@ export default async function AiHubPage({
             label: t("botWhatsappTitle"),
             hint: t("botWhatsappDesc"),
           },
-          {
-            href: `${base}/bots/calls`,
-            label: t("botCallsTitle"),
-            hint: t("botCallsDesc"),
-          },
-          {
-            href: `${base}/usage`,
-            label: t("usageLog"),
-            hint: t("usageLogHint"),
-          },
         ]}
       />
     </div>

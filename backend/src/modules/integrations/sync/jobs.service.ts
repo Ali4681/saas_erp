@@ -64,7 +64,9 @@ export class JobsService {
       throw new BadRequestException('Project must be ACTIVE to sync');
     }
 
-    const caps = await this.effectiveCapabilities.listForProject(input.projectId);
+    const caps = await this.effectiveCapabilities.listForProject(
+      input.projectId,
+    );
     const requiredByEntity: Record<string, string[]> = {
       location: ['LOCATION_READ', 'BULK_SYNC'],
       category: ['CATEGORY_READ', 'BULK_SYNC'],
@@ -87,9 +89,7 @@ export class JobsService {
 
     const jobType = input.fullSync === false ? 'INCREMENTAL_SYNC' : 'FULL_SYNC';
     const activeSyncKey =
-      jobType === 'FULL_SYNC'
-        ? `${input.projectId}:${input.entityType}`
-        : null;
+      jobType === 'FULL_SYNC' ? `${input.projectId}:${input.entityType}` : null;
 
     try {
       const job = await this.prisma.integrationJob.create({

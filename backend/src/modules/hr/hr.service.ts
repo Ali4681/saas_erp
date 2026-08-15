@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -22,17 +22,33 @@ import {
   SalesTargetMode,
 } from '../../generated/prisma/client';
 import { EncryptionService } from '../../common/encryption/encryption.service';
+import { assertValidSaudiIban, normalizeIban } from '../../common/iban';
+import { assertValidSaudiIdentity } from '../../common/saudi-identity';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AutomationEngine } from '../automation/automation.engine';
 import { PlatformService } from '../platform/platform.service';
-
-function normalizeIban(iban: string): string {
-  return iban.replace(/\s+/g, '').toUpperCase();
-}
+import { SalesService } from '../sales/sales.service';
 
 function fingerprintIban(iban: string): string {
   return createHash('sha256').update(normalizeIban(iban)).digest('hex');
+}
+
+function mapSalePaymentMethod(
+  method: SalesPaymentMethod | string,
+): 'CASH' | 'BANK_TRANSFER' | 'CARD' | 'PAYMENT_GATEWAY' | 'OTHER' {
+  switch (method) {
+    case 'CASH':
+      return 'CASH';
+    case 'CARD':
+      return 'CARD';
+    case 'TRANSFER':
+      return 'BANK_TRANSFER';
+    case 'NETWORK':
+      return 'PAYMENT_GATEWAY';
+    default:
+      return 'OTHER';
+  }
 }
 
 @Injectable()
@@ -44,6 +60,7 @@ export class HrService {
     private readonly tenant: TenantContextService,
     private readonly encryption: EncryptionService,
     private readonly platform: PlatformService,
+    private readonly sales: SalesService,
     @Inject(forwardRef(() => AutomationEngine))
     private readonly automation: AutomationEngine,
   ) {}
@@ -69,22 +86,26 @@ export class HrService {
   private encryptIban(iban?: string) {
     if (!iban) {
       return {
-        ibanCiphertext: null as Buffer | null,
+        ibanCiphertext: null as Uint8Array | null,
         ibanKeyVersion: null as number | null,
         ibanLast4: null as string | null,
         ibanFingerprint: null as string | null,
       };
     }
-    const normalized = normalizeIban(iban);
-    if (normalized.length < 8) {
-      throw new BadRequestException('IBAN too short');
+    let valid: string;
+    try {
+      valid = assertValidSaudiIban(iban);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Invalid IBAN',
+      );
     }
-    const encrypted = this.encryption.encrypt(normalized);
+    const encrypted = this.encryption.encrypt(valid);
     return {
-      ibanCiphertext: Buffer.from(encrypted.ciphertext),
+      ibanCiphertext: Uint8Array.from(encrypted.ciphertext),
       ibanKeyVersion: encrypted.keyVersion,
-      ibanLast4: normalized.slice(-4),
-      ibanFingerprint: fingerprintIban(normalized),
+      ibanLast4: valid.slice(-4),
+      ibanFingerprint: fingerprintIban(valid),
     };
   }
 
@@ -109,8 +130,8 @@ export class HrService {
   }) {
     return Boolean(
       employee.insuranceAttachmentId &&
-        employee.identityNumber &&
-        employee.ibanLast4,
+      employee.identityNumber &&
+      employee.ibanLast4,
     );
   }
 
@@ -130,6 +151,154 @@ export class HrService {
     };
   }
 
+  private currentMonthKey(d = new Date()) {
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private monthBoundsUtc(month: string) {
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      throw new BadRequestException('month must be YYYY-MM');
+    }
+    const [y, m] = month.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+    const end = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+    return { start, end };
+  }
+
+  /**
+   * Earned this month = (basicSalary / 30) × days with PRESENT|LATE|REMOTE.
+   * Max advance = earned × (advanceAllowancePercent / 100).
+   */
+  async computeAdvanceEarnings(
+    companyId: string,
+    employeeId: string,
+    month?: string,
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const employee = await this.requireEmployee(companyId, employeeId);
+    const monthKey = month ?? this.currentMonthKey();
+    const { start, end } = this.monthBoundsUtc(monthKey);
+    const daysWorked = await this.prisma.attendanceRecord.count({
+      where: {
+        companyId,
+        employeeId,
+        attendanceDate: { gte: start, lte: end },
+        status: { in: ['PRESENT', 'LATE', 'REMOTE'] },
+      },
+    });
+    const basicSalary = Number(employee.basicSalary ?? 0);
+    const dailyRate = basicSalary > 0 ? basicSalary / 30 : 0;
+    const earnedAmount = dailyRate * daysWorked;
+    const percent = Number(employee.advanceAllowancePercent ?? 0);
+    const maxAdvanceAmount =
+      percent > 0 && earnedAmount > 0 ? (earnedAmount * percent) / 100 : 0;
+    const monthAdvances = await this.prisma.salaryAdvance.findMany({
+      where: {
+        employeeId,
+        status: { in: ['PENDING', 'APPROVED', 'PAID'] },
+        requestedAt: { gte: start, lte: end },
+      },
+    });
+    const advancesUsed = monthAdvances.reduce(
+      (s, a) => s + Number(a.amount),
+      0,
+    );
+    const remainingAdvance = Math.max(0, maxAdvanceAmount - advancesUsed);
+    return {
+      month: monthKey,
+      basicSalary: basicSalary.toFixed(2),
+      dailyRate: dailyRate.toFixed(4),
+      daysWorked,
+      earnedAmount: earnedAmount.toFixed(2),
+      advanceAllowancePercent:
+        employee.advanceAllowancePercent != null
+          ? String(employee.advanceAllowancePercent)
+          : null,
+      maxAdvanceAmount: maxAdvanceAmount.toFixed(2),
+      advancesUsed: advancesUsed.toFixed(2),
+      remainingAdvance: remainingAdvance.toFixed(2),
+      currency: employee.currency ?? 'SAR',
+      formula:
+        'earned = (basicSalary/30) × days(PRESENT|LATE|REMOTE); maxAdvance = earned × percent/100',
+    };
+  }
+
+  /** Monthly target progress from APPROVED sales only (cash counts only after approval). Over 100% allowed. */
+  async computeMonthlySalesProgress(companyId: string, employeeId: string) {
+    this.tenant.setCompanyId(companyId);
+    const employee = await this.requireEmployee(companyId, employeeId);
+    const monthKey = this.currentMonthKey();
+    const { start, end } = this.monthBoundsUtc(monthKey);
+    const approved = await this.prisma.employeeSalesSubmission.findMany({
+      where: {
+        employeeId,
+        status: 'APPROVED',
+        saleDate: { gte: start, lte: end },
+      },
+    });
+    const approvedSalesSum = approved.reduce((s, r) => s + Number(r.amount), 0);
+    const mode = employee.salesTargetMode ?? null;
+    const usesAmountTarget =
+      mode === 'AMOUNT' ||
+      mode === 'BOTH' ||
+      (mode == null && employee.salesTargetAmount != null);
+    const usesSalesPercent =
+      mode === 'PERCENT' ||
+      mode === 'BOTH' ||
+      (mode == null && employee.targetPercent != null);
+    const target =
+      usesAmountTarget && employee.salesTargetAmount != null
+        ? Number(employee.salesTargetAmount)
+        : null;
+    const salesPercent = Number(employee.targetPercent ?? 0);
+    const salesCommission =
+      usesSalesPercent && salesPercent > 0
+        ? (approvedSalesSum * salesPercent) / 100
+        : 0;
+    const targetCompletedPercent =
+      target != null && target > 0
+        ? (approvedSalesSum / target) * 100
+        : Number(employee.targetCompletedPercent ?? 0);
+    if (target != null && target > 0) {
+      await this.prisma.employee.update({
+        where: { id: employeeId },
+        data: { targetCompletedPercent: targetCompletedPercent.toFixed(2) },
+      });
+    }
+    return {
+      month: monthKey,
+      salesTargetMode: mode,
+      salesTargetAmount:
+        employee.salesTargetAmount != null
+          ? String(employee.salesTargetAmount)
+          : null,
+      targetPercent:
+        employee.targetPercent != null ? String(employee.targetPercent) : null,
+      approvedSalesSum: approvedSalesSum.toFixed(2),
+      salesCommission: salesCommission.toFixed(2),
+      targetCompletedPercent: targetCompletedPercent.toFixed(2),
+      overTarget: target != null && target > 0 && approvedSalesSum > target,
+      currency: employee.currency ?? 'SAR',
+    };
+  }
+
+  private async enrichEmployeeResponse(
+    companyId: string,
+    employeeId: string,
+    base: Record<string, unknown>,
+  ) {
+    const [advanceEarnings, salesProgress] = await Promise.all([
+      this.computeAdvanceEarnings(companyId, employeeId),
+      this.computeMonthlySalesProgress(companyId, employeeId),
+    ]);
+    return {
+      ...base,
+      advanceEarnings,
+      salesProgress,
+      targetCompletedPercent: salesProgress.targetCompletedPercent,
+    };
+  }
+
   async listEmployees(companyId: string) {
     this.tenant.setCompanyId(companyId);
     const rows = await this.prisma.employee.findMany({
@@ -138,23 +307,71 @@ export class HrService {
       include: {
         ewallet: true,
         _count: { select: { contracts: true, salaryAdvances: true } },
+        qiwaContracts: {
+          orderBy: { updatedAt: 'desc' },
+          take: 1,
+          select: { status: true },
+        },
       },
     });
-    return rows.map((row) =>
-      this.stripSensitiveIban(row as unknown as Record<string, unknown>),
-    );
+    return rows.map((row) => {
+      const stripped = this.stripSensitiveIban(row);
+      const { qiwaContracts: _qc, ...rest } = stripped as Record<
+        string,
+        unknown
+      > & { qiwaContracts?: unknown };
+      const latest = row.qiwaContracts[0];
+      return {
+        ...rest,
+        qiwaStatus: latest?.status ?? 'NOT_STARTED',
+      };
+    });
   }
 
   async employeeSummary(companyId: string) {
     this.tenant.setCompanyId(companyId);
-    const [total, active, onLeave, suspended, terminated] = await Promise.all([
-      this.prisma.employee.count(),
-      this.prisma.employee.count({ where: { employmentStatus: 'ACTIVE' } }),
-      this.prisma.employee.count({ where: { employmentStatus: 'ON_LEAVE' } }),
-      this.prisma.employee.count({ where: { employmentStatus: 'SUSPENDED' } }),
-      this.prisma.employee.count({ where: { employmentStatus: 'TERMINATED' } }),
-    ]);
-    return { total, active, onLeave, suspended, terminated };
+    const [total, active, onLeave, suspended, terminated, employees] =
+      await Promise.all([
+        this.prisma.employee.count(),
+        this.prisma.employee.count({ where: { employmentStatus: 'ACTIVE' } }),
+        this.prisma.employee.count({ where: { employmentStatus: 'ON_LEAVE' } }),
+        this.prisma.employee.count({
+          where: { employmentStatus: 'SUSPENDED' },
+        }),
+        this.prisma.employee.count({
+          where: { employmentStatus: 'TERMINATED' },
+        }),
+        this.prisma.employee.findMany({
+          where: { companyId },
+          select: {
+            qiwaContracts: {
+              orderBy: { updatedAt: 'desc' },
+              take: 1,
+              select: { status: true },
+            },
+          },
+        }),
+      ]);
+    const qiwaCounts: Record<string, number> = {
+      NOT_STARTED: 0,
+      IN_PROGRESS: 0,
+      AWAITING_EMPLOYEE: 0,
+      PENDING_APPROVAL: 0,
+      DOCUMENTED: 0,
+      REJECTED_OR_MODIFICATION: 0,
+    };
+    for (const emp of employees) {
+      const status = emp.qiwaContracts[0]?.status ?? 'NOT_STARTED';
+      qiwaCounts[status] = (qiwaCounts[status] ?? 0) + 1;
+    }
+    return {
+      total,
+      active,
+      onLeave,
+      suspended,
+      terminated,
+      qiwa: qiwaCounts,
+    };
   }
 
   async getEmployee(companyId: string, employeeId: string) {
@@ -175,13 +392,11 @@ export class HrService {
       },
     });
     if (!employee) throw new NotFoundException('Employee not found');
-    const stripped = this.stripSensitiveIban(
-      employee as unknown as Record<string, unknown>,
-    );
-    return {
+    const stripped = this.stripSensitiveIban(employee);
+    return this.enrichEmployeeResponse(companyId, employeeId, {
       ...stripped,
       ...this.docsFlags(employee),
-    };
+    });
   }
 
   async createEmployee(input: {
@@ -196,9 +411,12 @@ export class HrService {
     salesTargetMode?: SalesTargetMode | 'PERCENT' | 'AMOUNT' | 'BOTH';
     salesTargetAmount?: string | number;
     lateHourRate?: string | number;
+    advanceAllowancePercent?: string | number;
     advanceAllowanceMonthly?: string | number;
     advanceAllowanceMonth?: string;
-    approvalStatus?: EmployeeApprovalStatus | 'PENDING' | 'APPROVED' | 'REJECTED';
+    attendanceBadgeId?: string;
+    approvalStatus?:
+      EmployeeApprovalStatus | 'PENDING' | 'APPROVED' | 'REJECTED';
     userId?: string;
     companyBranchId?: string;
     companyDepartmentId?: string;
@@ -221,24 +439,48 @@ export class HrService {
     if (!input.identityNumber?.trim()) {
       throw new BadRequestException('identityNumber is required');
     }
+    let identityNumber: string;
+    try {
+      identityNumber = assertValidSaudiIdentity(
+        input.identityNumber,
+        input.identityType === 'CITIZEN' ? 'CITIZEN' : 'RESIDENT',
+      );
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Invalid identity number',
+      );
+    }
     if (input.basicSalary != null && Number(input.basicSalary) < 0) {
       throw new BadRequestException('basicSalary must be >= 0');
     }
     if (input.targetPercent != null) {
       const tp = Number(input.targetPercent);
       if (tp < 0 || tp > 100) {
-        throw new BadRequestException('targetPercent must be between 0 and 100');
+        throw new BadRequestException(
+          'targetPercent must be between 0 and 100',
+        );
       }
     }
     if (input.targetCompletedPercent != null) {
       const tcp = Number(input.targetCompletedPercent);
-      if (tcp < 0 || tcp > 100) {
+      if (tcp < 0) {
         throw new BadRequestException(
-          'targetCompletedPercent must be between 0 and 100',
+          'targetCompletedPercent must be >= 0 (over 100% allowed)',
         );
       }
     }
-    if (input.advanceAllowanceMonth && !/^\d{4}-\d{2}$/.test(input.advanceAllowanceMonth)) {
+    if (input.advanceAllowancePercent != null) {
+      const p = Number(input.advanceAllowancePercent);
+      if (p < 0 || p > 100) {
+        throw new BadRequestException(
+          'advanceAllowancePercent must be between 0 and 100',
+        );
+      }
+    }
+    if (
+      input.advanceAllowanceMonth &&
+      !/^\d{4}-\d{2}$/.test(input.advanceAllowanceMonth)
+    ) {
       throw new BadRequestException('advanceAllowanceMonth must be YYYY-MM');
     }
     if (input.userId) {
@@ -249,7 +491,13 @@ export class HrService {
         throw new BadRequestException('User is already linked to an employee');
       }
     }
-    const ibanData = this.encryptIban(input.iban);
+    const ibanData = this.encryptIban(input.iban?.trim() || undefined);
+    const basic =
+      input.basicSalary != null && Number(input.basicSalary) >= 0
+        ? Number(input.basicSalary)
+        : null;
+    const dailyDefault =
+      basic != null && basic > 0 ? (basic / 30).toFixed(2) : undefined;
     const created = await this.prisma.employee.create({
       data: {
         companyId: input.companyId,
@@ -263,8 +511,7 @@ export class HrService {
         phone: input.phone,
         jobTitle: input.jobTitle,
         hireDate: input.hireDate ? new Date(input.hireDate) : undefined,
-        basicSalary:
-          input.basicSalary != null ? String(input.basicSalary) : undefined,
+        basicSalary: basic != null ? String(basic) : undefined,
         targetPercent:
           input.targetPercent != null ? String(input.targetPercent) : undefined,
         targetCompletedPercent:
@@ -274,38 +521,42 @@ export class HrService {
         absenceDiscountPerDay:
           input.absenceDiscountPerDay != null
             ? String(input.absenceDiscountPerDay)
-            : undefined,
+            : dailyDefault,
         lateDiscountAmount:
           input.lateDiscountAmount != null
             ? String(input.lateDiscountAmount)
-            : undefined,
+            : dailyDefault,
         isPurchaseOperator: Boolean(input.isPurchaseOperator),
         currency: input.currency ?? 'SAR',
-        identityType: input.identityType as EmployeeIdentityType,
-        identityNumber: input.identityNumber.trim(),
+        identityType: input.identityType,
+        identityNumber,
         identityExpiresOn: input.identityExpiresOn
           ? new Date(input.identityExpiresOn)
           : undefined,
         ibanBankName: input.ibanBankName,
         ...ibanData,
-        approvalStatus: (input.approvalStatus as EmployeeApprovalStatus) ?? 'PENDING',
-        salesTargetMode: input.salesTargetMode as SalesTargetMode | undefined,
+        approvalStatus:
+          (input.approvalStatus as EmployeeApprovalStatus) ?? 'PENDING',
+        salesTargetMode: input.salesTargetMode,
         salesTargetAmount:
           input.salesTargetAmount != null
             ? String(input.salesTargetAmount)
             : undefined,
         lateHourRate:
           input.lateHourRate != null ? String(input.lateHourRate) : undefined,
+        advanceAllowancePercent:
+          input.advanceAllowancePercent != null
+            ? String(input.advanceAllowancePercent)
+            : undefined,
         advanceAllowanceMonthly:
           input.advanceAllowanceMonthly != null
             ? String(input.advanceAllowanceMonthly)
             : undefined,
         advanceAllowanceMonth: input.advanceAllowanceMonth,
+        attendanceBadgeId: input.attendanceBadgeId?.trim() || undefined,
       } as Prisma.EmployeeUncheckedCreateInput,
     });
-    return this.stripSensitiveIban(
-      created as unknown as Record<string, unknown>,
-    );
+    return this.stripSensitiveIban(created);
   }
 
   async updateEmployee(
@@ -319,15 +570,18 @@ export class HrService {
       phone?: string;
       email?: string;
       jobTitle?: string;
-      approvalStatus?: EmployeeApprovalStatus | 'PENDING' | 'APPROVED' | 'REJECTED';
+      approvalStatus?:
+        EmployeeApprovalStatus | 'PENDING' | 'APPROVED' | 'REJECTED';
       // financial
       basicSalary?: string | number;
       iban?: string;
       ibanBankName?: string;
       lateHourRate?: string | number;
       lateDiscountAmount?: string | number;
+      advanceAllowancePercent?: string | number;
       advanceAllowanceMonthly?: string | number;
       advanceAllowanceMonth?: string;
+      attendanceBadgeId?: string | null;
       targetPercent?: string | number;
       targetCompletedPercent?: string | number;
       salesTargetMode?: SalesTargetMode | 'PERCENT' | 'AMOUNT' | 'BOTH' | null;
@@ -344,14 +598,24 @@ export class HrService {
     if (input.targetPercent != null) {
       const tp = Number(input.targetPercent);
       if (tp < 0 || tp > 100) {
-        throw new BadRequestException('targetPercent must be between 0 and 100');
+        throw new BadRequestException(
+          'targetPercent must be between 0 and 100',
+        );
       }
     }
     if (input.targetCompletedPercent != null) {
       const tcp = Number(input.targetCompletedPercent);
-      if (tcp < 0 || tcp > 100) {
+      if (tcp < 0) {
         throw new BadRequestException(
-          'targetCompletedPercent must be between 0 and 100',
+          'targetCompletedPercent must be >= 0 (over 100% allowed)',
+        );
+      }
+    }
+    if (input.advanceAllowancePercent != null) {
+      const p = Number(input.advanceAllowancePercent);
+      if (p < 0 || p > 100) {
+        throw new BadRequestException(
+          'advanceAllowancePercent must be between 0 and 100',
         );
       }
     }
@@ -361,17 +625,47 @@ export class HrService {
     ) {
       throw new BadRequestException('advanceAllowanceMonth must be YYYY-MM');
     }
+
+    let identityNumberUpdate: string | undefined;
+    if (input.identityNumber !== undefined || input.identityType != null) {
+      const current = await this.prisma.employee.findFirst({
+        where: { id: employeeId, companyId },
+        select: { identityType: true, identityNumber: true },
+      });
+      const kind =
+        (input.identityType ?? current?.identityType) === 'CITIZEN'
+          ? 'CITIZEN'
+          : 'RESIDENT';
+      const raw =
+        input.identityNumber !== undefined
+          ? input.identityNumber
+          : current?.identityNumber;
+      if (raw?.trim()) {
+        try {
+          identityNumberUpdate = assertValidSaudiIdentity(raw, kind);
+        } catch (e) {
+          throw new BadRequestException(
+            e instanceof Error ? e.message : 'Invalid identity number',
+          );
+        }
+      }
+    }
+
     const ibanData =
-      input.iban !== undefined ? this.encryptIban(input.iban) : null;
+      input.iban !== undefined
+        ? this.encryptIban(input.iban?.trim() || undefined)
+        : null;
     const updated = await this.prisma.employee.update({
       where: { id: employeeId },
       data: {
         ...(input.identityType != null
-          ? { identityType: input.identityType as EmployeeIdentityType }
+          ? { identityType: input.identityType }
           : {}),
-        ...(input.identityNumber !== undefined
-          ? { identityNumber: input.identityNumber }
-          : {}),
+        ...(identityNumberUpdate !== undefined
+          ? { identityNumber: identityNumberUpdate }
+          : input.identityNumber !== undefined && !input.identityNumber.trim()
+            ? { identityNumber: null }
+            : {}),
         ...(input.identityExpiresOn !== undefined
           ? {
               identityExpiresOn: input.identityExpiresOn
@@ -383,7 +677,7 @@ export class HrService {
         ...(input.email !== undefined ? { email: input.email } : {}),
         ...(input.jobTitle !== undefined ? { jobTitle: input.jobTitle } : {}),
         ...(input.approvalStatus != null
-          ? { approvalStatus: input.approvalStatus as EmployeeApprovalStatus }
+          ? { approvalStatus: input.approvalStatus }
           : {}),
         ...(input.basicSalary != null
           ? { basicSalary: String(input.basicSalary) }
@@ -398,11 +692,21 @@ export class HrService {
         ...(input.lateDiscountAmount != null
           ? { lateDiscountAmount: String(input.lateDiscountAmount) }
           : {}),
+        ...(input.advanceAllowancePercent != null
+          ? {
+              advanceAllowancePercent: String(input.advanceAllowancePercent),
+            }
+          : {}),
         ...(input.advanceAllowanceMonthly != null
           ? { advanceAllowanceMonthly: String(input.advanceAllowanceMonthly) }
           : {}),
         ...(input.advanceAllowanceMonth !== undefined
           ? { advanceAllowanceMonth: input.advanceAllowanceMonth }
+          : {}),
+        ...(input.attendanceBadgeId !== undefined
+          ? {
+              attendanceBadgeId: input.attendanceBadgeId?.trim() || null,
+            }
           : {}),
         ...(input.targetPercent != null
           ? { targetPercent: String(input.targetPercent) }
@@ -412,7 +716,7 @@ export class HrService {
           : {}),
         ...(input.salesTargetMode !== undefined
           ? {
-              salesTargetMode: input.salesTargetMode as SalesTargetMode | null,
+              salesTargetMode: input.salesTargetMode,
             }
           : {}),
         ...(input.salesTargetAmount !== undefined
@@ -437,9 +741,7 @@ export class HrService {
           : {}),
       } as Prisma.EmployeeUncheckedUpdateInput,
     });
-    return this.stripSensitiveIban(
-      updated as unknown as Record<string, unknown>,
-    );
+    return this.stripSensitiveIban(updated);
   }
 
   async updateEmployeeStatus(
@@ -453,9 +755,7 @@ export class HrService {
       where: { id: employeeId },
       data: { employmentStatus },
     });
-    return this.stripSensitiveIban(
-      updated as unknown as Record<string, unknown>,
-    );
+    return this.stripSensitiveIban(updated);
   }
 
   async uploadInsurance(
@@ -489,36 +789,53 @@ export class HrService {
     });
     return {
       attachment,
-      employee: this.stripSensitiveIban(
-        updated as unknown as Record<string, unknown>,
-      ),
+      employee: this.stripSensitiveIban(updated),
     };
   }
 
   async setAdvanceAllowance(
     companyId: string,
     employeeId: string,
-    input: { month: string; amount: string | number },
+    input: {
+      month?: string;
+      amount?: string | number;
+      percent?: string | number;
+    },
   ) {
     this.tenant.setCompanyId(companyId);
     await this.requireEmployee(companyId, employeeId);
-    if (!/^\d{4}-\d{2}$/.test(input.month)) {
-      throw new BadRequestException('month must be YYYY-MM');
+    if (input.percent == null && input.amount == null) {
+      throw new BadRequestException('percent or amount is required');
     }
-    const amount = Number(input.amount);
-    if (!(amount >= 0)) {
-      throw new BadRequestException('amount must be >= 0');
+    const data: Prisma.EmployeeUncheckedUpdateInput = {};
+    if (input.percent != null) {
+      const percent = Number(input.percent);
+      if (percent < 0 || percent > 100) {
+        throw new BadRequestException('percent must be between 0 and 100');
+      }
+      data.advanceAllowancePercent = percent.toFixed(2);
+    }
+    if (input.amount != null) {
+      const amount = Number(input.amount);
+      if (!(amount >= 0)) {
+        throw new BadRequestException('amount must be >= 0');
+      }
+      const month = input.month ?? this.currentMonthKey();
+      if (!/^\d{4}-\d{2}$/.test(month)) {
+        throw new BadRequestException('month must be YYYY-MM');
+      }
+      data.advanceAllowanceMonth = month;
+      data.advanceAllowanceMonthly = amount.toFixed(2);
     }
     const updated = await this.prisma.employee.update({
       where: { id: employeeId },
-      data: {
-        advanceAllowanceMonth: input.month,
-        advanceAllowanceMonthly: amount.toFixed(2),
-      },
+      data,
     });
-    return this.stripSensitiveIban(
-      updated as unknown as Record<string, unknown>,
-    );
+    const earnings = await this.computeAdvanceEarnings(companyId, employeeId);
+    return {
+      ...this.stripSensitiveIban(updated),
+      advanceEarnings: earnings,
+    };
   }
 
   async setQiwa(
@@ -535,9 +852,7 @@ export class HrService {
         ...(input.ref !== undefined ? { qiwaContractRef: input.ref } : {}),
       },
     });
-    return this.stripSensitiveIban(
-      updated as unknown as Record<string, unknown>,
-    );
+    return this.stripSensitiveIban(updated);
   }
 
   listAttendance(companyId: string) {
@@ -764,29 +1079,54 @@ export class HrService {
       },
     });
 
+    const approvedSales = await this.prisma.employeeSalesSubmission.findMany({
+      where: {
+        companyId: input.companyId,
+        status: 'APPROVED',
+        saleDate: { gte: periodStart, lte: periodEnd },
+      },
+      select: { employeeId: true, amount: true },
+    });
+    const approvedSalesByEmployee = new Map<string, number>();
+    for (const row of approvedSales) {
+      approvedSalesByEmployee.set(
+        row.employeeId,
+        (approvedSalesByEmployee.get(row.employeeId) ?? 0) + Number(row.amount),
+      );
+    }
+
     let totalGross = 0;
     let totalDeductions = 0;
     let totalNet = 0;
     const items = employees.map((employee) => {
       const basic = Number(employee.basicSalary ?? 0);
       const allowances = 0;
-      const targetPct = Number(employee.targetPercent ?? 0);
-      const completedPct = Number(employee.targetCompletedPercent ?? 0);
+      const mode = employee.salesTargetMode ?? null;
+      const salesPct = Number(employee.targetPercent ?? 0);
+      const usesSalesPercent =
+        mode === 'PERCENT' ||
+        mode === 'BOTH' ||
+        (mode == null && salesPct > 0);
+      const approvedSum = approvedSalesByEmployee.get(employee.id) ?? 0;
+      // Commission = % of approved employee sales in the payroll period
       const bonuses =
-        targetPct > 0 && completedPct > 0
-          ? (basic * targetPct * completedPct) / 10000
+        usesSalesPercent && salesPct > 0
+          ? (approvedSum * salesPct) / 100
           : 0;
       const dailyAbsence =
         Number(employee.absenceDiscountPerDay ?? 0) ||
         (basic > 0 ? basic / 30 : 0);
-      const lateFee = Number(employee.lateDiscountAmount ?? 0);
+      const lateFee =
+        Number(employee.lateDiscountAmount ?? 0) ||
+        (basic > 0 ? basic / 30 : 0);
       const lateHourRate =
         employee.lateHourRate != null ? Number(employee.lateHourRate) : null;
       const empAttendance = attendance.filter(
         (a) => a.employeeId === employee.id,
       );
-      const absentDays = empAttendance.filter((a) => a.status === 'ABSENT')
-        .length;
+      const absentDays = empAttendance.filter(
+        (a) => a.status === 'ABSENT',
+      ).length;
       const lateRecords = empAttendance.filter((a) => a.status === 'LATE');
       const lateDays = lateRecords.length;
       const absenceDeduction = absentDays * dailyAbsence;
@@ -868,7 +1208,9 @@ export class HrService {
     return this.prisma.employeeContract.findMany({
       where: employeeId ? { employeeId } : undefined,
       include: {
-        employee: { select: { id: true, fullName: true, employeeNumber: true } },
+        employee: {
+          select: { id: true, fullName: true, employeeNumber: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
@@ -898,7 +1240,8 @@ export class HrService {
         employeeId: input.employeeId,
         title: input.title,
         contractNumber: input.contractNumber,
-        contractKind: (input.contractKind as EmployeeContractKind) ?? 'EMPLOYMENT',
+        contractKind:
+          (input.contractKind as EmployeeContractKind) ?? 'EMPLOYMENT',
         externalPlatform: input.externalPlatform,
         externalRef: input.externalRef,
         startsOn: input.startsOn ? new Date(input.startsOn) : undefined,
@@ -935,7 +1278,9 @@ export class HrService {
     });
     if (!contract) throw new NotFoundException('Contract not found');
     if (!['DRAFT', 'SUBMITTED'].includes(contract.status)) {
-      throw new BadRequestException('Only draft/submitted contracts can be edited');
+      throw new BadRequestException(
+        'Only draft/submitted contracts can be edited',
+      );
     }
     return this.prisma.employeeContract.update({
       where: { id: contractId },
@@ -1009,7 +1354,14 @@ export class HrService {
     return this.prisma.salaryAdvance.findMany({
       where: employeeId ? { employeeId } : undefined,
       include: {
-        employee: { select: { id: true, fullName: true, employeeNumber: true } },
+        employee: {
+          select: {
+            id: true,
+            userId: true,
+            fullName: true,
+            employeeNumber: true,
+          },
+        },
       },
       orderBy: { requestedAt: 'desc' },
       take: 200,
@@ -1031,36 +1383,36 @@ export class HrService {
     if (!(amount > 0)) {
       throw new BadRequestException('amount must be > 0');
     }
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const allowanceSet =
-      employee.advanceAllowanceMonthly != null &&
-      employee.advanceAllowanceMonth === currentMonth;
-
-    if (allowanceSet) {
-      const allowance = Number(employee.advanceAllowanceMonthly);
-      const monthStart = new Date(`${currentMonth}-01T00:00:00.000Z`);
-      const [y, m] = currentMonth.split('-').map(Number);
-      const monthEnd = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
-      const monthAdvances = await this.prisma.salaryAdvance.findMany({
-        where: {
-          employeeId: employee.id,
-          status: { in: ['PENDING', 'APPROVED', 'PAID'] },
-          requestedAt: { gte: monthStart, lte: monthEnd },
-        },
-      });
-      const monthTotal = monthAdvances.reduce(
-        (s, a) => s + Number(a.amount),
-        0,
-      );
-      if (monthTotal + amount > allowance) {
+    const earnings = await this.computeAdvanceEarnings(
+      input.companyId,
+      input.employeeId,
+    );
+    const percent = Number(earnings.advanceAllowancePercent ?? 0);
+    if (percent > 0) {
+      const maxAdvance = Number(earnings.maxAdvanceAmount);
+      const used = Number(earnings.advancesUsed);
+      if (used + amount > maxAdvance + 0.001) {
         throw new BadRequestException(
-          `Advance exceeds monthly allowance (allowance ${allowance.toFixed(2)}, already ${monthTotal.toFixed(2)})`,
+          `Advance exceeds allowance from earnings (earned ${earnings.earnedAmount}, ${percent}% → max ${maxAdvance.toFixed(2)}, already ${used.toFixed(2)})`,
+        );
+      }
+    } else if (
+      employee.advanceAllowanceMonthly != null &&
+      employee.advanceAllowanceMonth === earnings.month
+    ) {
+      const allowance = Number(employee.advanceAllowanceMonthly);
+      const used = Number(earnings.advancesUsed);
+      if (used + amount > allowance) {
+        throw new BadRequestException(
+          `Advance exceeds monthly allowance (allowance ${allowance.toFixed(2)}, already ${used.toFixed(2)})`,
         );
       }
     } else {
       const salary = Number(employee.basicSalary ?? 0);
       if (salary <= 0) {
-        throw new BadRequestException('Employee has no basic salary configured');
+        throw new BadRequestException(
+          'Employee has no basic salary configured',
+        );
       }
       const openAdvances = await this.prisma.salaryAdvance.findMany({
         where: {
@@ -1100,6 +1452,7 @@ export class HrService {
         employee: {
           select: {
             id: true,
+            userId: true,
             employeeNumber: true,
             currency: true,
           },
@@ -1108,7 +1461,22 @@ export class HrService {
     });
     if (!advance) throw new NotFoundException('Advance not found');
 
+    // No self-approval / self-decision: HR (or any approver) cannot act on their own advance.
+    if (advance.employee.userId && advance.employee.userId === decidedById) {
+      throw new ForbiddenException(
+        'You cannot approve or decide an advance for yourself',
+      );
+    }
+
+    const becomingApproved =
+      status === 'APPROVED' &&
+      advance.status !== 'APPROVED' &&
+      advance.status !== 'PAID';
     const becomingPaid = status === 'PAID' && advance.status !== 'PAID';
+    // Credit wallet on approval; if jumping straight to PAID, credit once then.
+    const shouldCreditWallet =
+      becomingApproved || (becomingPaid && advance.status !== 'APPROVED');
+
     const updated = await this.prisma.salaryAdvance.update({
       where: { id: advanceId },
       data: {
@@ -1119,7 +1487,7 @@ export class HrService {
       },
     });
 
-    if (becomingPaid) {
+    if (shouldCreditWallet) {
       const amount = Number(advance.amount);
       const code = `EW-${advance.employee.employeeNumber}`.slice(0, 40);
       const wallet = await this.prisma.employeeEwallet.findUnique({
@@ -1152,15 +1520,17 @@ export class HrService {
   // —— E-wallets / purchase operators ——
   listPurchaseOperators(companyId: string) {
     this.tenant.setCompanyId(companyId);
-    return this.prisma.employee.findMany({
-      where: { isPurchaseOperator: true },
-      include: { ewallet: true },
-      orderBy: { fullName: 'asc' },
-    }).then((rows) =>
-      rows.map((row) =>
-        this.stripSensitiveIban(row as unknown as Record<string, unknown>),
-      ),
-    );
+    return this.prisma.employee
+      .findMany({
+        where: { isPurchaseOperator: true },
+        include: { ewallet: true },
+        orderBy: { fullName: 'asc' },
+      })
+      .then((rows) =>
+        rows.map((row) =>
+          this.stripSensitiveIban(row as unknown as Record<string, unknown>),
+        ),
+      );
   }
 
   async upsertEwallet(input: {
@@ -1180,8 +1550,7 @@ export class HrService {
       data: { isPurchaseOperator: true },
     });
     const code =
-      input.walletCode?.trim() ||
-      `EW-${employee.employeeNumber}`.slice(0, 40);
+      input.walletCode?.trim() || `EW-${employee.employeeNumber}`.slice(0, 40);
     return this.prisma.employeeEwallet.upsert({
       where: { employeeId: employee.id },
       create: {
@@ -1256,22 +1625,87 @@ export class HrService {
   }
 
   // —— Sales submissions ——
+  listPayableInvoices(companyId: string) {
+    this.tenant.setCompanyId(companyId);
+    return this.prisma.salesInvoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
+        balanceDue: { gt: 0 },
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        balanceDue: true,
+        totalAmount: true,
+        currency: true,
+        status: true,
+        issuedOn: true,
+        contact: { select: { id: true, name: true } },
+      },
+      orderBy: { issuedOn: 'desc' },
+      take: 100,
+    });
+  }
+
   async submitSale(input: {
     companyId: string;
     employeeId: string;
     saleDate: string;
     amount: string | number;
-    paymentMethod: SalesPaymentMethod | 'CASH' | 'CARD' | 'TRANSFER' | 'NETWORK';
+    paymentMethod:
+      SalesPaymentMethod | 'CASH' | 'CARD' | 'TRANSFER' | 'NETWORK';
+    invoiceNumber?: string;
+    salesInvoiceId?: string;
     notes?: string;
     receiptAttachmentId?: string;
   }) {
     this.tenant.setCompanyId(input.companyId);
     await this.requireEmployee(input.companyId, input.employeeId);
+
+    let invoice =
+      input.salesInvoiceId != null && input.salesInvoiceId.trim()
+        ? await this.prisma.salesInvoice.findFirst({
+            where: {
+              id: input.salesInvoiceId.trim(),
+              companyId: input.companyId,
+            },
+          })
+        : null;
+    if (!invoice && input.invoiceNumber?.trim()) {
+      invoice = await this.prisma.salesInvoice.findFirst({
+        where: {
+          companyId: input.companyId,
+          invoiceNumber: input.invoiceNumber.trim(),
+        },
+      });
+    }
+    if (!invoice) {
+      throw new BadRequestException(
+        'Select an existing sales invoice (payment must be against an invoice)',
+      );
+    }
+    if (['DRAFT', 'CANCELLED', 'PAID'].includes(invoice.status)) {
+      throw new BadRequestException(
+        'Invoice must be issued/open with a remaining balance',
+      );
+    }
+    const balance = Number(invoice.balanceDue);
+    if (!(balance > 0)) {
+      throw new BadRequestException('Invoice has no remaining balance');
+    }
+
     const amount = Number(input.amount);
     if (!(amount > 0)) {
       throw new BadRequestException('amount must be > 0');
     }
-    const method = input.paymentMethod as SalesPaymentMethod;
+    if (amount > balance + 0.001) {
+      throw new BadRequestException(
+        `Amount exceeds invoice balance due (${balance})`,
+      );
+    }
+
+    const method = input.paymentMethod;
     let status: EmployeeSalesStatus;
     if (method === 'CASH') {
       status = 'PENDING_CASH_APPROVAL';
@@ -1287,19 +1721,31 @@ export class HrService {
         saleDate: new Date(input.saleDate),
         amount: amount.toFixed(2),
         paymentMethod: method,
+        invoiceNumber: invoice.invoiceNumber,
+        salesInvoiceId: invoice.id,
         status,
         receiptAttachmentId: input.receiptAttachmentId,
         notes: input.notes,
       },
+      include: {
+        salesInvoice: {
+          select: { id: true, invoiceNumber: true, balanceDue: true },
+        },
+      },
     });
   }
 
-  listSalesSubmissions(companyId: string, status?: EmployeeSalesStatus | string) {
+  listSalesSubmissions(
+    companyId: string,
+    status?: EmployeeSalesStatus | string,
+  ) {
     this.tenant.setCompanyId(companyId);
     return this.prisma.employeeSalesSubmission.findMany({
       where: status ? { status: status as EmployeeSalesStatus } : undefined,
       include: {
-        employee: { select: { id: true, fullName: true, employeeNumber: true } },
+        employee: {
+          select: { id: true, fullName: true, employeeNumber: true },
+        },
       },
       orderBy: { saleDate: 'desc' },
       take: 200,
@@ -1361,6 +1807,7 @@ export class HrService {
     status: 'APPROVED' | 'REJECTED',
     approvedById: string,
     permissions: string[] = [],
+    isPlatformAdmin = false,
   ) {
     this.tenant.setCompanyId(companyId);
     const sale = await this.prisma.employeeSalesSubmission.findFirst({
@@ -1370,6 +1817,8 @@ export class HrService {
           select: {
             id: true,
             salesTargetAmount: true,
+            targetPercent: true,
+            salesTargetMode: true,
           },
         },
       },
@@ -1379,13 +1828,27 @@ export class HrService {
       throw new BadRequestException('Invalid sales decision status');
     }
 
+    const canWrite =
+      isPlatformAdmin || permissions.includes('hr.write');
+    const canCash =
+      isPlatformAdmin || permissions.includes('hr.sales_cash.approve');
+    const isCashFlow =
+      sale.paymentMethod === 'CASH' ||
+      sale.status === 'PENDING_CASH_APPROVAL';
+
+    if (isCashFlow) {
+      if (!canCash) {
+        throw new ForbiddenException(
+          'Missing permission hr.sales_cash.approve',
+        );
+      }
+    } else if (!canWrite) {
+      throw new ForbiddenException('Missing permission hr.write');
+    }
+
     if (status === 'APPROVED') {
       if (sale.paymentMethod === 'CASH') {
-        if (!permissions.includes('hr.sales_cash.approve')) {
-          throw new ForbiddenException(
-            'Missing permission hr.sales_cash.approve',
-          );
-        }
+        // already gated by canCash above
       } else if (!sale.receiptAttachmentId) {
         throw new BadRequestException(
           'Receipt required before approving non-cash sales',
@@ -1402,21 +1865,43 @@ export class HrService {
       },
     });
 
-    if (status === 'APPROVED' && sale.employee.salesTargetAmount != null) {
-      const target = Number(sale.employee.salesTargetAmount);
-      if (target > 0) {
-        const approved = await this.prisma.employeeSalesSubmission.findMany({
+    if (status === 'APPROVED') {
+      let invoiceId = sale.salesInvoiceId;
+      if (!invoiceId && sale.invoiceNumber?.trim()) {
+        const inv = await this.prisma.salesInvoice.findFirst({
           where: {
-            employeeId: sale.employeeId,
-            status: 'APPROVED',
+            companyId,
+            invoiceNumber: sale.invoiceNumber.trim(),
           },
+          select: { id: true },
         });
-        const sum = approved.reduce((s, r) => s + Number(r.amount), 0);
-        const pct = Math.min(100, (sum / target) * 100);
-        await this.prisma.employee.update({
-          where: { id: sale.employeeId },
-          data: { targetCompletedPercent: pct.toFixed(2) },
+        invoiceId = inv?.id ?? null;
+        if (invoiceId && !sale.salesInvoiceId) {
+          await this.prisma.employeeSalesSubmission.update({
+            where: { id: saleId },
+            data: { salesInvoiceId: invoiceId },
+          });
+        }
+      }
+      if (invoiceId) {
+        await this.sales.recordPayment({
+          companyId,
+          salesInvoiceId: invoiceId,
+          amount: Number(sale.amount),
+          method: mapSalePaymentMethod(sale.paymentMethod),
+          paidAt: new Date().toISOString(),
+          externalReference: `HR-SALE-${sale.id.slice(0, 8)}`,
         });
+      }
+
+      if (
+        sale.employee.salesTargetAmount != null ||
+        sale.employee.targetPercent != null ||
+        sale.employee.salesTargetMode === 'PERCENT' ||
+        sale.employee.salesTargetMode === 'BOTH' ||
+        sale.employee.salesTargetMode === 'AMOUNT'
+      ) {
+        await this.computeMonthlySalesProgress(companyId, sale.employeeId);
       }
     }
 
@@ -1471,10 +1956,7 @@ export class HrService {
     ]);
 
     const approvedSales = sales.filter((s) => s.status === 'APPROVED');
-    const approvedSum = approvedSales.reduce(
-      (s, r) => s + Number(r.amount),
-      0,
-    );
+    const approvedSum = approvedSales.reduce((s, r) => s + Number(r.amount), 0);
     const targetAmount =
       employee.salesTargetAmount != null
         ? Number(employee.salesTargetAmount)
@@ -1489,7 +1971,7 @@ export class HrService {
         targetCompletedPercent: employee.targetCompletedPercent,
         salesTargetMode: employee.salesTargetMode,
         salesTargetAmount: employee.salesTargetAmount,
-      } as Record<string, unknown>),
+      }),
       period: { from: fromDate.toISOString(), to: toDate.toISOString() },
       leaves,
       advances,
@@ -1502,8 +1984,11 @@ export class HrService {
         approvedSalesSum: approvedSum.toFixed(2),
         computedPercent:
           targetAmount && targetAmount > 0
-            ? Math.min(100, (approvedSum / targetAmount) * 100).toFixed(2)
+            ? ((approvedSum / targetAmount) * 100).toFixed(2)
             : employee.targetCompletedPercent,
+        overTarget: Boolean(
+          targetAmount && targetAmount > 0 && approvedSum > targetAmount,
+        ),
       },
     };
   }
@@ -1550,17 +2035,20 @@ export class HrService {
     name: string;
     deviceType: 'CAMERA' | 'BIOMETRIC' | 'BOTH';
     location?: string;
-    deviceKey: string;
+    deviceKey?: string;
     streamUrl?: string;
   }) {
     this.tenant.setCompanyId(input.companyId);
+    const deviceKey =
+      input.deviceKey?.trim() ||
+      `dev_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
     return this.prisma.attendanceDevice.create({
       data: {
         companyId: input.companyId,
         name: input.name,
         deviceType: input.deviceType,
         location: input.location,
-        deviceKey: input.deviceKey,
+        deviceKey,
         streamUrl: input.streamUrl,
       },
     });
@@ -1587,7 +2075,9 @@ export class HrService {
         ...(input.name != null ? { name: input.name } : {}),
         ...(input.status != null ? { status: input.status } : {}),
         ...(input.location !== undefined ? { location: input.location } : {}),
-        ...(input.streamUrl !== undefined ? { streamUrl: input.streamUrl } : {}),
+        ...(input.streamUrl !== undefined
+          ? { streamUrl: input.streamUrl }
+          : {}),
       },
     });
   }
@@ -1620,24 +2110,39 @@ export class HrService {
         where: { id: device.id },
         data: { lastSeenAt: occurredAt },
       });
+
+      let employeeId = input.employeeId;
+      if (!employeeId && input.externalRef?.trim()) {
+        const badge = input.externalRef.trim();
+        const matched = await this.prisma.employee.findFirst({
+          where: {
+            companyId: input.companyId,
+            employmentStatus: 'ACTIVE',
+            OR: [{ attendanceBadgeId: badge }, { employeeNumber: badge }],
+          },
+          select: { id: true },
+        });
+        employeeId = matched?.id;
+      }
+
       const event = await this.prisma.attendanceDeviceEvent.create({
         data: {
           companyId: input.companyId,
           deviceId: device.id,
-          employeeId: input.employeeId,
+          employeeId,
           externalRef: input.externalRef,
           eventType: input.eventType,
           occurredAt,
         },
       });
 
-      if (input.employeeId) {
+      if (employeeId) {
         const day = new Date(occurredAt.toISOString().slice(0, 10));
         const isOut = /out|checkout|leave/i.test(input.eventType);
         const existing = await this.prisma.attendanceRecord.findUnique({
           where: {
             employeeId_attendanceDate: {
-              employeeId: input.employeeId,
+              employeeId,
               attendanceDate: day,
             },
           },
@@ -1651,13 +2156,13 @@ export class HrService {
         await this.prisma.attendanceRecord.upsert({
           where: {
             employeeId_attendanceDate: {
-              employeeId: input.employeeId,
+              employeeId,
               attendanceDate: day,
             },
           },
           create: {
             companyId: input.companyId,
-            employeeId: input.employeeId,
+            employeeId,
             attendanceDate: day,
             status,
             checkInAt: isOut ? undefined : occurredAt,
@@ -1739,14 +2244,12 @@ export class HrService {
     if (!employee) {
       throw new NotFoundException('No employee profile linked to this user');
     }
-    const stripped = this.stripSensitiveIban(
-      employee as unknown as Record<string, unknown>,
-    );
-    return {
+    const stripped = this.stripSensitiveIban(employee);
+    return this.enrichEmployeeResponse(companyId, employee.id, {
       ...stripped,
       ...this.docsFlags(employee),
       insuranceComplete: Boolean(employee.insuranceAttachmentId),
-    };
+    });
   }
 
   async myRequestAdvance(
@@ -1786,40 +2289,34 @@ export class HrService {
   async updateMyInfo(
     companyId: string,
     userId: string,
-    input: { phone?: string; email?: string },
+    input: { phone?: string; email?: string; iban?: string },
   ) {
     const me = await this.requireLinkedEmployee(companyId, userId);
-    const updated = await this.prisma.employee.update({
-      where: { id: me.id },
-      data: {
-        ...(input.phone !== undefined ? { phone: input.phone } : {}),
-        ...(input.email !== undefined ? { email: input.email } : {}),
-      },
-    });
-    return this.stripSensitiveIban(
-      updated as unknown as Record<string, unknown>,
-    );
-  }
-
-  async updateMyTargetCompleted(
-    companyId: string,
-    userId: string,
-    targetCompletedPercent: string | number,
-  ) {
-    const me = await this.requireLinkedEmployee(companyId, userId);
-    const tcp = Number(targetCompletedPercent);
-    if (tcp < 0 || tcp > 100) {
-      throw new BadRequestException(
-        'targetCompletedPercent must be between 0 and 100',
-      );
+    const ibanRaw = input.iban?.trim();
+    const ibanData =
+      ibanRaw && ibanRaw.length > 0 ? this.encryptIban(ibanRaw) : null;
+    const data: Prisma.EmployeeUncheckedUpdateInput = {
+      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.email !== undefined ? { email: input.email } : {}),
+    };
+    if (ibanData) {
+      data.ibanCiphertext = ibanData.ibanCiphertext
+        ? Buffer.from(ibanData.ibanCiphertext)
+        : null;
+      data.ibanKeyVersion = ibanData.ibanKeyVersion;
+      data.ibanLast4 = ibanData.ibanLast4;
+      data.ibanFingerprint = ibanData.ibanFingerprint;
     }
     const updated = await this.prisma.employee.update({
       where: { id: me.id },
-      data: { targetCompletedPercent: tcp.toFixed(2) },
+      data,
     });
-    return this.stripSensitiveIban(
-      updated as unknown as Record<string, unknown>,
-    );
+    return this.stripSensitiveIban(updated);
+  }
+
+  async updateMyTargetCompleted(companyId: string, userId: string) {
+    const me = await this.requireLinkedEmployee(companyId, userId);
+    return this.computeMonthlySalesProgress(companyId, me.id);
   }
 
   async mySubmitSale(
@@ -1828,7 +2325,10 @@ export class HrService {
     input: {
       saleDate: string;
       amount: string | number;
-      paymentMethod: SalesPaymentMethod | 'CASH' | 'CARD' | 'TRANSFER' | 'NETWORK';
+      paymentMethod:
+        SalesPaymentMethod | 'CASH' | 'CARD' | 'TRANSFER' | 'NETWORK';
+      invoiceNumber?: string;
+      salesInvoiceId?: string;
       notes?: string;
       receiptAttachmentId?: string;
     },
@@ -1864,7 +2364,7 @@ export class HrService {
   }
 
   /** Mark weekdays without attendance as ABSENT so payroll discounts apply. */
-  private async markMissingDaysAbsent(
+  async markMissingDaysAbsent(
     companyId: string,
     employeeIds: string[],
     periodStart: Date,
@@ -1880,8 +2380,7 @@ export class HrService {
     });
     const have = new Set(
       existing.map(
-        (r) =>
-          `${r.employeeId}:${r.attendanceDate.toISOString().slice(0, 10)}`,
+        (r) => `${r.employeeId}:${r.attendanceDate.toISOString().slice(0, 10)}`,
       ),
     );
     const rows: {

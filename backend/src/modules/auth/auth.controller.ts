@@ -144,18 +144,12 @@ export class AuthController {
   }
 
   @Patch('me/locale')
-  updateLocale(
-    @CurrentUser() user: AuthUser,
-    @Body() body: UpdateLocaleBody,
-  ) {
+  updateLocale(@CurrentUser() user: AuthUser, @Body() body: UpdateLocaleBody) {
     return this.auth.updateLocale(user.userId, body.locale);
   }
 
   @Patch('me/theme')
-  updateTheme(
-    @CurrentUser() user: AuthUser,
-    @Body() body: UpdateThemeBody,
-  ) {
+  updateTheme(@CurrentUser() user: AuthUser, @Body() body: UpdateThemeBody) {
     return this.auth.updateTheme(user.userId, body.theme);
   }
 }

@@ -47,16 +47,10 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
           return Reflect.get(target, property, receiver);
         }
 
-        const value = Reflect.get(
-          target.client as object,
-          property,
-          target.client,
-        );
-        return typeof value === 'function'
-          ? value.bind(target.client)
-          : value;
+        const value = Reflect.get(target.client, property, target.client);
+        return typeof value === 'function' ? value.bind(target.client) : value;
       },
-    }) as unknown as PrismaService;
+    });
   }
 
   /** Prisma client without tenant extension (auth, platform admin). */

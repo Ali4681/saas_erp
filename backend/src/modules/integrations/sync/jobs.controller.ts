@@ -1,10 +1,5 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import {
-  IsBoolean,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
 import { RequirePermissions } from '../../../common/auth/auth.decorators';
 import { JobsService } from './jobs.service';
 

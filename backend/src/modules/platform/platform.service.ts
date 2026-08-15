@@ -148,7 +148,11 @@ export class PlatformService {
     if (post.status === 'ARCHIVED') {
       throw new BadRequestException('Archived posts cannot be edited');
     }
-    if (post.status === 'PUBLISHED' && input.status && input.status !== 'ARCHIVED') {
+    if (
+      post.status === 'PUBLISHED' &&
+      input.status &&
+      input.status !== 'ARCHIVED'
+    ) {
       throw new BadRequestException(
         'Published posts can only move to ARCHIVED',
       );
@@ -190,17 +194,11 @@ export class PlatformService {
   }
 
   /** Calendar drag-drop / reschedule (14.3). */
-  async reschedulePost(
-    companyId: string,
-    postId: string,
-    scheduledAt: string,
-  ) {
+  async reschedulePost(companyId: string, postId: string, scheduledAt: string) {
     this.tenant.setCompanyId(companyId);
     const post = await this.requirePost(companyId, postId);
     if (['PUBLISHED', 'ARCHIVED', 'PUBLISHING'].includes(post.status)) {
-      throw new BadRequestException(
-        `Cannot reschedule a ${post.status} post`,
-      );
+      throw new BadRequestException(`Cannot reschedule a ${post.status} post`);
     }
     const at = new Date(scheduledAt);
     if (Number.isNaN(at.getTime())) {
@@ -218,11 +216,7 @@ export class PlatformService {
     return this.serializePost(updated);
   }
 
-  async schedulePost(
-    companyId: string,
-    postId: string,
-    scheduledAt: string,
-  ) {
+  async schedulePost(companyId: string, postId: string, scheduledAt: string) {
     return this.reschedulePost(companyId, postId, scheduledAt);
   }
 
@@ -240,11 +234,7 @@ export class PlatformService {
     return this.serializePost(updated);
   }
 
-  async addPostMedia(
-    companyId: string,
-    postId: string,
-    media: MediaInput,
-  ) {
+  async addPostMedia(companyId: string, postId: string, media: MediaInput) {
     this.tenant.setCompanyId(companyId);
     const post = await this.requirePost(companyId, postId);
     if (['PUBLISHED', 'ARCHIVED', 'PUBLISHING'].includes(post.status)) {
@@ -266,11 +256,7 @@ export class PlatformService {
     return this.serializeMedia(created);
   }
 
-  async removePostMedia(
-    companyId: string,
-    postId: string,
-    mediaId: string,
-  ) {
+  async removePostMedia(companyId: string, postId: string, mediaId: string) {
     this.tenant.setCompanyId(companyId);
     await this.requirePost(companyId, postId);
     const media = await this.prisma.marketingPostMedia.findFirst({
@@ -294,7 +280,15 @@ export class PlatformService {
     const to = opts.to
       ? new Date(opts.to)
       : new Date(
-          Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+          Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth() + 1,
+            0,
+            23,
+            59,
+            59,
+            999,
+          ),
         );
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
       throw new BadRequestException('from/to must be valid ISO datetimes');
@@ -318,8 +312,10 @@ export class PlatformService {
       take: 500,
     });
 
-    const byDay: Record<string, ReturnType<PlatformService['serializePost']>[]> =
-      {};
+    const byDay: Record<
+      string,
+      ReturnType<PlatformService['serializePost']>[]
+    > = {};
     for (const post of posts) {
       const anchor = post.scheduledAt ?? post.publishedAt ?? post.createdAt;
       const key = anchor.toISOString().slice(0, 10);
@@ -369,9 +365,7 @@ export class PlatformService {
     if (!post) {
       throw new NotFoundException('Marketing post not found');
     }
-    if (
-      !['DRAFT', 'READY', 'SCHEDULED', 'FAILED'].includes(post.status)
-    ) {
+    if (!['DRAFT', 'READY', 'SCHEDULED', 'FAILED'].includes(post.status)) {
       throw new BadRequestException(
         'Post cannot be published from this status',
       );
@@ -440,10 +434,7 @@ export class PlatformService {
     credentials?: Record<string, unknown>;
   }) {
     this.tenant.setCompanyId(input.companyId);
-    if (
-      input.channel === 'INTERNAL_DRAFT' ||
-      input.channel === 'OTHER'
-    ) {
+    if (input.channel === 'INTERNAL_DRAFT' || input.channel === 'OTHER') {
       throw new BadRequestException(
         'INTERNAL_DRAFT / OTHER do not use platform connections',
       );
@@ -473,7 +464,7 @@ export class PlatformService {
       keyVersion: encrypted?.keyVersion,
       lastError: null as string | null,
       connectedAt:
-        status === 'CONNECTED' ? new Date() : existing?.connectedAt ?? null,
+        status === 'CONNECTED' ? new Date() : (existing?.connectedAt ?? null),
     };
 
     const row = existing
@@ -511,9 +502,7 @@ export class PlatformService {
         lastError: lastError ?? null,
         connectedAt: status === 'CONNECTED' ? new Date() : row.connectedAt,
         credentialsCiphertext:
-          status === 'DISCONNECTED' || status === 'REVOKED'
-            ? null
-            : undefined,
+          status === 'DISCONNECTED' || status === 'REVOKED' ? null : undefined,
         keyVersion:
           status === 'DISCONNECTED' || status === 'REVOKED' ? null : undefined,
       },
@@ -525,11 +514,7 @@ export class PlatformService {
     status: MarketingPostStatus,
     scheduledAt?: string,
   ) {
-    const allowed: MarketingPostStatus[] = [
-      'DRAFT',
-      'READY',
-      'SCHEDULED',
-    ];
+    const allowed: MarketingPostStatus[] = ['DRAFT', 'READY', 'SCHEDULED'];
     if (!allowed.includes(status)) {
       throw new BadRequestException(
         `Create status must be one of ${allowed.join(', ')}`,
@@ -820,12 +805,7 @@ export class PlatformService {
       uploadedById: string;
     },
   ) {
-    const workTypes = new Set([
-      'work_project',
-      'work_task',
-      'project',
-      'task',
-    ]);
+    const workTypes = new Set(['work_project', 'work_task', 'project', 'task']);
     if (!workTypes.has(attachment.entityType)) return;
 
     let workProjectId: string | null = null;

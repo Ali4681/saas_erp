@@ -39,19 +39,39 @@ export async function nestFetch<T>(
       ? readLocaleFromDocument()
       : defaultLocale);
 
-  const res = await fetch(url, {
-    ...rest,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "Accept-Language": locale,
-      "X-Locale": locale,
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(companyId ? { "X-Company-Id": companyId } : {}),
-      ...(headers ?? {}),
-    },
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...rest,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Accept-Language": locale,
+        "X-Locale": locale,
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(companyId ? { "X-Company-Id": companyId } : {}),
+        ...(headers ?? {}),
+      },
+      cache: "no-store",
+    });
+  } catch (error) {
+    const cause =
+      error instanceof Error && "cause" in error
+        ? (error as Error & { cause?: { code?: string } }).cause
+        : undefined;
+    const offline =
+      cause?.code === "ECONNREFUSED" ||
+      (error instanceof Error && /fetch failed|ECONNREFUSED/i.test(error.message));
+    throw new ApiError(
+      503,
+      offline
+        ? "API server is unreachable. Is the backend running on port 3000?"
+        : error instanceof Error
+          ? error.message
+          : "Network request failed",
+      { cause },
+    );
+  }
 
   const text = await res.text();
   let data: unknown = null;
@@ -64,15 +84,22 @@ export async function nestFetch<T>(
   }
 
   if (!res.ok) {
-    const message =
-      typeof data === "object" &&
-      data &&
-      "message" in data &&
-      (data as { message: unknown }).message != null
-        ? Array.isArray((data as { message: unknown }).message)
-          ? ((data as { message: string[] }).message).join(", ")
-          : String((data as { message: unknown }).message)
+    const obj =
+      typeof data === "object" && data != null
+        ? (data as {
+            message?: unknown;
+            details?: unknown;
+          })
+        : null;
+    let message =
+      obj && obj.message != null
+        ? Array.isArray(obj.message)
+          ? obj.message.join(", ")
+          : String(obj.message)
         : `Request failed (${res.status})`;
+    if (obj && Array.isArray(obj.details) && obj.details.length > 0) {
+      message = `${message}: ${obj.details.map(String).join("; ")}`;
+    }
     throw new ApiError(res.status, message, data);
   }
 

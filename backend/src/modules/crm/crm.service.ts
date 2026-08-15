@@ -264,35 +264,38 @@ export class CrmService {
       }
     }
 
-    return this.prisma.crmOpportunity.update({
-      where: { id: opportunityId },
-      data: {
-        status,
-        ...(stageId ? { stageId } : {}),
-      },
-      include: { stage: true },
-    }).then((updated) => {
-      this.emit(
-        companyId,
-        'crm.opportunity.status_changed',
-        'crm_opportunity',
-        updated.id,
-        {
-          opportunityId: updated.id,
-          contactId: updated.contactId,
-          status: updated.status,
-          previousStatus: opportunity.status,
-          stageId: updated.stageId,
-          stageName: updated.stage?.name ?? '',
-          ownerUserId: updated.ownerUserId,
-          assigneeUserId: updated.ownerUserId,
-          interested:
-            /qualified|interest|مهتم|تأهيل/i.test(updated.stage?.name ?? '') ||
-            Number(updated.stage?.probability ?? 0) >= 30,
+    return this.prisma.crmOpportunity
+      .update({
+        where: { id: opportunityId },
+        data: {
+          status,
+          ...(stageId ? { stageId } : {}),
         },
-      );
-      return updated;
-    });
+        include: { stage: true },
+      })
+      .then((updated) => {
+        this.emit(
+          companyId,
+          'crm.opportunity.status_changed',
+          'crm_opportunity',
+          updated.id,
+          {
+            opportunityId: updated.id,
+            contactId: updated.contactId,
+            status: updated.status,
+            previousStatus: opportunity.status,
+            stageId: updated.stageId,
+            stageName: updated.stage?.name ?? '',
+            ownerUserId: updated.ownerUserId,
+            assigneeUserId: updated.ownerUserId,
+            interested:
+              /qualified|interest|مهتم|تأهيل/i.test(
+                updated.stage?.name ?? '',
+              ) || Number(updated.stage?.probability ?? 0) >= 30,
+          },
+        );
+        return updated;
+      });
   }
 
   // --- Activities ---
@@ -300,8 +303,7 @@ export class CrmService {
   listActivities(companyId: string, status?: ActivityStatus) {
     this.tenant.setCompanyId(companyId);
     const allowed = new Set(Object.values(ActivityStatus));
-    const statusFilter =
-      status && allowed.has(status) ? status : undefined;
+    const statusFilter = status && allowed.has(status) ? status : undefined;
     return this.prisma.crmActivity.findMany({
       where: statusFilter ? { status: statusFilter } : undefined,
       include: {

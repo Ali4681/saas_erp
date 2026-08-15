@@ -12,7 +12,7 @@ import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { canAny } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
-import { createTrackingDevice } from "../actions";
+import { createTrackingDevice } from "./actions";
 
 type Device = {
   id: string;
@@ -24,16 +24,6 @@ type Device = {
   status: string;
   lastSeenAt: string | null;
 };
-
-function matchesFilter(
-  deviceType: string,
-  filter: "CAMERA" | "BIOMETRIC",
-) {
-  if (filter === "CAMERA") {
-    return deviceType === "CAMERA" || deviceType === "BOTH";
-  }
-  return deviceType === "BIOMETRIC" || deviceType === "BOTH";
-}
 
 export default async function TrackingDevicesPage({
   params,
@@ -63,13 +53,13 @@ export default async function TrackingDevicesPage({
     "hr.write",
   );
 
-  const all = await apiServer<Device[]>(
-    `/companies/${companyId}/hr/devices`,
+  const devices = await apiServer<Device[]>(
+    `/companies/${companyId}/tracking/${segment}`,
     { companyId },
   ).catch(() => []);
-  const devices = all.filter((d) => matchesFilter(d.deviceType, filter));
 
   const create = createTrackingDevice.bind(null, companyId, segment);
+  const punchUrl = `/api/companies/${companyId}/tracking/devices/punch`;
 
   return (
     <div className="space-y-5">
@@ -83,6 +73,26 @@ export default async function TrackingDevicesPage({
         }
       />
       <FlashFromSearch searchParams={flash} />
+
+      {filter === "CAMERA" ? (
+        <Card className="space-y-2 p-4 text-sm text-[var(--muted-foreground)]">
+          <p className="font-medium text-[var(--foreground)]">
+            {t("cameraConnectTitle")}
+          </p>
+          <p>{t("cameraConnectHint")}</p>
+        </Card>
+      ) : (
+        <Card className="space-y-2 p-4 text-sm text-[var(--muted-foreground)]">
+          <p className="font-medium text-[var(--foreground)]">
+            {t("biometricConnectTitle")}
+          </p>
+          <p>{t("biometricConnectHint")}</p>
+          <p className="font-mono text-xs break-all text-[var(--foreground)]">
+            POST {punchUrl}
+          </p>
+          <p>{t("biometricPunchBody")}</p>
+        </Card>
+      )}
 
       {canWrite ? (
         <CreateFormDialog title={t("newDevice")} triggerLabel={t("addDevice")}>
@@ -105,13 +115,37 @@ export default async function TrackingDevicesPage({
                     ]
               }
             />
-            <Input name="deviceKey" label={t("deviceKey")} required />
+            {filter === "CAMERA" ? (
+              <Input
+                name="streamUrl"
+                label={t("streamUrl")}
+                className="md:col-span-2"
+                required
+                placeholder="https://nvr.example.com/live/cam1"
+              />
+            ) : (
+              <Input
+                name="deviceKey"
+                label={t("deviceKey")}
+                placeholder={t("deviceKeyOptional")}
+              />
+            )}
+            {filter === "CAMERA" ? (
+              <Input
+                name="deviceKey"
+                label={t("deviceKey")}
+                placeholder={t("deviceKeyOptional")}
+              />
+            ) : null}
             <Input name="location" label={t("location")} />
-            <Input
-              name="streamUrl"
-              label={t("streamUrl")}
-              className="md:col-span-2"
-            />
+            {filter === "BIOMETRIC" ? (
+              <Input
+                name="streamUrl"
+                label={t("vendorPortalUrl")}
+                className="md:col-span-2"
+                placeholder="https://…"
+              />
+            ) : null}
             <div className="md:col-span-2">
               <Button type="submit">{t("save")}</Button>
             </div>
@@ -124,14 +158,18 @@ export default async function TrackingDevicesPage({
           <EmptyState message={t("emptyDevices")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("name")}</th>
                   <th className="px-2 py-2 font-medium">{t("type")}</th>
                   <th className="px-2 py-2 font-medium">{t("location")}</th>
+                  <th className="px-2 py-2 font-medium">
+                    {filter === "CAMERA" ? t("streamUrl") : t("deviceKey")}
+                  </th>
                   <th className="px-2 py-2 font-medium">{t("lastSeen")}</th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
+                  <th className="px-2 py-2 font-medium">{t("action")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,11 +181,30 @@ export default async function TrackingDevicesPage({
                     <td className="px-2 py-2 font-medium">{d.name}</td>
                     <td className="px-2 py-2">{d.deviceType}</td>
                     <td className="px-2 py-2">{d.location ?? "—"}</td>
+                    <td className="px-2 py-2 font-mono text-xs break-all">
+                      {filter === "CAMERA"
+                        ? (d.streamUrl ?? "—")
+                        : d.deviceKey}
+                    </td>
                     <td className="px-2 py-2">
                       {d.lastSeenAt ? formatDate(d.lastSeenAt) : "—"}
                     </td>
                     <td className="px-2 py-2">
                       <StatusBadge status={d.status} />
+                    </td>
+                    <td className="px-2 py-2">
+                      {d.streamUrl ? (
+                        <a
+                          href={d.streamUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[var(--primary)] underline-offset-2 hover:underline"
+                        >
+                          {t("openStream")}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 ))}

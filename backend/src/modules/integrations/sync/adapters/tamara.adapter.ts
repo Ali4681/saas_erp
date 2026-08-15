@@ -82,7 +82,9 @@ export class TamaraProviderAdapter extends BaseProviderAdapter {
     const amount = Number(ctx.payload.amount ?? 0);
     const currency = String(ctx.payload.currency ?? 'SAR');
     const op = ctx.operationType.toUpperCase();
-    const headers = bearerHeaders(token, { 'Content-Type': 'application/json' });
+    const headers = bearerHeaders(token, {
+      'Content-Type': 'application/json',
+    });
 
     if (op.includes('AUTHORISE') || op.includes('AUTHORIZE')) {
       const res = await providerFetch({
@@ -205,7 +207,9 @@ export class TamaraProviderAdapter extends BaseProviderAdapter {
       return { ignored: true, reason: 'No order id in Tamara webhook' };
     }
 
-    const event = String(ctx.eventType ?? payload.event_type ?? '').toLowerCase();
+    const event = String(
+      ctx.eventType ?? payload.event_type ?? '',
+    ).toLowerCase();
     let status = String(order.status ?? 'PENDING').toUpperCase();
     if (event.includes('approved') || event.includes('authoris')) {
       status = 'AUTHORIZED';

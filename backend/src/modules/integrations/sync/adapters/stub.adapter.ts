@@ -24,11 +24,10 @@ export class StubProviderAdapter implements ProviderAdapter {
   async testAuth(ctx: AdapterAuthContext): Promise<boolean> {
     return Boolean(
       ctx.credentials.accessToken ||
-        ctx.credentials.apiKey ||
-        ctx.credentials.password ||
-        ctx.credentials.clientSecret ||
-        (ctx.credentials.cookies &&
-          typeof ctx.credentials.cookies === 'object'),
+      ctx.credentials.apiKey ||
+      ctx.credentials.password ||
+      ctx.credentials.clientSecret ||
+      (ctx.credentials.cookies && typeof ctx.credentials.cookies === 'object'),
     );
   }
 
@@ -306,7 +305,8 @@ export class StubProviderAdapter implements ProviderAdapter {
                 : `Webhook product ${externalId}`,
             status: 'ACTIVE',
             price:
-              typeof payload.price === 'string' || typeof payload.price === 'number'
+              typeof payload.price === 'string' ||
+              typeof payload.price === 'number'
                 ? payload.price
                 : '10.00',
             currency: 'SAR',
@@ -327,7 +327,8 @@ export class StubProviderAdapter implements ProviderAdapter {
           placedAt: new Date().toISOString(),
           currency: 'SAR',
           totalAmount:
-            typeof payload.total === 'string' || typeof payload.total === 'number'
+            typeof payload.total === 'string' ||
+            typeof payload.total === 'number'
               ? payload.total
               : '10.00',
           items: [

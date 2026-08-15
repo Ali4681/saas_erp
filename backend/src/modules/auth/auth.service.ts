@@ -250,10 +250,12 @@ export class AuthService {
 
   private async loadActiveMembership(userId: string, dto: LoginDto) {
     if (dto.companyId) {
-      const membership = await this.prisma.withoutTenant().companyUser.findFirst({
-        where: { userId, companyId: dto.companyId, status: 'ACTIVE' },
-        include: membershipInclude,
-      });
+      const membership = await this.prisma
+        .withoutTenant()
+        .companyUser.findFirst({
+          where: { userId, companyId: dto.companyId, status: 'ACTIVE' },
+          include: membershipInclude,
+        });
       if (!membership) {
         throw i18nUnauthorized('errors.auth.notCompanyMember');
       }
@@ -261,17 +263,19 @@ export class AuthService {
     }
 
     if (dto.companySlug) {
-      const membership = await this.prisma.withoutTenant().companyUser.findFirst({
-        where: {
-          userId,
-          status: 'ACTIVE',
-          company: {
-            slug: dto.companySlug.trim().toLowerCase(),
-            deletedAt: null,
+      const membership = await this.prisma
+        .withoutTenant()
+        .companyUser.findFirst({
+          where: {
+            userId,
+            status: 'ACTIVE',
+            company: {
+              slug: dto.companySlug.trim().toLowerCase(),
+              deletedAt: null,
+            },
           },
-        },
-        include: membershipInclude,
-      });
+          include: membershipInclude,
+        });
       if (!membership) {
         throw i18nUnauthorized('errors.auth.notCompanyMember');
       }
@@ -289,7 +293,7 @@ export class AuthService {
     if (memberships.length > 1) {
       throw i18nUnauthorized('errors.auth.multipleCompanies');
     }
-    return memberships[0]!;
+    return memberships[0];
   }
 
   private async resolveTenantCompanyId(
@@ -324,7 +328,9 @@ export class AuthService {
     );
 
     const refreshToken = randomBytes(48).toString('hex');
-    const refreshTtlDays = Number(this.config.get('JWT_REFRESH_TTL_DAYS') ?? 30);
+    const refreshTtlDays = Number(
+      this.config.get('JWT_REFRESH_TTL_DAYS') ?? 30,
+    );
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + refreshTtlDays);
 

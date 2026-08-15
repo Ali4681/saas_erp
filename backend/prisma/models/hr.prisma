@@ -38,11 +38,15 @@ model Employee {
   salesTargetMode      SalesTargetMode?       @map("sales_target_mode")
   salesTargetAmount    Decimal?               @map("sales_target_amount") @db.Decimal(18, 2)
   lateHourRate         Decimal?               @map("late_hour_rate") @db.Decimal(18, 2)
+  /// Max advance = earnedThisMonth × (this % / 100). Earned = (basicSalary/30) × days PRESENT|LATE|REMOTE.
+  advanceAllowancePercent Decimal?            @map("advance_allowance_percent") @db.Decimal(5, 2)
   advanceAllowanceMonthly Decimal?            @map("advance_allowance_monthly") @db.Decimal(18, 2)
   advanceAllowanceMonth   String?             @map("advance_allowance_month") @db.Char(7)
   insuranceAttachmentId   String?             @map("insurance_attachment_id") @db.Char(36)
   qiwaContractUrl         String?             @map("qiwa_contract_url") @db.VarChar(500)
   qiwaContractRef         String?             @map("qiwa_contract_ref") @db.VarChar(120)
+  /// Badge / biometric id from fingerprint device (maps punch externalRef → employee)
+  attendanceBadgeId       String?             @map("attendance_badge_id") @db.VarChar(80)
 
   createdAt            DateTime         @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt            DateTime         @updatedAt @map("updated_at") @db.DateTime(3)
@@ -60,12 +64,14 @@ model Employee {
   ewallet        EmployeeEwallet?
   shiftAssignments EmployeeShiftAssignment[]
   salesSubmissions EmployeeSalesSubmission[]
+  qiwaContracts    EmployeeQiwaContract[]
 
   @@unique([companyId, employeeNumber], map: "uq_employee_number")
   @@index([companyId, userId], map: "idx_employee_company_user")
   @@index([companyId, employmentStatus], map: "idx_employee_status")
   @@index([companyId, approvalStatus], map: "idx_employee_approval")
   @@index([companyId, identityExpiresOn], map: "idx_employee_identity_expiry")
+  @@index([companyId, attendanceBadgeId], map: "idx_employee_badge")
   @@map("employees")
 }
 
@@ -305,6 +311,8 @@ model EmployeeSalesSubmission {
   saleDate            DateTime            @map("sale_date") @db.Date
   amount              Decimal             @db.Decimal(18, 2)
   paymentMethod       SalesPaymentMethod  @map("payment_method")
+  invoiceNumber       String              @map("invoice_number") @db.VarChar(80)
+  salesInvoiceId      String?             @map("sales_invoice_id") @db.Char(36)
   status              EmployeeSalesStatus @default(SUBMITTED)
   receiptAttachmentId String?             @map("receipt_attachment_id") @db.Char(36)
   approvedById        String?             @map("approved_by") @db.Char(36)
@@ -313,11 +321,42 @@ model EmployeeSalesSubmission {
   createdAt           DateTime            @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt           DateTime            @updatedAt @map("updated_at") @db.DateTime(3)
 
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  approvedBy User?    @relation("SalesSubmissionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee     Employee      @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  approvedBy   User?         @relation("SalesSubmissionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  salesInvoice SalesInvoice? @relation(fields: [salesInvoiceId], references: [id], onDelete: SetNull)
 
   @@index([companyId, status, saleDate], map: "idx_employee_sales_status")
   @@index([employeeId, saleDate], map: "idx_employee_sales_employee")
+  @@index([companyId, invoiceNumber], map: "idx_employee_sales_invoice")
+  @@index([salesInvoiceId], map: "idx_employee_sales_invoice_id")
   @@map("employee_sales_submissions")
+}
+
+/// Manual Qiwa employment-contract documentation workflow (no Qiwa API).
+model EmployeeQiwaContract {
+  id                    String                     @id @default(uuid(7)) @db.Char(36)
+  companyId             String                     @map("company_id") @db.Char(36)
+  employeeId            String                     @map("employee_id") @db.Char(36)
+  status                EmployeeQiwaContractStatus @default(NOT_STARTED)
+  qiwaContractReference String?                    @map("qiwa_contract_reference") @db.VarChar(120)
+  contractAttachmentId  String?                    @map("contract_attachment_id") @db.Char(36)
+  startedAt             DateTime?                  @map("started_at") @db.DateTime(3)
+  sentAt                DateTime?                  @map("sent_at") @db.DateTime(3)
+  documentedAt          DateTime?                  @map("documented_at") @db.DateTime(3)
+  rejectedAt            DateTime?                  @map("rejected_at") @db.DateTime(3)
+  verifiedByUserId      String?                    @map("verified_by_user_id") @db.Char(36)
+  lastUpdatedByUserId   String?                    @map("last_updated_by_user_id") @db.Char(36)
+  notes                 String?                    @db.Text
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  verifiedByUser    User?    @relation("QiwaContractVerifier", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+  lastUpdatedByUser User?    @relation("QiwaContractUpdater", fields: [lastUpdatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, employeeId, updatedAt], map: "idx_employee_qiwa_employee")
+  @@index([companyId, status], map: "idx_employee_qiwa_status")
+  @@map("employee_qiwa_contracts")
 }

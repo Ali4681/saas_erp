@@ -15,12 +15,9 @@ import {
 } from '../../generated/prisma/client';
 import { EncryptionService } from '../../common/encryption/encryption.service';
 import { DocumentNumberService } from '../../common/documents/document-number.service';
+import { assertValidSaudiIban, normalizeIban } from '../../common/iban';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
-
-function normalizeIban(iban: string): string {
-  return iban.replace(/\s+/g, '').toUpperCase();
-}
 
 function fingerprintIban(iban: string): string {
   return createHash('sha256').update(normalizeIban(iban)).digest('hex');
@@ -318,10 +315,7 @@ export class FinanceService {
     });
   }
 
-  async postExternalOrder(
-    companyId: string,
-    externalOrderId: string,
-  ) {
+  async postExternalOrder(companyId: string, externalOrderId: string) {
     this.tenant.setCompanyId(companyId);
     const order = await this.prisma.externalOrder.findFirst({
       where: { id: externalOrderId },
@@ -370,10 +364,7 @@ export class FinanceService {
     return created;
   }
 
-  async dashboard(
-    companyId: string,
-    opts?: { from?: string; to?: string },
-  ) {
+  async dashboard(companyId: string, opts?: { from?: string; to?: string }) {
     this.tenant.setCompanyId(companyId);
     const from = opts?.from ? new Date(opts.from) : undefined;
     const to = opts?.to ? new Date(opts.to) : undefined;
@@ -454,16 +445,20 @@ export class FinanceService {
         ibanFingerprint: null,
       };
     }
-    const normalized = normalizeIban(iban);
-    if (normalized.length < 8) {
-      throw new BadRequestException('IBAN too short');
+    let valid: string;
+    try {
+      valid = assertValidSaudiIban(iban);
+    } catch (e) {
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'Invalid IBAN',
+      );
     }
-    const encrypted = this.encryption.encrypt(normalized);
+    const encrypted = this.encryption.encrypt(valid);
     return {
       ibanCiphertext: Uint8Array.from(encrypted.ciphertext),
       ibanKeyVersion: encrypted.keyVersion,
-      ibanLast4: normalized.slice(-4),
-      ibanFingerprint: fingerprintIban(normalized),
+      ibanLast4: valid.slice(-4),
+      ibanFingerprint: fingerprintIban(valid),
     };
   }
 
@@ -510,35 +505,37 @@ export class FinanceService {
 
   listCompanyPaymentMethods(companyId: string) {
     this.tenant.setCompanyId(companyId);
-    return this.prisma.companyPaymentMethod.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        paymentGateway: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            providerType: true,
-            countryCodes: true,
-            supportsCurrencies: true,
-            docsUrl: true,
+    return this.prisma.companyPaymentMethod
+      .findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          paymentGateway: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              providerType: true,
+              countryCodes: true,
+              supportsCurrencies: true,
+              docsUrl: true,
+            },
           },
         },
-      },
-    }).then((rows) =>
-      rows.map((row) => ({
-        id: row.id,
-        companyId: row.companyId,
-        name: row.name,
-        status: row.status,
-        config: row.config,
-        hasCredentials: row.credentialsCiphertext != null,
-        keyVersion: row.keyVersion,
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-        paymentGateway: row.paymentGateway,
-      })),
-    );
+      })
+      .then((rows) =>
+        rows.map((row) => ({
+          id: row.id,
+          companyId: row.companyId,
+          name: row.name,
+          status: row.status,
+          config: row.config,
+          hasCredentials: row.credentialsCiphertext != null,
+          keyVersion: row.keyVersion,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          paymentGateway: row.paymentGateway,
+        })),
+      );
   }
 
   async enableCompanyPaymentMethod(input: {
@@ -592,9 +589,7 @@ export class FinanceService {
         name,
         status: 'ACTIVE',
         config: (input.config ?? { mode: 'sandbox' }) as Prisma.InputJsonValue,
-        credentialsCiphertext: creds
-          ? Uint8Array.from(creds.ciphertext)
-          : null,
+        credentialsCiphertext: creds ? Uint8Array.from(creds.ciphertext) : null,
         keyVersion: creds?.keyVersion,
         createdById: input.createdById,
       },
@@ -744,10 +739,7 @@ export class FinanceService {
     }
 
     let salesPayment: unknown = null;
-    if (
-      input.salesInvoiceId &&
-      providerResult.status === 'SUCCEEDED'
-    ) {
+    if (input.salesInvoiceId && providerResult.status === 'SUCCEEDED') {
       salesPayment = await this.recordGatewaySalesPayment({
         companyId: input.companyId,
         salesInvoiceId: input.salesInvoiceId,
@@ -816,8 +808,7 @@ export class FinanceService {
       this.config.get<string>('STRIPE_SECRET_KEY')?.trim() ||
       '';
     const base = (
-      this.config.get<string>('STRIPE_API_BASE_URL') ??
-      'https://api.stripe.com'
+      this.config.get<string>('STRIPE_API_BASE_URL') ?? 'https://api.stripe.com'
     ).replace(/\/$/, '');
 
     if (this.isDemoSecret(secret)) {

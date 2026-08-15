@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,29 @@ import {
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 
+export const NOTEBOOK_BUCKETS = {
+  PROBLEMS: { codeKey: 'PROBLEMS', name: 'Problems', nameAr: 'المشاكل' },
+  DEV_IDEAS: {
+    codeKey: 'DEV_IDEAS',
+    name: 'Development ideas',
+    nameAr: 'أفكار تطويرية',
+  },
+  WORK_NOTES: {
+    codeKey: 'WORK_NOTES',
+    name: 'Work notes',
+    nameAr: 'ملاحظات أثناء العمل',
+  },
+} as const;
+
+export type NotebookBucketCode = keyof typeof NOTEBOOK_BUCKETS;
+
+const OPERATOR_ROLES = new Set([
+  'OPERATIONS_MANAGER',
+  'COMPANY_OWNER',
+  'COMPANY_ADMIN',
+  'PLATFORM_SUPER_ADMIN',
+]);
+
 @Injectable()
 export class NotebookService {
   constructor(
@@ -17,8 +41,33 @@ export class NotebookService {
     private readonly tenant: TenantContextService,
   ) {}
 
-  listCategories(companyId: string) {
+  isOperator(roleCode?: string | null, isPlatformAdmin?: boolean) {
+    if (isPlatformAdmin) return true;
+    return roleCode ? OPERATOR_ROLES.has(roleCode) : false;
+  }
+
+  async ensureDefaultCategories(companyId: string) {
     this.tenant.setCompanyId(companyId);
+    for (const bucket of Object.values(NOTEBOOK_BUCKETS)) {
+      const existing = await this.prisma.notebookCategory.findFirst({
+        where: { companyId, codeKey: bucket.codeKey },
+      });
+      if (!existing) {
+        await this.prisma.notebookCategory.create({
+          data: {
+            companyId,
+            code: bucket.codeKey,
+            codeKey: bucket.codeKey,
+            name: bucket.nameAr,
+            status: 'ACTIVE',
+          },
+        });
+      }
+    }
+  }
+
+  async listCategories(companyId: string) {
+    await this.ensureDefaultCategories(companyId);
     return this.prisma.notebookCategory.findMany({
       where: { status: 'ACTIVE' },
       orderBy: { name: 'asc' },
@@ -42,17 +91,33 @@ export class NotebookService {
     });
   }
 
-  listNotes(companyId: string, search?: string) {
-    this.tenant.setCompanyId(companyId);
+  async listNotes(
+    companyId: string,
+    opts?: { search?: string; categoryCode?: string },
+  ) {
+    await this.ensureDefaultCategories(companyId);
+    const categoryCode = opts?.categoryCode?.trim().toUpperCase();
+    let categoryId: string | undefined;
+    if (categoryCode) {
+      const cat = await this.prisma.notebookCategory.findFirst({
+        where: { companyId, codeKey: categoryCode },
+      });
+      if (!cat) return [];
+      categoryId = cat.id;
+    }
+
     return this.prisma.businessNote.findMany({
-      where: search
-        ? {
-            OR: [
-              { title: { contains: search } },
-              { body: { contains: search } },
-            ],
-          }
-        : undefined,
+      where: {
+        ...(categoryId ? { categoryId } : {}),
+        ...(opts?.search
+          ? {
+              OR: [
+                { title: { contains: opts.search } },
+                { body: { contains: opts.search } },
+              ],
+            }
+          : {}),
+      },
       include: {
         category: true,
         contact: { select: { id: true, name: true } },
@@ -71,21 +136,57 @@ export class NotebookService {
     title: string;
     body: string;
     categoryId?: string;
+    categoryCode?: string;
     priority?: TaskPriority;
     status?: NotebookNoteStatus;
     workProjectId?: string;
     crmContactId?: string;
     employeeId?: string;
+    roleCode?: string;
+    isPlatformAdmin?: boolean;
   }) {
-    this.tenant.setCompanyId(input.companyId);
-    await this.validateLinks(input);
+    await this.ensureDefaultCategories(input.companyId);
+    let categoryId = input.categoryId;
+    let categoryCode = input.categoryCode?.trim().toUpperCase();
+
+    if (!categoryId && categoryCode) {
+      const cat = await this.prisma.notebookCategory.findFirst({
+        where: { companyId: input.companyId, codeKey: categoryCode },
+      });
+      if (!cat) throw new BadRequestException('Category not found');
+      categoryId = cat.id;
+    }
+
+    if (categoryId && !categoryCode) {
+      const cat = await this.prisma.notebookCategory.findFirst({
+        where: { id: categoryId, companyId: input.companyId },
+      });
+      categoryCode = cat?.codeKey?.toUpperCase() || undefined;
+    }
+
+    if (
+      categoryCode === 'DEV_IDEAS' &&
+      !this.isOperator(input.roleCode, input.isPlatformAdmin)
+    ) {
+      throw new ForbiddenException(
+        'Only operators can add development ideas',
+      );
+    }
+
+    await this.validateLinks({
+      companyId: input.companyId,
+      categoryId,
+      workProjectId: input.workProjectId,
+      crmContactId: input.crmContactId,
+      employeeId: input.employeeId,
+    });
     return this.prisma.businessNote.create({
       data: {
         companyId: input.companyId,
         createdById: input.createdById,
         title: input.title,
         body: input.body,
-        categoryId: input.categoryId,
+        categoryId,
         priority: input.priority ?? 'MEDIUM',
         status: input.status ?? 'OPEN',
         workProjectId: input.workProjectId,
@@ -110,13 +211,31 @@ export class NotebookService {
       crmContactId?: string | null;
       employeeId?: string | null;
     },
+    actor?: { roleCode?: string; isPlatformAdmin?: boolean },
   ) {
     this.tenant.setCompanyId(companyId);
     const note = await this.prisma.businessNote.findFirst({
       where: { id: noteId, companyId },
+      include: { category: true },
     });
     if (!note) {
       throw new NotFoundException('Note not found');
+    }
+
+    const targetCategoryId =
+      data.categoryId === undefined ? note.categoryId : data.categoryId;
+    if (targetCategoryId) {
+      const cat = await this.prisma.notebookCategory.findFirst({
+        where: { id: targetCategoryId, companyId },
+      });
+      if (
+        cat?.codeKey === 'DEV_IDEAS' &&
+        !this.isOperator(actor?.roleCode, actor?.isPlatformAdmin)
+      ) {
+        throw new ForbiddenException(
+          'Only operators can manage development ideas',
+        );
+      }
     }
 
     await this.prisma.businessNoteRevision.create({

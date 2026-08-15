@@ -2,6 +2,7 @@ import {
   CanActivate,
   createParamDecorator,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   SetMetadata,
   UnauthorizedException,
@@ -73,11 +74,19 @@ export class PermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<{ user?: AuthUser }>();
     const user = request.user;
     if (!user) {
-      return false;
+      throw new UnauthorizedException();
     }
     if (user.isPlatformAdmin) {
       return true;
     }
-    return required.every((permission) => user.permissions.includes(permission));
+    const ok = required.every((permission) =>
+      user.permissions.includes(permission),
+    );
+    if (!ok) {
+      throw new ForbiddenException(
+        `Missing permission: ${required.join(', ')}`,
+      );
+    }
+    return true;
   }
 }

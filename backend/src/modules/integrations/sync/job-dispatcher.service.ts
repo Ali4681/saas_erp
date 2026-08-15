@@ -1,6 +1,16 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Queue, Worker, type ConnectionOptions, type JobsOptions } from 'bullmq';
+import {
+  Queue,
+  Worker,
+  type ConnectionOptions,
+  type JobsOptions,
+} from 'bullmq';
 import IORedis from 'ioredis';
 import { ClsService } from 'nestjs-cls';
 import {
@@ -47,7 +57,8 @@ export class JobDispatcherService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const redisUrl = this.config.get<string>('REDIS_URL') ?? 'redis://127.0.0.1:6379';
+    const redisUrl =
+      this.config.get<string>('REDIS_URL') ?? 'redis://127.0.0.1:6379';
     const forceBull = configured === 'bullmq';
 
     try {
@@ -200,9 +211,7 @@ export class JobDispatcherService implements OnModuleInit, OnModuleDestroy {
         QUEUE_OPERATIONS,
         async (job) => {
           await this.cls.run(async () => {
-            await this.runner.executeOperation(
-              job.data as OperationJobPayload,
-            );
+            await this.runner.executeOperation(job.data as OperationJobPayload);
           });
         },
         { connection },

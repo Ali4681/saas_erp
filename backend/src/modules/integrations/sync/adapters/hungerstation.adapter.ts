@@ -284,7 +284,8 @@ export class HungerStationProviderAdapter extends BaseProviderAdapter {
       if (
         action === 'list' ||
         action === 'orders' ||
-        (!orderId && (capability === 'ORDER_READ' || operation === 'ORDER_READ'))
+        (!orderId &&
+          (capability === 'ORDER_READ' || operation === 'ORDER_READ'))
       ) {
         const pageSize =
           typeof ctx.payload.pageSize === 'number'
@@ -368,8 +369,7 @@ export class HungerStationProviderAdapter extends BaseProviderAdapter {
     const range = {
       cookies,
       vendorId,
-      timeFrom:
-        timeFrom != null ? String(timeFrom) : undefined,
+      timeFrom: timeFrom != null ? String(timeFrom) : undefined,
       timeTo: timeTo != null ? String(timeTo) : undefined,
       daysBack,
     };
@@ -460,11 +460,11 @@ export class HungerStationProviderAdapter extends BaseProviderAdapter {
   ): Promise<AdapterOperationResult> {
     const { cookies, vendorId } = this.session(ctx);
     const valid = await this.client.validateSession(cookies);
-    const catalogs = await this.client.getCatalogs({ cookies, vendorId }).catch(
-      (e) => ({
+    const catalogs = await this.client
+      .getCatalogs({ cookies, vendorId })
+      .catch((e) => ({
         error: e instanceof Error ? e.message : String(e),
-      }),
-    );
+      }));
     return {
       responseExternalId: vendorId,
       rawResponse: {
@@ -487,8 +487,7 @@ export class HungerStationProviderAdapter extends BaseProviderAdapter {
       ctx.externalTargetId?.trim() ||
       String(ctx.payload.productId ?? ctx.payload.id ?? '').trim();
     const wait =
-      ctx.payload.waitForCommand === false ||
-      ctx.payload.wait === false
+      ctx.payload.waitForCommand === false || ctx.payload.wait === false
         ? false
         : true;
 
@@ -594,8 +593,8 @@ export class HungerStationProviderAdapter extends BaseProviderAdapter {
       }
       const available = Boolean(
         ctx.payload.available ??
-          ctx.payload.active ??
-          String(ctx.payload.availability ?? '').toUpperCase() === 'AVAILABLE',
+        ctx.payload.active ??
+        String(ctx.payload.availability ?? '').toUpperCase() === 'AVAILABLE',
       );
       const raw = await this.client.setProductAvailability({
         cookies,
@@ -695,8 +694,7 @@ export class HungerStationProviderAdapter extends BaseProviderAdapter {
       ctx.externalTargetId?.trim() ||
       String(ctx.payload.categoryId ?? '').trim();
     const wait =
-      ctx.payload.waitForCommand === false ||
-      ctx.payload.wait === false
+      ctx.payload.waitForCommand === false || ctx.payload.wait === false
         ? false
         : true;
 

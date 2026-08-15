@@ -2,7 +2,6 @@ import { getTranslations } from "next-intl/server";
 import { FileText } from "lucide-react";
 import { FlashFromSearch } from "@/components/erp/Flash";
 import { CreateFormDialog } from "@/components/erp/CreateFormDialog";
-import { ActionForm } from "@/components/erp/ActionForm";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,11 +13,7 @@ import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
-import {
-  createEmployee,
-  setEmployeeStatus,
-  updateEmployeeCompensation,
-} from "../actions";
+import { createEmployee, updateEmployeeCompensation } from "../actions";
 
 type Employee = {
   id: string;
@@ -29,13 +24,21 @@ type Employee = {
   jobTitle: string | null;
   employmentStatus: string;
   basicSalary: string | null;
+  salesTargetMode?: string | null;
   salesTargetAmount?: string | null;
   targetPercent: string | null;
+  lateDiscountAmount?: string | null;
   identityNumber?: string | null;
   identityExpiresOn?: string | null;
   approvalStatus?: string | null;
   qiwaContractUrl?: string | null;
+  qiwaContractRef?: string | null;
+  qiwaStatus?: string | null;
+  advanceAllowanceMonthly?: string | null;
+  advanceAllowanceMonth?: string | null;
   advanceAllowancePercent?: string | null;
+  attendanceBadgeId?: string | null;
+  hasInsurance?: boolean;
   currency: string;
 };
 type Attachment = {
@@ -50,6 +53,14 @@ type HrSummary = {
   onLeave: number;
   suspended: number;
   terminated: number;
+  qiwa?: {
+    NOT_STARTED: number;
+    IN_PROGRESS: number;
+    AWAITING_EMPLOYEE: number;
+    PENDING_APPROVAL: number;
+    DOCUMENTED: number;
+    REJECTED_OR_MODIFICATION: number;
+  };
 };
 
 export default async function EmployeesPage({
@@ -86,6 +97,7 @@ export default async function EmployeesPage({
     }
   }
 
+  const nextEmployeeNumber = suggestNextEmployeeNumber(employees);
   const create = createEmployee.bind(null, companyId);
 
   return (
@@ -136,6 +148,59 @@ export default async function EmployeesPage({
         </div>
       ) : null}
 
+      {summary?.qiwa ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("qiwaStatusNotStarted")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">
+              {summary.qiwa.NOT_STARTED}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("qiwaStatusInProgress")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">
+              {summary.qiwa.IN_PROGRESS}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("qiwaStatusAwaitingEmployee")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">
+              {summary.qiwa.AWAITING_EMPLOYEE}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("qiwaStatusPendingApproval")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">
+              {summary.qiwa.PENDING_APPROVAL}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("qiwaStatusDocumented")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">
+              {summary.qiwa.DOCUMENTED}
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("qiwaStatusRejected")}
+            </p>
+            <p className="mt-1 text-lg font-semibold">
+              {summary.qiwa.REJECTED_OR_MODIFICATION}
+            </p>
+          </Card>
+        </div>
+      ) : null}
+
       {canWrite ? (
         <CreateFormDialog
           title={t("newEmployee")}
@@ -143,18 +208,52 @@ export default async function EmployeesPage({
           triggerLabel={t("addEmployee")}
         >
           <form action={create} className="grid gap-3 md:grid-cols-2">
-            <Input name="employeeNumber" label={t("employeeNumber")} required />
+            <Input
+              name="employeeNumber"
+              label={t("employeeNumber")}
+              required
+              defaultValue={nextEmployeeNumber}
+            />
             <Input name="fullName" label={t("fullName")} required />
             <Input name="email" label={t("email")} type="email" />
             <Input name="phone" label={t("phone")} />
             <Input name="jobTitle" label={t("jobTitle")} />
             <Input name="hireDate" label={t("hireDate")} type="date" />
             <Input name="basicSalary" label={`${t("basicSalary")} (SAR)`} />
+            <Select
+              name="salesTargetMode"
+              label={t("salesTargetMode")}
+              defaultValue="AMOUNT"
+              options={[
+                { value: "AMOUNT", label: t("salesTargetModeAmount") },
+                { value: "PERCENT", label: t("salesTargetModePercent") },
+                { value: "BOTH", label: t("salesTargetModeBoth") },
+              ]}
+            />
             <Input
               name="salesTargetAmount"
               label={`${t("salesTargetAmount")} (SAR)`}
-              required
             />
+            <Input
+              name="targetPercent"
+              label={t("salesCommissionPercent")}
+              placeholder="e.g. 5"
+            />
+            <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+              {t("salesIncentiveHint")}
+            </p>
+            <Select
+              name="approvalStatus"
+              label={t("qiwaVerifiedStatus")}
+              defaultValue="PENDING"
+              options={[
+                { value: "PENDING", label: t("qiwaNotVerified") },
+                { value: "APPROVED", label: t("qiwaVerified") },
+              ]}
+            />
+            <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+              {t("qiwaVerifiedHint")}
+            </p>
             <Select
               name="identityType"
               label={t("identityType")}
@@ -164,36 +263,53 @@ export default async function EmployeesPage({
                 { value: "CITIZEN", label: t("identityCitizen") },
               ]}
             />
-            <Input
-              name="identityNumber"
-              label={t("identityNumber")}
-              required
-            />
+            <div>
+              <Input
+                name="identityNumber"
+                label={t("identityNumber")}
+                required
+                inputMode="numeric"
+                pattern="[12][0-9]{9}"
+                maxLength={10}
+                placeholder={t("identityNumberPlaceholder")}
+              />
+              <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
+                {t("identityNumberHint")}
+              </p>
+            </div>
             <Input
               name="identityExpiresOn"
               label={t("identityExpiresOn")}
               type="date"
               required
             />
-            <Input name="iban" label={t("iban")} />
+            <div>
+              <Input
+                name="iban"
+                label={t("iban")}
+                placeholder="SA0380000000608010167519"
+                autoComplete="off"
+                spellCheck={false}
+                pattern="SA[0-9]{22}"
+                maxLength={34}
+              />
+              <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
+                {t("ibanOptionalHint")}
+              </p>
+            </div>
             <Input
               name="advanceAllowancePercent"
               label={t("advanceAllowancePercent")}
               placeholder="e.g. 30"
             />
+            <Input
+              name="attendanceBadgeId"
+              label={t("attendanceBadgeId")}
+              placeholder={t("attendanceBadgeHint")}
+            />
             <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
               {t("advanceAllowanceHint")}
             </p>
-            <Select
-              name="approvalStatus"
-              label={t("approvalStatus")}
-              defaultValue="PENDING"
-              options={[
-                { value: "PENDING", label: t("approvalPending") },
-                { value: "APPROVED", label: t("approvalApproved") },
-              ]}
-            />
-            <Input name="qiwaContractUrl" label={t("qiwaLink")} />
             <input type="hidden" name="currency" value="SAR" />
             <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
               <span className="font-medium text-[var(--foreground)]">
@@ -246,7 +362,7 @@ export default async function EmployeesPage({
                     {t("identityNumber")}
                   </th>
                   <th className="px-2 py-2 font-medium">
-                    {t("approvalStatus")}
+                    {t("qiwaEmploymentContract")}
                   </th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
                   <th className="px-2 py-2 font-medium">{t("cv")}</th>
@@ -275,21 +391,26 @@ export default async function EmployeesPage({
                         {formatMoney(e.basicSalary, e.currency)}
                       </td>
                       <td className="px-2 py-2">
-                        {formatMoney(
-                          e.salesTargetAmount ?? e.targetPercent,
-                          "SAR",
-                        )}
+                        {formatMoney(e.salesTargetAmount, "SAR")}
                       </td>
                       <td className="px-2 py-2 font-mono text-xs">
                         {e.identityNumber ?? "—"}
                       </td>
                       <td className="px-2 py-2">
                         <StatusBadge
-                          status={
-                            e.approvalStatus === "APPROVED" ||
-                            Boolean(e.qiwaContractUrl)
-                              ? "APPROVED"
-                              : "PENDING"
+                          status={e.qiwaStatus ?? "NOT_STARTED"}
+                          label={
+                            e.qiwaStatus === "IN_PROGRESS"
+                              ? t("qiwaStatusInProgress")
+                              : e.qiwaStatus === "AWAITING_EMPLOYEE"
+                                ? t("qiwaStatusAwaitingEmployee")
+                                : e.qiwaStatus === "PENDING_APPROVAL"
+                                  ? t("qiwaStatusPendingApproval")
+                                  : e.qiwaStatus === "DOCUMENTED"
+                                    ? t("qiwaStatusDocumented")
+                                    : e.qiwaStatus === "REJECTED_OR_MODIFICATION"
+                                      ? t("qiwaStatusRejected")
+                                      : t("qiwaStatusNotStarted")
                           }
                         />
                       </td>
@@ -341,12 +462,59 @@ export default async function EmployeesPage({
                                   label={`${t("basicSalary")} (SAR)`}
                                   defaultValue={e.basicSalary ?? ""}
                                 />
+                                <Select
+                                  name="salesTargetMode"
+                                  label={t("salesTargetMode")}
+                                  defaultValue={e.salesTargetMode ?? "AMOUNT"}
+                                  options={[
+                                    {
+                                      value: "AMOUNT",
+                                      label: t("salesTargetModeAmount"),
+                                    },
+                                    {
+                                      value: "PERCENT",
+                                      label: t("salesTargetModePercent"),
+                                    },
+                                    {
+                                      value: "BOTH",
+                                      label: t("salesTargetModeBoth"),
+                                    },
+                                  ]}
+                                />
                                 <Input
                                   name="salesTargetAmount"
                                   label={`${t("salesTargetAmount")} (SAR)`}
+                                  defaultValue={e.salesTargetAmount ?? ""}
+                                />
+                                <Input
+                                  name="targetPercent"
+                                  label={t("salesCommissionPercent")}
+                                  defaultValue={e.targetPercent ?? ""}
+                                />
+                                <Input
+                                  name="lateDiscountAmount"
+                                  label={`${t("lateDiscountAmount")} (SAR)`}
                                   defaultValue={
-                                    e.salesTargetAmount ?? e.targetPercent ?? ""
+                                    e.lateDiscountAmount ??
+                                    (e.basicSalary
+                                      ? (Number(e.basicSalary) / 30).toFixed(2)
+                                      : "")
                                   }
+                                />
+                                <Select
+                                  name="approvalStatus"
+                                  label={t("qiwaVerifiedStatus")}
+                                  defaultValue={e.approvalStatus ?? "PENDING"}
+                                  options={[
+                                    {
+                                      value: "PENDING",
+                                      label: t("qiwaNotVerified"),
+                                    },
+                                    {
+                                      value: "APPROVED",
+                                      label: t("qiwaVerified"),
+                                    },
+                                  ]}
                                 />
                                 <Input
                                   name="identityNumber"
@@ -366,25 +534,14 @@ export default async function EmployeesPage({
                                     e.advanceAllowancePercent ?? ""
                                   }
                                 />
-                                <Select
-                                  name="approvalStatus"
-                                  label={t("approvalStatus")}
-                                  defaultValue={
-                                    e.approvalStatus === "APPROVED"
-                                      ? "APPROVED"
-                                      : "PENDING"
-                                  }
-                                  options={[
-                                    {
-                                      value: "PENDING",
-                                      label: t("approvalPending"),
-                                    },
-                                    {
-                                      value: "APPROVED",
-                                      label: t("approvalApproved"),
-                                    },
-                                  ]}
+                                <Input
+                                  name="attendanceBadgeId"
+                                  label={t("attendanceBadgeId")}
+                                  defaultValue={e.attendanceBadgeId ?? ""}
                                 />
+                                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+                                  {t("advanceAllowanceHint")}
+                                </p>
                                 <Input
                                   name="phone"
                                   label={t("phone")}
@@ -408,29 +565,6 @@ export default async function EmployeesPage({
                               </form>
                             </CreateFormDialog>
                           ) : null}
-                          {canWrite && e.employmentStatus === "ACTIVE" ? (
-                            <ActionForm
-                              label={t("suspend")}
-                              variant="danger"
-                              action={setEmployeeStatus.bind(
-                                null,
-                                companyId,
-                                e.id,
-                                "SUSPENDED",
-                              )}
-                            />
-                          ) : canWrite &&
-                            e.employmentStatus === "SUSPENDED" ? (
-                            <ActionForm
-                              label={t("activate")}
-                              action={setEmployeeStatus.bind(
-                                null,
-                                companyId,
-                                e.id,
-                                "ACTIVE",
-                              )}
-                            />
-                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -443,4 +577,18 @@ export default async function EmployeesPage({
       </Card>
     </div>
   );
+}
+
+/** Next EMP-### from existing numbers (seed style); falls back to EMP-001. */
+function suggestNextEmployeeNumber(
+  employees: Array<{ employeeNumber: string }>,
+): string {
+  let max = 0;
+  for (const e of employees) {
+    const match = /^EMP-(\d+)$/i.exec(e.employeeNumber.trim());
+    if (!match) continue;
+    const n = Number(match[1]);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return `EMP-${String(max + 1).padStart(3, "0")}`;
 }

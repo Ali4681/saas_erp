@@ -1,11 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { CredentialPayload } from '../../effective-capability.service';
-import {
-  asRecord,
-  money,
-  resolveBaseUrl,
-} from './credential-resolve';
+import { asRecord, money, resolveBaseUrl } from './credential-resolve';
 import { providerFetch, ProviderHttpError } from './provider-http.client';
 
 export const MADFU_BASE_DEFAULT = 'https://api.madfu.com.sa';
@@ -40,7 +36,10 @@ export class MadfuClient {
       credentials.apiKey ?? credentials.madfuApiKey ?? '',
     ).trim();
     const appCode = String(
-      credentials.appCode ?? credentials.madfuAppCode ?? credentials.clientId ?? '',
+      credentials.appCode ??
+        credentials.madfuAppCode ??
+        credentials.clientId ??
+        '',
     ).trim();
     const basicToken = String(
       credentials.basicToken ??

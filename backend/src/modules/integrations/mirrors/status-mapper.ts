@@ -19,10 +19,15 @@ const DISPUTE_STATUSES = new Set<string>(Object.values(DisputeStatus));
 const RECORD_STATUSES = new Set<string>(Object.values(RecordStatus));
 
 function normalizeKey(value: string): string {
-  return value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
 }
 
-export function mapOrderStatus(raw: string | null | undefined): NormalizedOrderStatus {
+export function mapOrderStatus(
+  raw: string | null | undefined,
+): NormalizedOrderStatus {
   if (!raw) return NormalizedOrderStatus.UNKNOWN;
   const key = normalizeKey(raw);
   if (ORDER_STATUSES.has(key)) {
@@ -91,7 +96,9 @@ export function mapInstallmentStatus(
     : InstallmentStatus.UNKNOWN;
 }
 
-export function mapDisputeStatus(raw: string | null | undefined): DisputeStatus {
+export function mapDisputeStatus(
+  raw: string | null | undefined,
+): DisputeStatus {
   if (!raw) return DisputeStatus.OPEN;
   const key = normalizeKey(raw);
   return DISPUTE_STATUSES.has(key)
@@ -102,7 +109,5 @@ export function mapDisputeStatus(raw: string | null | undefined): DisputeStatus 
 export function mapRecordStatus(raw: string | null | undefined): RecordStatus {
   if (!raw) return RecordStatus.ACTIVE;
   const key = normalizeKey(raw);
-  return RECORD_STATUSES.has(key)
-    ? (key as RecordStatus)
-    : RecordStatus.ACTIVE;
+  return RECORD_STATUSES.has(key) ? (key as RecordStatus) : RecordStatus.ACTIVE;
 }

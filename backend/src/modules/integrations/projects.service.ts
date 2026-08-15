@@ -4,7 +4,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthType, ProjectEnvironment, ProjectStatus } from '../../generated/prisma/client';
+import {
+  AuthType,
+  ProjectEnvironment,
+  ProjectStatus,
+} from '../../generated/prisma/client';
 import { EncryptionService } from '../../common/encryption/encryption.service';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -146,18 +150,14 @@ export class ProjectsService {
     const normalizedCreds = input.credentials
       ? {
           ...input.credentials,
-          payload: normalizeCredentialPayload(
-            input.credentials.payload as Record<string, unknown>,
-          ),
+          payload: normalizeCredentialPayload(input.credentials.payload),
         }
       : undefined;
 
     const encrypted = normalizedCreds
       ? this.encryption.encrypt(JSON.stringify(normalizedCreds.payload))
       : null;
-    const ciphertext = encrypted
-      ? Uint8Array.from(encrypted.ciphertext)
-      : null;
+    const ciphertext = encrypted ? Uint8Array.from(encrypted.ciphertext) : null;
 
     return this.prisma.connectedProject.create({
       data: {
@@ -215,7 +215,11 @@ export class ProjectsService {
 
     if (status === 'ACTIVE') {
       if (extensionChannel) {
-        await this.captureExtensionSession(companyId, projectId, extensionChannel);
+        await this.captureExtensionSession(
+          companyId,
+          projectId,
+          extensionChannel,
+        );
       } else {
         const creds = await this.prisma.projectCredential.findUnique({
           where: { connectedProjectId: projectId },
@@ -263,7 +267,12 @@ export class ProjectsService {
 
     let raw: unknown;
     try {
-      raw = await this.extensionBridge.sendCommand(channel, command, {}, 20_000);
+      raw = await this.extensionBridge.sendCommand(
+        channel,
+        command,
+        {},
+        20_000,
+      );
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       if (/no_access_token|no_mrsool|unauthorized|not.?logged/i.test(msg)) {
@@ -271,9 +280,7 @@ export class ProjectsService {
           'لم يتم العثور على جلسة دخول في المتصفح. سجّل دخولك في بوابة الشريك ثم أعد المحاولة.',
         );
       }
-      throw new BadRequestException(
-        `تعذّر قراءة جلسة الإكستنشن: ${msg}`,
-      );
+      throw new BadRequestException(`تعذّر قراءة جلسة الإكستنشن: ${msg}`);
     }
 
     const data = asRecord(raw);
@@ -353,9 +360,7 @@ export class ProjectsService {
     this.tenant.setCompanyId(companyId);
     await this.get(companyId, projectId);
 
-    const incoming = normalizeCredentialPayload(
-      input.payload as Record<string, unknown>,
-    );
+    const incoming = normalizeCredentialPayload(input.payload);
 
     const existing = await this.prisma.projectCredential.findUnique({
       where: { connectedProjectId: projectId },
@@ -370,9 +375,7 @@ export class ProjectsService {
         merged = {
           ...previous,
           ...incoming,
-          cookies:
-            (incoming.cookies as CredentialPayload['cookies']) ??
-            previous.cookies,
+          cookies: incoming.cookies ?? previous.cookies,
           grantedScopes: incoming.grantedScopes?.length
             ? incoming.grantedScopes
             : previous.grantedScopes,

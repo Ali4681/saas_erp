@@ -55,6 +55,8 @@ const PERMISSIONS = [
   ['hr', 'read'],
   ['hr', 'write'],
   ['hr', 'sales_cash.approve'],
+  ['hr', 'qiwa.manage'],
+  ['hr', 'qiwa.approve'],
   ['tracking', 'read'],
   ['tracking', 'write'],
   ['work', 'read'],
@@ -92,6 +94,8 @@ const PHASE8_READ = [
 const PHASE8_WRITE = [
   'hr.write',
   'hr.sales_cash.approve',
+  'hr.qiwa.manage',
+  'hr.qiwa.approve',
   'tracking.write',
   'work.write',
   'automation.write',
@@ -188,8 +192,10 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'purchasing.write',
     'crm.read',
     'hr.read',
+    'hr.sales_cash.approve',
     'tracking.read',
     'attachments.read',
+    'attachments.write',
     'notebook.read',
     'reports.read',
   ],
@@ -210,6 +216,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'hr.read',
     'hr.write',
     'hr.sales_cash.approve',
+    'hr.qiwa.manage',
     'tracking.read',
     'tracking.write',
     'work.read',
@@ -236,6 +243,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'purchasing.read',
     'inventory.read',
     ...PHASE8_READ,
+    'attachments.write',
     ...PHASE9_READ,
     'reports.read',
   ],
@@ -1391,14 +1399,54 @@ async function main() {
     adminUserId: admin.id,
   });
 
+  const notebookBuckets = [
+    { codeKey: 'PROBLEMS', name: 'المشاكل' },
+    { codeKey: 'DEV_IDEAS', name: 'أفكار تطويرية' },
+    { codeKey: 'WORK_NOTES', name: 'ملاحظات أثناء العمل' },
+  ];
+  for (const bucket of notebookBuckets) {
+    const existing = await prisma.notebookCategory.findFirst({
+      where: { companyId: company.id, codeKey: bucket.codeKey },
+    });
+    if (!existing) {
+      await prisma.notebookCategory.create({
+        data: {
+          companyId: company.id,
+          code: bucket.codeKey,
+          codeKey: bucket.codeKey,
+          name: bucket.name,
+          status: 'ACTIVE',
+        },
+      });
+    }
+  }
+
   console.log('Seed complete');
-  console.log('  admin email: admin@saas-erp.local');
-  console.log('  admin password: Admin123!');
+  console.log('');
+  console.log('═══ Login credentials (password for all: Admin123!) ═══');
+  console.log('  Platform');
+  console.log('    admin@saas-erp.local          PLATFORM_SUPER_ADMIN');
+  console.log('  Demo company users');
+  console.log('    owner@demo-co.local           COMPANY_OWNER');
+  console.log('    admin@demo-co.local           COMPANY_ADMIN');
+  console.log('    accountant@demo-co.local      ACCOUNTANT (+ cash sales approve)');
+  console.log('    finance@demo-co.local         ACCOUNTANT (+ cash sales approve)');
+  console.log('    ops@demo-co.local             OPERATIONS_MANAGER');
+  console.log('    hr@demo-co.local              OPERATIONS_MANAGER');
+  console.log('    warehouse@demo-co.local       OPERATIONS_MANAGER');
+  console.log('    sales@demo-co.local           COMPANY_ADMIN');
+  console.log('    viewer@demo-co.local          EMPLOYEE_VIEWER');
+  console.log('    support@demo-co.local         EMPLOYEE_VIEWER');
+  console.log('');
+  console.log('  Role permissions summary:');
+  for (const [roleCode, codes] of Object.entries(ROLE_PERMISSION_MAP)) {
+    console.log(`    ${roleCode} (${codes.length}): ${codes.join(', ')}`);
+  }
+  console.log('');
   console.log('  demo company:', company.id);
   console.log('  demo plan: ENTERPRISE');
   console.log('  providers:', PROVIDERS.length);
   console.log('  demo summary:', demoSummary);
-  console.log('  demo users password: Admin123! (owner@demo-co.local, etc.)');
 
   await prisma.$disconnect();
 }

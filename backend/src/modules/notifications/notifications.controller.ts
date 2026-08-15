@@ -133,11 +133,7 @@ export class NotificationsController {
     @Param('notificationId') notificationId: string,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.notifications.markRead(
-      companyId,
-      user.userId,
-      notificationId,
-    );
+    return this.notifications.markRead(companyId, user.userId, notificationId);
   }
 
   @Get('devices')

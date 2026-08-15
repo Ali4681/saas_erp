@@ -1,5 +1,8 @@
 import { Logger } from '@nestjs/common';
-import type { OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
+import type {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+} from '@nestjs/websockets';
 import type { RawData, WebSocket } from 'ws';
 import { ExtensionBridgeService } from './extension-bridge.service';
 

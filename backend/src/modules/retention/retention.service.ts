@@ -41,7 +41,9 @@ export class RetentionService {
       return;
     }
     const result = await this.purgeExpired({ dryRun: false });
-    this.logger.log(`Retention purge complete: ${JSON.stringify(result.deleted)}`);
+    this.logger.log(
+      `Retention purge complete: ${JSON.stringify(result.deleted)}`,
+    );
   }
 
   async purgeExpired(opts?: {

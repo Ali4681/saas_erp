@@ -444,6 +444,15 @@ enum EmployeeApprovalStatus {
   REJECTED
 }
 
+enum EmployeeQiwaContractStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  AWAITING_EMPLOYEE
+  PENDING_APPROVAL
+  DOCUMENTED
+  REJECTED_OR_MODIFICATION
+}
+
 enum SalesTargetMode {
   PERCENT
   AMOUNT

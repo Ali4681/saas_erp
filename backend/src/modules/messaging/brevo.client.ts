@@ -85,7 +85,7 @@ export class BrevoClient {
     return this.post('/smtp/email', payload, (data) => {
       const messageId =
         data && typeof data === 'object' && 'messageId' in data
-          ? String((data as { messageId: unknown }).messageId)
+          ? String(data.messageId)
           : undefined;
       return messageId;
     });

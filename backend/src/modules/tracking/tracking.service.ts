@@ -17,7 +17,7 @@ export class TrackingService {
     companyId: string,
     input: {
       name: string;
-      deviceKey: string;
+      deviceKey?: string;
       location?: string;
       streamUrl?: string;
       deviceType?: 'CAMERA' | 'BOTH';
@@ -37,7 +37,7 @@ export class TrackingService {
     companyId: string,
     input: {
       name: string;
-      deviceKey: string;
+      deviceKey?: string;
       location?: string;
       streamUrl?: string;
       deviceType?: 'BIOMETRIC' | 'BOTH';

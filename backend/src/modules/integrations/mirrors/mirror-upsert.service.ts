@@ -149,7 +149,9 @@ function asDate(value: string | Date | null | undefined, fallback?: Date) {
   return value instanceof Date ? value : new Date(value);
 }
 
-function json(value: Record<string, unknown> | undefined): Prisma.InputJsonValue {
+function json(
+  value: Record<string, unknown> | undefined,
+): Prisma.InputJsonValue {
   return (value ?? {}) as Prisma.InputJsonValue;
 }
 
@@ -214,7 +216,7 @@ export class MirrorUpsertService {
         item.projectLocationExternalId,
       );
       const categoryId = item.categoryExternalId
-        ? (
+        ? ((
             await this.prisma.externalCategory.findUnique({
               where: {
                 connectedProjectId_externalId: {
@@ -223,7 +225,7 @@ export class MirrorUpsertService {
                 },
               },
             })
-          )?.id ?? null
+          )?.id ?? null)
         : null;
 
       const product = await this.prisma.externalProduct.upsert({
@@ -364,7 +366,7 @@ export class MirrorUpsertService {
         item.projectLocationExternalId,
       );
       const customerId = item.customerExternalId
-        ? (
+        ? ((
             await this.prisma.externalCustomer.findUnique({
               where: {
                 connectedProjectId_externalId: {
@@ -373,7 +375,7 @@ export class MirrorUpsertService {
                 },
               },
             })
-          )?.id ?? null
+          )?.id ?? null)
         : null;
 
       const order = await this.prisma.externalOrder.upsert({
@@ -428,9 +430,10 @@ export class MirrorUpsertService {
       });
 
       for (const line of item.items ?? []) {
-        const externalIdKey = line.externalId ?? `${item.externalId}:${line.name}`;
+        const externalIdKey =
+          line.externalId ?? `${item.externalId}:${line.name}`;
         const productId = line.productExternalId
-          ? (
+          ? ((
               await this.prisma.externalProduct.findUnique({
                 where: {
                   connectedProjectId_externalId: {
@@ -439,7 +442,7 @@ export class MirrorUpsertService {
                   },
                 },
               })
-            )?.id ?? null
+            )?.id ?? null)
           : null;
         let variantId: string | null = null;
         if (productId && line.variantExternalId) {
@@ -509,13 +512,15 @@ export class MirrorUpsertService {
       for (const entry of history) {
         const occurredAt = asDate(entry.occurredAt, new Date())!;
         const normalized = mapOrderStatus(entry.externalStatus);
-        const existing = await this.prisma.externalOrderStatusHistory.findFirst({
-          where: {
-            externalOrderId: order.id,
-            externalStatus: entry.externalStatus,
-            occurredAt,
+        const existing = await this.prisma.externalOrderStatusHistory.findFirst(
+          {
+            where: {
+              externalOrderId: order.id,
+              externalStatus: entry.externalStatus,
+              occurredAt,
+            },
           },
-        });
+        );
         if (!existing) {
           await this.prisma.externalOrderStatusHistory.create({
             data: {

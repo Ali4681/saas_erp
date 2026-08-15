@@ -1,19 +1,45 @@
 import { getTranslations } from "next-intl/server";
-import { Card } from "@/components/ui/Card";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { FlashFromSearch } from "@/components/erp/Flash";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Select } from "@/components/ui/Select";
+import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
+import { updateAiBotConfig } from "../../actions";
+
+type BotConfig = {
+  id: string;
+  channel: string;
+  status: string;
+  settings?: {
+    webhookUrl?: string;
+    apiUrl?: string;
+    token?: string;
+  };
+};
 
 export default async function WhatsappBotPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const { companyId } = await params;
+  const flash = await searchParams;
   const t = await getTranslations("ai");
   const session = await getSession();
   const canWrite = can(session?.user, "ai.write");
+
+  const config = await apiServer<BotConfig>(
+    `/companies/${companyId}/ai/bots/WHATSAPP`,
+    { companyId },
+  ).catch(() => null);
+
+  const save = updateAiBotConfig.bind(null, companyId, "WHATSAPP");
 
   return (
     <div className="space-y-5">
@@ -26,32 +52,60 @@ export default async function WhatsappBotPage({
           </Button>
         }
       />
+      <FlashFromSearch searchParams={flash} />
       <Card className="space-y-3 p-5">
         <p className="text-sm text-[var(--muted-foreground)]">
           {t("botWhatsappStub")}
         </p>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">{t("botWebhookUrl")}</span>
-            <input
-              disabled
-              placeholder="https://…"
-              className="h-10 rounded-lg border border-[var(--input)] bg-[var(--muted)]/40 px-3 text-sm"
+        {canWrite ? (
+          <form action={save} className="grid gap-3 md:grid-cols-2">
+            <Select
+              name="status"
+              label={t("botStatus")}
+              defaultValue={config?.status ?? "DRAFT"}
+              options={[
+                { value: "DISABLED", label: "DISABLED" },
+                { value: "DRAFT", label: "DRAFT" },
+                { value: "ACTIVE", label: "ACTIVE" },
+              ]}
             />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">{t("botApiToken")}</span>
-            <input
-              disabled
+            <Input
+              name="apiUrl"
+              label={t("botApiUrl")}
+              defaultValue={
+                typeof config?.settings?.apiUrl === "string"
+                  ? config.settings.apiUrl
+                  : ""
+              }
+            />
+            <Input
+              name="webhookUrl"
+              label={t("botWebhookUrl")}
+              defaultValue={
+                typeof config?.settings?.webhookUrl === "string"
+                  ? config.settings.webhookUrl
+                  : ""
+              }
+            />
+            <Input
+              name="token"
+              label={t("botApiToken")}
               type="password"
-              placeholder="••••••••"
-              className="h-10 rounded-lg border border-[var(--input)] bg-[var(--muted)]/40 px-3 text-sm"
+              placeholder={
+                typeof config?.settings?.token === "string"
+                  ? config.settings.token
+                  : "••••••••"
+              }
             />
-          </label>
-        </div>
-        <p className="text-xs text-[var(--muted-foreground)]">
-          {canWrite ? t("botWaitingBackend") : t("botReadOnly")}
-        </p>
+            <div className="md:col-span-2">
+              <Button type="submit">{t("botSave")}</Button>
+            </div>
+          </form>
+        ) : (
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {t("botReadOnly")}
+          </p>
+        )}
       </Card>
     </div>
   );

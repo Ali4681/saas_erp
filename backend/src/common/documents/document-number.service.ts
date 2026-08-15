@@ -24,16 +24,12 @@ const DEFAULT_PREFIX: Record<SequenceKey, string> = {
 /** Accepts base or extended Prisma clients / interactive transactions. */
 type SettingsClient = {
   companySettings: {
-    findUnique: (args: {
-      where: { companyId: string };
-    }) => Promise<{
+    findUnique: (args: { where: { companyId: string } }) => Promise<{
       invoicePrefix: string;
       nextInvoiceNumber: bigint;
       settings: Prisma.JsonValue;
     } | null>;
-    create: (args: {
-      data: { companyId: string };
-    }) => Promise<{
+    create: (args: { data: { companyId: string } }) => Promise<{
       invoicePrefix: string;
       nextInvoiceNumber: bigint;
       settings: Prisma.JsonValue;

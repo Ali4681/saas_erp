@@ -358,19 +358,13 @@ export class PlatformController {
 
   @Get('marketing/calendar/upcoming')
   @RequirePermissions('marketing.read')
-  upcoming(
-    @Param('companyId') companyId: string,
-    @Query() query: LimitQuery,
-  ) {
+  upcoming(@Param('companyId') companyId: string, @Query() query: LimitQuery) {
     return this.platform.upcomingPosts(companyId, query.limit);
   }
 
   @Get('marketing/calendar/published')
   @RequirePermissions('marketing.read')
-  published(
-    @Param('companyId') companyId: string,
-    @Query() query: LimitQuery,
-  ) {
+  published(@Param('companyId') companyId: string, @Query() query: LimitQuery) {
     return this.platform.publishedPosts(companyId, query.limit);
   }
 

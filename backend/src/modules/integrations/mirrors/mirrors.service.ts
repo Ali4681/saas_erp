@@ -24,12 +24,7 @@ export class MirrorsService {
     private readonly tenant: TenantContextService,
   ) {}
 
-  async list(
-    companyId: string,
-    projectId: string,
-    entity: string,
-    take = 50,
-  ) {
+  async list(companyId: string, projectId: string, entity: string, take = 50) {
     this.tenant.setCompanyId(companyId);
     await this.ensureProject(companyId, projectId);
     const limit = Math.min(Math.max(take, 1), 200);

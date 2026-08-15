@@ -13,8 +13,7 @@ import {
 } from './provider-http.client';
 import { ExtensionBridgeService } from '../../extension/extension-bridge.service';
 
-export const HS_GRAPHQL_URL =
-  'https://vagw-api.eu.prd.portal.restaurant/query';
+export const HS_GRAPHQL_URL = 'https://vagw-api.eu.prd.portal.restaurant/query';
 export const HS_BFF_LOGIN_URL =
   'https://bff-api.eu.prd.portal.restaurant/auth/v4/login';
 export const HS_GLOBAL_ENTITY_ID = 'HS_SA';
@@ -297,10 +296,16 @@ export class HungerStationClient {
         ? credentials.accessToken
         : '');
     if (access) out.accessToken = access;
-    if (typeof credentials.refreshToken === 'string' && credentials.refreshToken) {
+    if (
+      typeof credentials.refreshToken === 'string' &&
+      credentials.refreshToken
+    ) {
       out.refreshToken = credentials.refreshToken;
     }
-    if (typeof credentials.deviceToken === 'string' && credentials.deviceToken) {
+    if (
+      typeof credentials.deviceToken === 'string' &&
+      credentials.deviceToken
+    ) {
       out.deviceToken = credentials.deviceToken;
     }
     if (typeof credentials.pxCookie === 'string' && credentials.pxCookie) {
@@ -331,7 +336,10 @@ export class HungerStationClient {
     credentials: CredentialPayload,
     cookies: Record<string, string>,
   ): string {
-    if (typeof credentials.vendorId === 'string' && credentials.vendorId.trim()) {
+    if (
+      typeof credentials.vendorId === 'string' &&
+      credentials.vendorId.trim()
+    ) {
       return credentials.vendorId.trim();
     }
     if (
@@ -508,9 +516,15 @@ export class HungerStationClient {
     if (!res.ok) {
       const data = asRecord(res.data);
       const chunks: string[] = [];
-      for (const key of ['message', 'error', 'detail', 'errorMessage'] as const) {
+      for (const key of [
+        'message',
+        'error',
+        'detail',
+        'errorMessage',
+      ] as const) {
         const value = data[key];
-        if (typeof value === 'string' && value.trim()) chunks.push(value.trim());
+        if (typeof value === 'string' && value.trim())
+          chunks.push(value.trim());
       }
       for (const row of asArray(
         data.constraintViolations ?? data.violations ?? data.errors,
@@ -564,9 +578,7 @@ export class HungerStationClient {
     const now = input.timeTo ? new Date(input.timeTo) : new Date();
     const from = input.timeFrom
       ? new Date(input.timeFrom)
-      : new Date(
-          now.getTime() - (input.daysBack ?? 14) * 24 * 60 * 60 * 1000,
-        );
+      : new Date(now.getTime() - (input.daysBack ?? 14) * 24 * 60 * 60 * 1000);
     const pagination: Record<string, unknown> = {
       pageSize: input.pageSize ?? 50,
     };
@@ -653,8 +665,7 @@ export class HungerStationClient {
     const fromRaw = input?.timeFrom
       ? new Date(input.timeFrom)
       : new Date(
-          toRaw.getTime() -
-            (input?.daysBack ?? 7) * 24 * 60 * 60 * 1000,
+          toRaw.getTime() - (input?.daysBack ?? 7) * 24 * 60 * 60 * 1000,
         );
     return {
       from: this.riyadhDate(fromRaw),
@@ -670,10 +681,7 @@ export class HungerStationClient {
     const now = input?.timeTo ? new Date(input.timeTo) : new Date();
     const from = input?.timeFrom
       ? new Date(input.timeFrom)
-      : new Date(
-          now.getTime() -
-            (input?.daysBack ?? 7) * 24 * 60 * 60 * 1000,
-        );
+      : new Date(now.getTime() - (input?.daysBack ?? 7) * 24 * 60 * 60 * 1000);
     return {
       timeFrom: from.toISOString().replace(/\.\d{3}Z$/, '.000Z'),
       timeTo: now.toISOString().replace(/\.\d{3}Z$/, '.999Z'),
@@ -694,10 +702,7 @@ export class HungerStationClient {
   }
 
   /** Partner portal BFF login (email/password). May still hit PerimeterX from server IP. */
-  async loginWithPassword(input: {
-    email: string;
-    password: string;
-  }): Promise<{
+  async loginWithPassword(input: { email: string; password: string }): Promise<{
     accessToken: string;
     refreshToken: string | null;
     raw: Record<string, unknown>;
@@ -1011,9 +1016,7 @@ export class HungerStationClient {
         id,
         currency: String(row.currency ?? 'SAR'),
         globalEntityId: String(row.globalEntityId ?? HS_GLOBAL_ENTITY_ID),
-        ...(row.vendorId != null
-          ? { vendorId: String(row.vendorId) }
-          : {}),
+        ...(row.vendorId != null ? { vendorId: String(row.vendorId) } : {}),
       });
     };
     const walk = (node: unknown, depth = 0) => {
@@ -1198,7 +1201,7 @@ export class HungerStationClient {
       timeTo: input.timeTo,
       daysBack: input.daysBack ?? 30,
     });
-    let accounts = this.normalizeFinanceAccounts(
+    const accounts = this.normalizeFinanceAccounts(
       input.accounts ??
         (await this.listFinanceAccounts({
           cookies: input.cookies,
@@ -1239,8 +1242,7 @@ export class HungerStationClient {
           payouts: [],
           unavailable: true,
           reason: 'finance_accounts_unavailable',
-          hint:
-            'حساب هذا المتجر لا يعرض موديول المالية في partner-app، أو لا توجد صلاحية للدفعات. يمكنك لصق financeAccountsJson يدوياً في بيانات الاعتماد إن توفر معرف الحساب.',
+          hint: 'حساب هذا المتجر لا يعرض موديول المالية في partner-app، أو لا توجد صلاحية للدفعات. يمكنك لصق financeAccountsJson يدوياً في بيانات الاعتماد إن توفر معرف الحساب.',
           detail: msg.slice(0, 300),
         };
       }
@@ -1339,7 +1341,10 @@ export class HungerStationClient {
     const closedReason = input.closedReason?.trim() || 'CLOSED';
     const status = open ? 'OPEN' : 'CLOSED_TODAY';
 
-    if (!this.bridge.isConnected('hungerstation') && !input.cookies.accessToken) {
+    if (
+      !this.bridge.isConnected('hungerstation') &&
+      !input.cookies.accessToken
+    ) {
       throw new ProviderHttpError(
         'HUNGERSTATION: افتح الإكستنشن وسجّل دخول بوابة الشريك ثم احفظ الجلسة لفتح/إغلاق المتجر.',
         503,
@@ -1369,7 +1374,9 @@ export class HungerStationClient {
     for (const url of urls) {
       try {
         const raw = await this.rest(input.cookies, url, 'PUT', body);
-        return asRecord(raw ?? { available: open, status, availabilityState: status });
+        return asRecord(
+          raw ?? { available: open, status, availabilityState: status },
+        );
       } catch (error) {
         lastError = error;
         const msg = error instanceof Error ? error.message : String(error);
@@ -1448,7 +1455,9 @@ export class HungerStationClient {
       } catch (error) {
         lastError = error;
         const msg = error instanceof Error ? error.message : String(error);
-        if (!/no Route matched|404|Not Found|http_404|Failed to fetch/i.test(msg)) {
+        if (
+          !/no Route matched|404|Not Found|http_404|Failed to fetch/i.test(msg)
+        ) {
           throw error;
         }
         this.logger.warn(`HS performance report miss at ${url}: ${msg}`);
@@ -1459,11 +1468,12 @@ export class HungerStationClient {
     try {
       const sales = await this.salesOverviewByTime({
         ...input,
-        granularity: (precision === 'HOUR'
-          ? 'HOUR'
-          : precision === 'MONTH'
-            ? 'MONTH'
-            : 'DAY') as HsSalesGranularity,
+        granularity:
+          precision === 'HOUR'
+            ? 'HOUR'
+            : precision === 'MONTH'
+              ? 'MONTH'
+              : 'DAY',
       });
       return {
         source: 'salesOverview_fallback',
@@ -1546,10 +1556,7 @@ export class HungerStationClient {
   private static readonly EN_NAME_SEED = 'Product';
   private static readonly EN_DESCRIPTION_SEED = 'Product description';
 
-  private localeValue(
-    entries: unknown,
-    locales: string[],
-  ): string {
+  private localeValue(entries: unknown, locales: string[]): string {
     for (const row of asArray(entries)) {
       const item = asRecord(row);
       const locale = String(item.locale ?? '').trim();
@@ -1562,7 +1569,10 @@ export class HungerStationClient {
   }
 
   private stripLatin(text: string): string {
-    return text.replace(/[a-zA-Z]/g, '').replace(/\s+/g, ' ').trim();
+    return text
+      .replace(/[a-zA-Z]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private hasLatin(text: string): boolean {
@@ -1611,13 +1621,7 @@ export class HungerStationClient {
       explicitNameAr ||
       explicitNameEn ||
       String(input.name ?? '').trim() ||
-      this.localeValue(input.names, [
-        'ar-SA',
-        'ar',
-        'en-SA',
-        'en-US',
-        'en',
-      ])
+      this.localeValue(input.names, ['ar-SA', 'ar', 'en-SA', 'en-US', 'en'])
     ).trim();
     const descRaw = (
       explicitDescAr ||
@@ -2147,11 +2151,7 @@ export class HungerStationClient {
 
     const buffer = Buffer.from(base64, 'base64');
     const form = new FormData();
-    form.append(
-      'file',
-      new Blob([buffer], { type: contentType }),
-      fileName,
-    );
+    form.append('file', new Blob([buffer], { type: contentType }), fileName);
 
     const headers = this.gqlHeaders(input.cookies);
     delete headers['Content-Type'];
@@ -2336,9 +2336,7 @@ export class HungerStationClient {
           name: String(line.name ?? 'Item'),
           quantity: qty,
           unitPrice: unit,
-          totalAmount: money(
-            line.lineItemTotal ?? Number(qty) * Number(unit),
-          ),
+          totalAmount: money(line.lineItemTotal ?? Number(qty) * Number(unit)),
           productExternalId: line.id != null ? String(line.id) : null,
           rawPayload: line,
         };
@@ -2395,5 +2393,3 @@ export function extractVendorId(cookies: Record<string, string>): string {
     return '';
   }
 }
-
-

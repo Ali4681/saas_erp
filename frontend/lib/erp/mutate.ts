@@ -37,12 +37,16 @@ export async function erpMutate(opts: MutateOptions): Promise<void> {
         error.status === 403
           ? t("forbiddenWithDetail", { detail: error.message })
           : error.message;
-      redirect(`${opts.pagePath}?error=${encodeURIComponent(message)}`);
+      const sep = opts.pagePath.includes("?") ? "&" : "?";
+      redirect(
+        `${opts.pagePath}${sep}error=${encodeURIComponent(message)}`,
+      );
     }
     throw error;
   }
 
   revalidatePath(opts.pagePath);
   const msg = encodeURIComponent(opts.okMessage ?? t("savedSuccessfully"));
-  redirect(`${opts.pagePath}?ok=${msg}`);
+  const sep = opts.pagePath.includes("?") ? "&" : "?";
+  redirect(`${opts.pagePath}${sep}ok=${msg}`);
 }

@@ -126,7 +126,10 @@ export function applyTenantExtension(
               const data = {
                 ...((nextArgs.data as Record<string, unknown>) ?? {}),
               };
-              assertCompanyMatch(data.companyId as string | undefined, companyId);
+              assertCompanyMatch(
+                data.companyId as string | undefined,
+                companyId,
+              );
               data.companyId = companyId;
               nextArgs.data = data;
             } else {
@@ -154,7 +157,10 @@ export function applyTenantExtension(
             const create = {
               ...((nextArgs.create as Record<string, unknown>) ?? {}),
             };
-            assertCompanyMatch(create.companyId as string | undefined, companyId);
+            assertCompanyMatch(
+              create.companyId as string | undefined,
+              companyId,
+            );
             create.companyId = companyId;
             nextArgs.create = create;
             nextArgs.where = injectCompanyWhere(

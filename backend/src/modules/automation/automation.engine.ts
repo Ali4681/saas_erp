@@ -50,9 +50,7 @@ export class AutomationEngine {
         where: {
           companyId,
           status: 'ACTIVE',
-          ...(input.ruleId
-            ? { id: input.ruleId }
-            : { triggerEvent: event }),
+          ...(input.ruleId ? { id: input.ruleId } : { triggerEvent: event }),
         },
         orderBy: { updatedAt: 'asc' },
         take: 100,
@@ -126,7 +124,9 @@ export class AutomationEngine {
         case 'lte':
           return Number(left) <= Number(right);
         case 'in':
-          return Array.isArray(right) && right.map(String).includes(String(left));
+          return (
+            Array.isArray(right) && right.map(String).includes(String(left))
+          );
         case 'contains':
           return String(left ?? '').includes(String(right ?? ''));
         default:
@@ -184,8 +184,7 @@ export class AutomationEngine {
       }
 
       const anyFailed = results.some((r) => !r.ok && !r.skipped);
-      const allSkipped =
-        results.length > 0 && results.every((r) => r.skipped);
+      const allSkipped = results.length > 0 && results.every((r) => r.skipped);
       const status = allSkipped
         ? 'SKIPPED'
         : anyFailed

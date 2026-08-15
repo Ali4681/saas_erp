@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   ArrowRightLeft,
@@ -78,16 +78,23 @@ export function Topbar({
   menuOpen?: boolean;
   showMenuButton?: boolean;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const t = useTranslations("common");
   const tRoles = useTranslations("roles");
   const title = useSectionTitle(pathname, companyId);
   const displayCompany = companyName?.trim() || null;
 
-  function logout() {
-    void fetch(BFF_AUTH.logout, { method: "POST" });
-    router.replace(user.isPlatformAdmin ? "/admin/login" : "/login");
+  async function logout() {
+    try {
+      await fetch(BFF_AUTH.logout, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // still leave the session UI even if the BFF call fails
+    }
+    // Hard navigation so middleware sees cleared cookies (soft replace raced to home).
+    window.location.assign(user.isPlatformAdmin ? "/admin/login" : "/login");
   }
 
   return (

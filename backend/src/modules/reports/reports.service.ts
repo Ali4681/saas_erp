@@ -56,9 +56,7 @@ export class ReportsService {
       this.prisma.crmContact.count({
         where: {
           ...(f.customerId ? { id: f.customerId } : {}),
-          ...(f.status
-            ? { status: f.status as never }
-            : { status: 'ACTIVE' }),
+          ...(f.status ? { status: f.status as never } : { status: 'ACTIVE' }),
           contactType: 'CUSTOMER',
         },
       }),
@@ -627,9 +625,7 @@ export class ReportsService {
               where: {
                 ...(f.employeeId ? { employeeId: f.employeeId } : {}),
                 ...(f.status ? { status: f.status as never } : {}),
-                ...(f.date('startsOn')
-                  ? { startsOn: f.date('startsOn') }
-                  : {}),
+                ...(f.date('startsOn') ? { startsOn: f.date('startsOn') } : {}),
               },
               _count: true,
             }),
@@ -677,7 +673,8 @@ export class ReportsService {
             ...e,
             basicSalary: e.basicSalary?.toString() ?? null,
             targetPercent: e.targetPercent?.toString() ?? null,
-            targetCompletedPercent: e.targetCompletedPercent?.toString() ?? null,
+            targetCompletedPercent:
+              e.targetCompletedPercent?.toString() ?? null,
             absenceDiscountPerDay: e.absenceDiscountPerDay?.toString() ?? null,
             lateDiscountAmount: e.lateDiscountAmount?.toString() ?? null,
           })),
@@ -967,7 +964,10 @@ export class ReportsService {
     if (from && to && from > to) {
       throw new BadRequestException('from must be <= to');
     }
-    const limit = Math.min(Math.max(Number(filters.limit ?? 20) || 20, 1), 200);
+    const limit = Math.min(
+      Math.max(Number(filters.limit ?? 200) || 200, 1),
+      500,
+    );
     return {
       from,
       to,
@@ -988,9 +988,7 @@ export class ReportsService {
     };
   }
 
-  private publicFilters(
-    f: ReturnType<ReportsService['normalizeFilters']>,
-  ) {
+  private publicFilters(f: ReturnType<ReportsService['normalizeFilters']>) {
     return {
       from: f.from?.toISOString() ?? null,
       to: f.to?.toISOString() ?? null,
@@ -1013,16 +1011,12 @@ export class ReportsService {
     }
     return {
       companyId,
-      status: f.status
-        ? (f.status as never)
-        : { not: 'CANCELLED' },
+      status: f.status ? (f.status as never) : { not: 'CANCELLED' },
       ...(f.date('issuedOn') ? { issuedOn: f.date('issuedOn') } : {}),
       ...(f.branchId ? { companyBranchId: f.branchId } : {}),
       ...(f.customerId ? { contactId: f.customerId } : {}),
       ...(createdById ? { createdById } : {}),
-      ...(f.productId
-        ? { items: { some: { itemId: f.productId } } }
-        : {}),
+      ...(f.productId ? { items: { some: { itemId: f.productId } } } : {}),
     };
   }
 
@@ -1047,8 +1041,8 @@ export class ReportsService {
       for (const field of moneyFields) {
         const v = sum[field];
         sum[field] =
-          v != null && typeof (v as { toString: () => string }).toString ===
-            'function'
+          v != null &&
+          typeof (v as { toString: () => string }).toString === 'function'
             ? (v as { toString: () => string }).toString()
             : '0.00';
       }

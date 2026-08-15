@@ -76,6 +76,7 @@ model SalesInvoice {
   payments    SalesPayment[]
   creditNotes SalesCreditNote[]
   financeTxns FinancialTransaction[]
+  employeeSalesSubmissions EmployeeSalesSubmission[]
 
   @@unique([companyId, invoiceNumber], map: "uq_sales_invoice_number")
   @@index([companyId, status, dueOn], map: "idx_sales_invoice_status_due")

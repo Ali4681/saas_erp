@@ -1,6 +1,6 @@
 import {
   clearSessionCookies,
-  getSession,
+  readSessionFromCookies,
   setSessionCookies,
 } from "@/lib/auth/session";
 import { userFromAccessToken } from "@/lib/auth/jwt";
@@ -45,7 +45,8 @@ export async function apiServer<T>(
   init: ApiServerInit = {},
 ): Promise<T> {
   const { companyId: companyIdOverride, ...rest } = init;
-  let session = await getSession();
+  // Fresh cookie read — never use React cache() here (Route Handlers / polls).
+  let session = await readSessionFromCookies();
   if (!session) {
     throw new ApiError(401, "غير مسجّل الدخول");
   }

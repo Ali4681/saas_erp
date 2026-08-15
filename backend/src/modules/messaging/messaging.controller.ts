@@ -111,10 +111,7 @@ export class MessagingController {
 
   @Post('send')
   @RequirePermissions('messaging.write')
-  send(
-    @Param('companyId') companyId: string,
-    @Body() body: SendMessageBody,
-  ) {
+  send(@Param('companyId') companyId: string, @Body() body: SendMessageBody) {
     return this.messaging.sendMessage({ companyId, ...body });
   }
 }

@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   IsArray,
   IsBoolean,
@@ -181,10 +189,7 @@ export class AutomationController {
 
   @Get('runs')
   @RequirePermissions('automation.read')
-  listRuns(
-    @Param('companyId') companyId: string,
-    @Query() query: RunsQuery,
-  ) {
+  listRuns(@Param('companyId') companyId: string, @Query() query: RunsQuery) {
     return this.automation.listRuns(companyId, query.ruleId);
   }
 }

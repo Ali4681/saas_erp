@@ -60,6 +60,7 @@ model Company {
   workShifts        WorkShift[]
   employeeShiftAssignments EmployeeShiftAssignment[]
   employeeSalesSubmissions EmployeeSalesSubmission[]
+  employeeQiwaContracts EmployeeQiwaContract[]
   dailyCashClosings DailyCashClosing[]
   workProjects      WorkProject[]
   automationRules   AutomationRule[]

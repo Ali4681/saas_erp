@@ -102,7 +102,7 @@ export default async function LeavesPage({
               defaultValue="1"
             />
             <div className="md:col-span-2">
-              <Textarea name="reason" label={t("reason")} />
+              <Textarea name="reason" label={t("reason")} required />
             </div>
             <div className="md:col-span-2">
               <Button type="submit">{t("submit")}</Button>

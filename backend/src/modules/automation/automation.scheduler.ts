@@ -31,14 +31,23 @@ function matchCronField(field: string, value: number): boolean {
         continue;
       }
       const start = Number(base);
-      if (Number.isFinite(start) && value >= start && (value - start) % step === 0) {
+      if (
+        Number.isFinite(start) &&
+        value >= start &&
+        (value - start) % step === 0
+      ) {
         return true;
       }
       continue;
     }
     if (token.includes('-')) {
       const [a, b] = token.split('-').map(Number);
-      if (Number.isFinite(a) && Number.isFinite(b) && value >= a && value <= b) {
+      if (
+        Number.isFinite(a) &&
+        Number.isFinite(b) &&
+        value >= a &&
+        value <= b
+      ) {
         return true;
       }
       continue;
@@ -197,13 +206,19 @@ export class AutomationScheduler {
         : contact.updatedAt;
       if (lastAt >= cutoff) continue;
 
-      await this.safeDispatch(companyId, 'crm.contact.stale', 'crm_contact', contact.id, {
-        contactId: contact.id,
-        name: contact.name,
-        ownerUserId: contact.ownerUserId,
-        staleDays: this.staleDays,
-        lastActivityAt: lastAt.toISOString(),
-      });
+      await this.safeDispatch(
+        companyId,
+        'crm.contact.stale',
+        'crm_contact',
+        contact.id,
+        {
+          contactId: contact.id,
+          name: contact.name,
+          ownerUserId: contact.ownerUserId,
+          staleDays: this.staleDays,
+          lastActivityAt: lastAt.toISOString(),
+        },
+      );
     }
   }
 
@@ -265,15 +280,21 @@ export class AutomationScheduler {
     });
 
     for (const task of tasks) {
-      await this.safeDispatch(companyId, 'work.task.overdue', 'work_task', task.id, {
-        taskId: task.id,
-        title: task.title,
-        workProjectId: task.workProjectId,
-        projectName: task.workProject.name,
-        ownerUserId: task.workProject.ownerUserId,
-        assigneeUserId: task.assignee?.userId ?? null,
-        dueAt: task.dueAt?.toISOString() ?? null,
-      });
+      await this.safeDispatch(
+        companyId,
+        'work.task.overdue',
+        'work_task',
+        task.id,
+        {
+          taskId: task.id,
+          title: task.title,
+          workProjectId: task.workProjectId,
+          projectName: task.workProject.name,
+          ownerUserId: task.workProject.ownerUserId,
+          assigneeUserId: task.assignee?.userId ?? null,
+          dueAt: task.dueAt?.toISOString() ?? null,
+        },
+      );
     }
   }
 
@@ -297,15 +318,21 @@ export class AutomationScheduler {
       const minStock = Number(item.minStock ?? 0);
       if (onHand > minStock) continue;
 
-      await this.safeDispatch(companyId, 'inventory.stock.low', 'item', item.id, {
-        itemId: item.id,
-        itemName: item.name,
-        sku: item.sku,
-        onHand,
-        minStock,
-        atOrBelowMin: true,
-        source: 'scheduler',
-      });
+      await this.safeDispatch(
+        companyId,
+        'inventory.stock.low',
+        'item',
+        item.id,
+        {
+          itemId: item.id,
+          itemName: item.name,
+          sku: item.sku,
+          onHand,
+          minStock,
+          atOrBelowMin: true,
+          source: 'scheduler',
+        },
+      );
     }
   }
 

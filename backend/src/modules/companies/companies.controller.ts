@@ -250,19 +250,13 @@ export class CompaniesController {
 
   @Patch(':id/settings')
   @RequirePermissions('companies.write')
-  updateSettings(
-    @Param('id') id: string,
-    @Body() body: UpdateSettingsBody,
-  ) {
+  updateSettings(@Param('id') id: string, @Body() body: UpdateSettingsBody) {
     return this.companies.updateSettings(id, body);
   }
 
   @Get(':id/departments')
   @RequirePermissions('companies.read')
-  listDepartments(
-    @Param('id') id: string,
-    @Query() query: DepartmentsQuery,
-  ) {
+  listDepartments(@Param('id') id: string, @Query() query: DepartmentsQuery) {
     return this.companies.listDepartments(id, query.branchId);
   }
 

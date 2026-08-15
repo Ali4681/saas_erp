@@ -107,20 +107,15 @@ export class MrsoolProviderAdapter extends BaseProviderAdapter {
 
     if (op.includes('ENABLE') || op.includes('AVAILABLE')) {
       const data = asRecord(
-        await this.client.rest(
-          `/v1/menu_items/${id}/enable_menu_item`,
-          'PUT',
-          { for_all_branches: true },
-        ),
+        await this.client.rest(`/v1/menu_items/${id}/enable_menu_item`, 'PUT', {
+          for_all_branches: true,
+        }),
       );
       return { responseExternalId: id, rawResponse: data };
     }
     if (op.includes('DISABLE') || op.includes('UNAVAILABLE')) {
       const data = asRecord(
-        await this.client.rest(
-          `/v1/menu_items/${id}/disable_menu_item`,
-          'PUT',
-        ),
+        await this.client.rest(`/v1/menu_items/${id}/disable_menu_item`, 'PUT'),
       );
       return { responseExternalId: id, rawResponse: data };
     }

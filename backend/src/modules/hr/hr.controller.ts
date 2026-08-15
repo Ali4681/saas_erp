@@ -15,8 +15,11 @@ import {
   IsNumberString,
   IsOptional,
   IsString,
+  Matches,
+  MaxLength,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import {
   AttendanceDeviceType,
   AttendanceStatus,
@@ -38,6 +41,27 @@ import {
   type AuthUser,
 } from '../../common/auth/auth.decorators';
 import { HrService } from './hr.service';
+import { HrQiwaService } from './hr-qiwa.service';
+
+/** Form posts often send "" for unused optional fields — treat as omitted. */
+function emptyToUndefined({ value }: { value: unknown }) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  return typeof value === 'string' ? value.trim() || undefined : value;
+}
+
+function normalizeSaudiIdInput({ value }: { value: unknown }) {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/[\s-]+/g, '')
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+}
+
+function normalizeSaudiIbanInput({ value }: { value: unknown }) {
+  if (value === '' || value === null || value === undefined) return undefined;
+  if (typeof value !== 'string') return value;
+  const n = value.replace(/[\s-]+/g, '').toUpperCase();
+  return n || undefined;
+}
 
 class CreateEmployeeBody {
   @IsString()
@@ -51,19 +75,32 @@ class CreateEmployeeBody {
   @IsEnum(EmployeeIdentityType)
   identityType!: EmployeeIdentityType;
 
+  @Transform(normalizeSaudiIdInput)
   @IsString()
-  @MinLength(1)
+  @MinLength(10)
+  @MaxLength(10)
+  @Matches(/^[12][0-9]{9}$/, {
+    message:
+      'identityNumber must be a Saudi ID/Iqama: 10 digits starting with 1 (citizen) or 2 (resident)',
+  })
   identityNumber!: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   identityExpiresOn?: string;
 
   @IsOptional()
+  @Transform(normalizeSaudiIbanInput)
   @IsString()
+  @Matches(/^SA[0-9]{22}$/, {
+    message:
+      'iban must be a Saudi IBAN: SA + 22 digits (24 characters total)',
+  })
   iban?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   ibanBankName?: string;
 
@@ -72,70 +109,96 @@ class CreateEmployeeBody {
   salesTargetMode?: SalesTargetMode;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   salesTargetAmount?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   lateHourRate?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsNumberString()
+  advanceAllowancePercent?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   advanceAllowanceMonthly?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   advanceAllowanceMonth?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  attendanceBadgeId?: string;
 
   @IsOptional()
   @IsEnum(EmployeeApprovalStatus)
   approvalStatus?: EmployeeApprovalStatus;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   userId?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   companyBranchId?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   companyDepartmentId?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   email?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   phone?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   jobTitle?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   hireDate?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   basicSalary?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   targetPercent?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   targetCompletedPercent?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   absenceDiscountPerDay?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsNumberString()
   lateDiscountAmount?: string;
 
@@ -144,6 +207,7 @@ class CreateEmployeeBody {
   isPurchaseOperator?: boolean;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
   currency?: string;
 }
@@ -154,7 +218,12 @@ class UpdateEmployeeBody {
   identityType?: EmployeeIdentityType;
 
   @IsOptional()
+  @Transform(normalizeSaudiIdInput)
   @IsString()
+  @Matches(/^[12][0-9]{9}$/, {
+    message:
+      'identityNumber must be a Saudi ID/Iqama: 10 digits starting with 1 (citizen) or 2 (resident)',
+  })
   identityNumber?: string;
 
   @IsOptional()
@@ -199,11 +268,19 @@ class UpdateEmployeeBody {
 
   @IsOptional()
   @IsNumberString()
+  advanceAllowancePercent?: string;
+
+  @IsOptional()
+  @IsNumberString()
   advanceAllowanceMonthly?: string;
 
   @IsOptional()
   @IsString()
   advanceAllowanceMonth?: string;
+
+  @IsOptional()
+  @IsString()
+  attendanceBadgeId?: string;
 
   @IsOptional()
   @IsNumberString()
@@ -435,9 +512,10 @@ class CreateDeviceBody {
   @IsEnum(AttendanceDeviceType)
   deviceType!: AttendanceDeviceType;
 
+  @IsOptional()
   @IsString()
   @MinLength(4)
-  deviceKey!: string;
+  deviceKey?: string;
 
   @IsOptional()
   @IsString()
@@ -503,6 +581,10 @@ class MyProfileBody {
   @IsOptional()
   @IsString()
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  iban?: string;
 }
 
 class AttachmentBody {
@@ -525,11 +607,17 @@ class AttachmentBody {
 }
 
 class AdvanceAllowanceBody {
+  @IsOptional()
   @IsString()
-  month!: string;
+  month?: string;
 
+  @IsOptional()
   @IsNumberString()
-  amount!: string;
+  amount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  percent?: string;
 }
 
 class QiwaBody {
@@ -540,6 +628,38 @@ class QiwaBody {
   @IsOptional()
   @IsString()
   ref?: string;
+}
+
+class QiwaRejectBody {
+  @IsString()
+  @MinLength(1)
+  notes!: string;
+}
+
+class QiwaConfirmBody {
+  @IsString()
+  @MinLength(2)
+  qiwaContractReference!: string;
+
+  @IsString()
+  documentedAt!: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsString()
+  fileName!: string;
+
+  @IsString()
+  mimeType!: string;
+
+  @IsNumberString()
+  sizeBytes!: string;
+
+  @IsString()
+  @MinLength(1)
+  contentBase64!: string;
 }
 
 class CreateShiftBody {
@@ -586,6 +706,14 @@ class SubmitSaleBody {
 
   @IsOptional()
   @IsString()
+  invoiceNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  salesInvoiceId?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 
   @IsOptional()
@@ -604,13 +732,17 @@ class DecideSaleBody {
 }
 
 class TargetCompletedBody {
+  @IsOptional()
   @IsNumberString()
-  targetCompletedPercent!: string;
+  targetCompletedPercent?: string;
 }
 
 @Controller('companies/:companyId/hr')
 export class HrController {
-  constructor(private readonly hr: HrService) {}
+  constructor(
+    private readonly hr: HrService,
+    private readonly qiwa: HrQiwaService,
+  ) {}
 
   @Get('summary')
   @RequirePermissions('hr.read')
@@ -695,6 +827,112 @@ export class HrController {
     @Body() body: QiwaBody,
   ) {
     return this.hr.setQiwa(companyId, employeeId, body);
+  }
+
+  @Get('employees/:employeeId/qiwa-contract')
+  @RequirePermissions('hr.read')
+  getQiwaContract(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.qiwa.getCurrent(companyId, employeeId);
+  }
+
+  @Get('employees/:employeeId/qiwa-contract/summary')
+  @RequirePermissions('hr.qiwa.manage')
+  getQiwaSummary(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+  ) {
+    return this.qiwa.getEmployeeSummaryForQiwa(companyId, employeeId);
+  }
+
+  @Post('employees/:employeeId/qiwa-contract/start')
+  @RequirePermissions('hr.qiwa.manage')
+  startQiwa(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qiwa.startDocumentation(companyId, employeeId, user.userId);
+  }
+
+  @Post('employees/:employeeId/qiwa-contract/mark-sent')
+  @RequirePermissions('hr.qiwa.manage')
+  markQiwaSent(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qiwa.markSent(companyId, employeeId, user.userId);
+  }
+
+  @Post('employees/:employeeId/qiwa-contract/mark-rejected')
+  @RequirePermissions('hr.qiwa.manage')
+  markQiwaRejected(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: QiwaRejectBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qiwa.markRejected(
+      companyId,
+      employeeId,
+      user.userId,
+      body.notes,
+    );
+  }
+
+  @Post('employees/:employeeId/qiwa-contract/retry')
+  @RequirePermissions('hr.qiwa.manage')
+  retryQiwa(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qiwa.retryDocumentation(companyId, employeeId, user.userId);
+  }
+
+  @Post('employees/:employeeId/qiwa-contract/confirm')
+  @RequirePermissions('hr.qiwa.manage')
+  confirmQiwa(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: QiwaConfirmBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qiwa.confirmDocumentation(
+      companyId,
+      employeeId,
+      user.userId,
+      body,
+    );
+  }
+
+  @Post('employees/:employeeId/qiwa-contract/approve')
+  @RequirePermissions('hr.qiwa.approve')
+  approveQiwa(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qiwa.approveDocumentation(companyId, employeeId, user.userId);
+  }
+
+  @Post('employees/:employeeId/qiwa-contract/reject-approval')
+  @RequirePermissions('hr.qiwa.approve')
+  rejectQiwaApproval(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: QiwaRejectBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qiwa.rejectApproval(
+      companyId,
+      employeeId,
+      user.userId,
+      body.notes,
+    );
   }
 
   @Post('employees/:employeeId/shifts')
@@ -892,6 +1130,12 @@ export class HrController {
     return this.hr.listSalesSubmissions(companyId, status);
   }
 
+  @Get('payable-invoices')
+  @RequirePermissions('hr.read')
+  listPayableInvoices(@Param('companyId') companyId: string) {
+    return this.hr.listPayableInvoices(companyId);
+  }
+
   @Post('sales-submissions')
   @RequirePermissions('hr.write')
   submitSale(
@@ -907,6 +1151,8 @@ export class HrController {
       saleDate: body.saleDate,
       amount: body.amount,
       paymentMethod: body.paymentMethod,
+      invoiceNumber: body.invoiceNumber,
+      salesInvoiceId: body.salesInvoiceId,
       notes: body.notes,
       receiptAttachmentId: body.receiptAttachmentId,
     });
@@ -924,7 +1170,7 @@ export class HrController {
   }
 
   @Patch('sales-submissions/:id/decision')
-  @RequirePermissions('hr.write')
+  @RequirePermissions('hr.read')
   decideSale(
     @Param('companyId') companyId: string,
     @Param('id') id: string,
@@ -937,6 +1183,7 @@ export class HrController {
       body.status,
       user.userId,
       user.permissions ?? [],
+      user.isPlatformAdmin,
     );
   }
 
@@ -1064,12 +1311,7 @@ export class HrController {
   myTargetCompleted(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
-    @Body() body: TargetCompletedBody,
   ) {
-    return this.hr.updateMyTargetCompleted(
-      companyId,
-      user.userId,
-      body.targetCompletedPercent,
-    );
+    return this.hr.updateMyTargetCompleted(companyId, user.userId);
   }
 }

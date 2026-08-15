@@ -138,9 +138,7 @@ export class SalesService {
       where: { id: quoteId },
       data: {
         status,
-        ...(status === 'APPROVED' && approvedById
-          ? { approvedById }
-          : {}),
+        ...(status === 'APPROVED' && approvedById ? { approvedById } : {}),
       },
       include: { items: true },
     });
@@ -335,102 +333,104 @@ export class SalesService {
       throw new BadRequestException('Payment amount must be > 0');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const invoice = await tx.salesInvoice.findFirst({
-        where: { id: input.salesInvoiceId, companyId: input.companyId },
-      });
-      if (!invoice) {
-        throw new NotFoundException('Invoice not found');
-      }
-      if (['CANCELLED', 'DRAFT'].includes(invoice.status)) {
-        throw new BadRequestException(
-          'Cannot pay a draft or cancelled invoice',
-        );
-      }
-
-      const balance = Number(invoice.balanceDue);
-      if (amount > balance + 0.001) {
-        throw new BadRequestException('Payment exceeds balance due');
-      }
-
-      if (input.bankAccountId) {
-        const account = await tx.bankAccount.findFirst({
-          where: { id: input.bankAccountId, companyId: input.companyId },
+    return this.prisma
+      .$transaction(async (tx) => {
+        const invoice = await tx.salesInvoice.findFirst({
+          where: { id: input.salesInvoiceId, companyId: input.companyId },
         });
-        if (!account) {
-          throw new BadRequestException('Bank account not found');
+        if (!invoice) {
+          throw new NotFoundException('Invoice not found');
         }
-      }
+        if (['CANCELLED', 'DRAFT'].includes(invoice.status)) {
+          throw new BadRequestException(
+            'Cannot pay a draft or cancelled invoice',
+          );
+        }
 
-      const receiptNumber = await this.docNumbers.nextSequence(
-        tx,
-        input.companyId,
-        'receipt',
-      );
-      const payment = await tx.salesPayment.create({
-        data: {
-          companyId: input.companyId,
-          salesInvoiceId: invoice.id,
-          bankAccountId: input.bankAccountId,
-          receiptNumber,
-          method: input.method,
-          amount: amount.toFixed(2),
-          currency: invoice.currency,
-          paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
-          externalReference: input.externalReference,
-        },
-      });
+        const balance = Number(invoice.balanceDue);
+        if (amount > balance + 0.001) {
+          throw new BadRequestException('Payment exceeds balance due');
+        }
 
-      const newBalance = Number((balance - amount).toFixed(2));
-      const status =
-        newBalance <= 0
-          ? 'PAID'
-          : newBalance < Number(invoice.totalAmount)
-            ? 'PARTIALLY_PAID'
-            : invoice.status;
+        if (input.bankAccountId) {
+          const account = await tx.bankAccount.findFirst({
+            where: { id: input.bankAccountId, companyId: input.companyId },
+          });
+          if (!account) {
+            throw new BadRequestException('Bank account not found');
+          }
+        }
 
-      await tx.salesInvoice.update({
-        where: { id: invoice.id },
-        data: {
-          balanceDue: newBalance.toFixed(2),
-          status,
-        },
-      });
-
-      await tx.financialTransaction.create({
-        data: {
-          companyId: input.companyId,
-          transactionType: 'RECEIPT',
-          direction: 'INFLOW',
-          amount: amount.toFixed(2),
-          currency: invoice.currency,
-          occurredAt: payment.paidAt,
-          salesInvoiceId: invoice.id,
-          description: `Receipt ${receiptNumber} for invoice ${invoice.invoiceNumber}`,
-        },
-      });
-
-      return payment;
-    }).then(async (payment) => {
-      const invoice = await this.prisma.salesInvoice.findFirst({
-        where: { id: input.salesInvoiceId, companyId: input.companyId },
-      });
-      if (invoice?.status === 'PAID') {
-        this.emit(
+        const receiptNumber = await this.docNumbers.nextSequence(
+          tx,
           input.companyId,
-          'sales.invoice.paid',
-          'sales_invoice',
-          invoice.id,
-          {
-            invoiceId: invoice.id,
-            contactId: invoice.contactId,
-            invoiceNumber: invoice.invoiceNumber,
-            totalAmount: String(invoice.totalAmount),
-          },
+          'receipt',
         );
-      }
-      return payment;
-    });
+        const payment = await tx.salesPayment.create({
+          data: {
+            companyId: input.companyId,
+            salesInvoiceId: invoice.id,
+            bankAccountId: input.bankAccountId,
+            receiptNumber,
+            method: input.method,
+            amount: amount.toFixed(2),
+            currency: invoice.currency,
+            paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
+            externalReference: input.externalReference,
+          },
+        });
+
+        const newBalance = Number((balance - amount).toFixed(2));
+        const status =
+          newBalance <= 0
+            ? 'PAID'
+            : newBalance < Number(invoice.totalAmount)
+              ? 'PARTIALLY_PAID'
+              : invoice.status;
+
+        await tx.salesInvoice.update({
+          where: { id: invoice.id },
+          data: {
+            balanceDue: newBalance.toFixed(2),
+            status,
+          },
+        });
+
+        await tx.financialTransaction.create({
+          data: {
+            companyId: input.companyId,
+            transactionType: 'RECEIPT',
+            direction: 'INFLOW',
+            amount: amount.toFixed(2),
+            currency: invoice.currency,
+            occurredAt: payment.paidAt,
+            salesInvoiceId: invoice.id,
+            description: `Receipt ${receiptNumber} for invoice ${invoice.invoiceNumber}`,
+          },
+        });
+
+        return payment;
+      })
+      .then(async (payment) => {
+        const invoice = await this.prisma.salesInvoice.findFirst({
+          where: { id: input.salesInvoiceId, companyId: input.companyId },
+        });
+        if (invoice?.status === 'PAID') {
+          this.emit(
+            input.companyId,
+            'sales.invoice.paid',
+            'sales_invoice',
+            invoice.id,
+            {
+              invoiceId: invoice.id,
+              contactId: invoice.contactId,
+              invoiceNumber: invoice.invoiceNumber,
+              totalAmount: String(invoice.totalAmount),
+            },
+          );
+        }
+        return payment;
+      });
   }
 
   listCreditNotes(companyId: string) {
@@ -469,15 +469,14 @@ export class SalesService {
       );
     }
 
-    const lines =
-      input.items?.length
-        ? input.items
-        : invoice.items.map((item) => ({
-            salesInvoiceItemId: item.id,
-            description: item.description,
-            quantity: item.quantity.toString(),
-            amount: item.totalAmount.toString(),
-          }));
+    const lines = input.items?.length
+      ? input.items
+      : invoice.items.map((item) => ({
+          salesInvoiceItemId: item.id,
+          description: item.description,
+          quantity: item.quantity.toString(),
+          amount: item.totalAmount.toString(),
+        }));
 
     const total = lines.reduce((sum, line) => sum + Number(line.amount), 0);
     if (!(total > 0)) {

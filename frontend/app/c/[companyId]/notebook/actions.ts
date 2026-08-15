@@ -20,7 +20,12 @@ export async function createCategory(companyId: string, formData: FormData) {
   });
 }
 
-export async function createNote(companyId: string, formData: FormData) {
+export async function createNote(
+  companyId: string,
+  categoryCode: string,
+  pagePath: string,
+  formData: FormData,
+) {
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/notebook/notes`,
@@ -28,13 +33,14 @@ export async function createNote(companyId: string, formData: FormData) {
       title: str(formData, "title"),
       body: str(formData, "body"),
       categoryId: optStr(formData, "categoryId"),
+      categoryCode: optStr(formData, "categoryCode") ?? categoryCode,
       priority: optStr(formData, "priority") ?? "MEDIUM",
       status: optStr(formData, "status") ?? "OPEN",
       employeeId: optStr(formData, "employeeId"),
       crmContactId: optStr(formData, "crmContactId"),
       workProjectId: optStr(formData, "workProjectId"),
     },
-    pagePath: page(companyId, "notes"),
+    pagePath,
     okMessage: "تم إنشاء الملاحظة",
   });
 }

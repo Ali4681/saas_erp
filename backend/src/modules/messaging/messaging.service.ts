@@ -3,10 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  MessagingProvider,
-  Prisma,
-} from '../../generated/prisma/client';
+import { MessagingProvider, Prisma } from '../../generated/prisma/client';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { BrevoClient } from './brevo.client';
@@ -46,7 +43,9 @@ export class MessagingService {
         companyId: input.companyId,
         provider: input.provider,
         name: input.name,
-        config: (input.config ?? { transport: 'brevo' }) as Prisma.InputJsonValue,
+        config: (input.config ?? {
+          transport: 'brevo',
+        }) as Prisma.InputJsonValue,
       },
     });
   }
@@ -54,7 +53,9 @@ export class MessagingService {
   listTemplates(companyId: string) {
     this.tenant.setCompanyId(companyId);
     return this.prisma.messageTemplate.findMany({
-      include: { channel: { select: { id: true, name: true, provider: true } } },
+      include: {
+        channel: { select: { id: true, name: true, provider: true } },
+      },
       orderBy: { code: 'asc' },
     });
   }
@@ -200,8 +201,7 @@ export class MessagingService {
     }
     const obj = value as Record<string, unknown>;
     return {
-      fromEmail:
-        typeof obj.fromEmail === 'string' ? obj.fromEmail : undefined,
+      fromEmail: typeof obj.fromEmail === 'string' ? obj.fromEmail : undefined,
       fromName: typeof obj.fromName === 'string' ? obj.fromName : undefined,
       smsSender: typeof obj.smsSender === 'string' ? obj.smsSender : undefined,
       provider: typeof obj.provider === 'string' ? obj.provider : undefined,

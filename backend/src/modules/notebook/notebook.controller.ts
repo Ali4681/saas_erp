@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import {
   NotebookNoteStatus,
   TaskPriority,
@@ -38,6 +41,10 @@ class CreateNoteBody {
   @IsOptional()
   @IsString()
   categoryId?: string;
+
+  @IsOptional()
+  @IsString()
+  categoryCode?: string;
 
   @IsOptional()
   @IsEnum(TaskPriority)
@@ -105,6 +112,10 @@ class NotesQuery {
   @IsOptional()
   @IsString()
   q?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
 }
 
 @Controller('companies/:companyId/notebook')
@@ -128,11 +139,11 @@ export class NotebookController {
 
   @Get('notes')
   @RequirePermissions('notebook.read')
-  listNotes(
-    @Param('companyId') companyId: string,
-    @Query() query: NotesQuery,
-  ) {
-    return this.notebook.listNotes(companyId, query.q);
+  listNotes(@Param('companyId') companyId: string, @Query() query: NotesQuery) {
+    return this.notebook.listNotes(companyId, {
+      search: query.q,
+      categoryCode: query.category,
+    });
   }
 
   @Post('notes')
@@ -145,6 +156,8 @@ export class NotebookController {
     return this.notebook.createNote({
       companyId,
       createdById: user.userId,
+      roleCode: user.roleCode,
+      isPlatformAdmin: user.isPlatformAdmin,
       ...body,
     });
   }
@@ -157,7 +170,16 @@ export class NotebookController {
     @Body() body: UpdateNoteBody,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.notebook.updateNote(companyId, noteId, user.userId, body);
+    return this.notebook.updateNote(
+      companyId,
+      noteId,
+      user.userId,
+      body,
+      {
+        roleCode: user.roleCode,
+        isPlatformAdmin: user.isPlatformAdmin,
+      },
+    );
   }
 
   @Post('notes/:noteId/comments')
@@ -168,12 +190,7 @@ export class NotebookController {
     @Body() body: AddCommentBody,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.notebook.addComment(
-      companyId,
-      noteId,
-      user.userId,
-      body.body,
-    );
+    return this.notebook.addComment(companyId, noteId, user.userId, body.body);
   }
 
   @Get('notes/:noteId/revisions')

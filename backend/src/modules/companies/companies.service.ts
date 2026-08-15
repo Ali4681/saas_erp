@@ -370,12 +370,7 @@ export class CompaniesService {
       return null;
     }
 
-    const allowed = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'image/gif',
-    ];
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     const mimeType = (input.logoMimeType || 'image/png').trim().toLowerCase();
     if (!allowed.includes(mimeType)) {
       throw new BadRequestException(

@@ -31,7 +31,10 @@ export function companyRolePrefix(companyId: string): string {
   return `C${companyId.replace(/-/g, '').slice(0, 8).toUpperCase()}_`;
 }
 
-export function stripCompanyRolePrefix(code: string, companyId: string): string {
+export function stripCompanyRolePrefix(
+  code: string,
+  companyId: string,
+): string {
   const prefix = companyRolePrefix(companyId);
   return code.startsWith(prefix) ? code.slice(prefix.length) : code;
 }
@@ -51,7 +54,10 @@ export class RolesService {
       .findMany({
         where: {
           scope: 'TENANT',
-          OR: [{ isSystem: true }, { isSystem: false, code: { startsWith: prefix } }],
+          OR: [
+            { isSystem: true },
+            { isSystem: false, code: { startsWith: prefix } },
+          ],
         },
         include: {
           permissions: { include: { permission: true } },
@@ -59,9 +65,7 @@ export class RolesService {
         },
         orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
       })
-      .then((rows) =>
-        rows.map((role) => this.serialize(role, companyId)),
-      );
+      .then((rows) => rows.map((role) => this.serialize(role, companyId)));
   }
 
   listRoles(scope?: 'TENANT' | 'PLATFORM') {
@@ -192,7 +196,10 @@ export class RolesService {
       throw i18nBadRequest('errors.roles.useCompanyEndpoint');
     }
     // companyId unknown from prefix alone — update permissions directly
-    const permissionIds = await this.resolvePermissionIds(permissionCodes, true);
+    const permissionIds = await this.resolvePermissionIds(
+      permissionCodes,
+      true,
+    );
     await this.prisma.$transaction(async (tx) => {
       await tx.rolePermission.deleteMany({ where: { roleId } });
       if (permissionIds.length) {

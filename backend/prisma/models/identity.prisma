@@ -39,6 +39,8 @@ model User {
   createdPayrollRuns PayrollRun[]           @relation("PayrollCreator")
   decidedSalaryAdvances SalaryAdvance[]     @relation("SalaryAdvanceDecider")
   approvedSalesSubmissions EmployeeSalesSubmission[] @relation("SalesSubmissionApprover")
+  qiwaContractsVerified    EmployeeQiwaContract[]    @relation("QiwaContractVerifier")
+  qiwaContractsUpdated     EmployeeQiwaContract[]    @relation("QiwaContractUpdater")
   createdDailyClosings DailyCashClosing[]   @relation("DailyClosingCreator")
   closedDailyClosings DailyCashClosing[]    @relation("DailyClosingCloser")
   ownedWorkProjects WorkProject[]           @relation("WorkProjectOwner")

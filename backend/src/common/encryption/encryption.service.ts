@@ -28,8 +28,7 @@ export class EncryptionService {
     }
 
     this.currentVersion = Number(
-      config.get('ENCRYPTION_KEY_VERSION') ??
-        Math.max(...this.keys.keys()),
+      config.get('ENCRYPTION_KEY_VERSION') ?? Math.max(...this.keys.keys()),
     );
 
     if (!this.keys.has(this.currentVersion)) {

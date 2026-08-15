@@ -16,9 +16,7 @@ export class CatalogService {
     return this.prisma.platformProvider.findMany({
       where: {
         isActive: true,
-        ...(categoryCode
-          ? { category: { code: categoryCode } }
-          : undefined),
+        ...(categoryCode ? { category: { code: categoryCode } } : undefined),
       },
       include: {
         category: true,

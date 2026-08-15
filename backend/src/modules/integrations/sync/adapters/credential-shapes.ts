@@ -48,7 +48,11 @@ export const ECOMMERCE_CREDENTIAL_PRESET: CredentialFieldPreset = {
     { name: 'apiKey', label: 'API Key / Manager Token', type: 'password' },
     { name: 'accessToken', label: 'Access Token (اختياري)', type: 'password' },
     { name: 'storeId', label: 'Store ID' },
-    { name: 'baseUrl', label: 'Base URL (اختياري)', hint: 'مثل https://api.zid.sa/v1' },
+    {
+      name: 'baseUrl',
+      label: 'Base URL (اختياري)',
+      hint: 'مثل https://api.zid.sa/v1',
+    },
     {
       name: 'grantedScopesText',
       label: 'Scopes (مفصولة بفاصلة)',
@@ -97,7 +101,11 @@ export const MADFU_CREDENTIAL_PRESET: CredentialFieldPreset = {
       label: 'Base URL (اختياري)',
       hint: 'الافتراضي https://api.madfu.com.sa',
     },
-    { name: 'webhookSecret', label: 'Webhook Secret (إن وُجد)', type: 'password' },
+    {
+      name: 'webhookSecret',
+      label: 'Webhook Secret (إن وُجد)',
+      type: 'password',
+    },
   ],
 };
 
@@ -155,7 +163,10 @@ export function credentialPresetForCategory(
 
 function parseScopes(raw: unknown): string[] | undefined {
   if (Array.isArray(raw)) {
-    return raw.map(String).map((s) => s.trim()).filter(Boolean);
+    return raw
+      .map(String)
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
   if (typeof raw === 'string') {
     return raw
@@ -216,11 +227,11 @@ export function normalizeCredentialPayload(
 export function hasAnyAuthSecret(payload: CredentialPayload): boolean {
   return Boolean(
     payload.apiKey ||
-      payload.accessToken ||
-      payload.password ||
-      payload.clientSecret ||
-      (payload.cookies &&
-        typeof payload.cookies === 'object' &&
-        Object.keys(payload.cookies as object).length > 0),
+    payload.accessToken ||
+    payload.password ||
+    payload.clientSecret ||
+    (payload.cookies &&
+      typeof payload.cookies === 'object' &&
+      Object.keys(payload.cookies as object).length > 0),
   );
 }

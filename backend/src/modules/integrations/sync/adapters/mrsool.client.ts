@@ -97,10 +97,7 @@ export class MrsoolClient {
 
   async listCategories() {
     return asRecord(
-      await this.rest(
-        '/v1/menus/categories/fetch_available_categories',
-        'GET',
-      ),
+      await this.rest('/v1/menus/categories/fetch_available_categories', 'GET'),
     );
   }
 
@@ -121,21 +118,16 @@ export class MrsoolClient {
       currency: 'SAR',
       subtotal: money(row.grand_total ?? row.total ?? 0),
       totalAmount: money(row.grand_total ?? row.total ?? 0),
-      paymentMethod:
-        row.order_type != null ? String(row.order_type) : null,
+      paymentMethod: row.order_type != null ? String(row.order_type) : null,
       projectLocationExternalId:
-        row.business_branch_id != null
-          ? String(row.business_branch_id)
-          : null,
+        row.business_branch_id != null ? String(row.business_branch_id) : null,
       rawPayload: row,
     };
   }
 
   mapProduct(row: Record<string, unknown>) {
     const cats = asArray(row.menu_categories_ids ?? row.menu_category_ids);
-    const disabledPct = Number(
-      row.menu_item_disabled_branches_percentage ?? 0,
-    );
+    const disabledPct = Number(row.menu_item_disabled_branches_percentage ?? 0);
     return {
       externalId: String(row.id ?? ''),
       name: String(row.name || row.en_name || 'Product'),

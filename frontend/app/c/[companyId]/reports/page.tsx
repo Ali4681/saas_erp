@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
-import { ReportFiltersForm } from "@/components/erp/ReportFiltersForm";
+import { ReportFiltersForm, resolveReportPeriod } from "@/components/erp/ReportFiltersForm";
 import { ReportExportButtons } from "@/components/erp/ReportExportButtons";
 import {
   DistributionPieChart,
@@ -50,6 +50,13 @@ type ExecutiveReport = {
 };
 
 type Employee = { id: string; fullName: string; employeeNumber: string };
+type Contact = {
+  id: string;
+  name?: string | null;
+  displayName?: string | null;
+  fullName?: string | null;
+};
+type Item = { id: string; name: string; sku?: string | null };
 
 export default async function ReportsPage({
   params,
@@ -59,22 +66,41 @@ export default async function ReportsPage({
   searchParams: Promise<{
     from?: string;
     to?: string;
+    period?: string;
     employeeId?: string;
-    limit?: string;
+    customerId?: string;
+    productId?: string;
+    status?: string;
   }>;
 }) {
   const { companyId } = await params;
   const t = await getTranslations("reports");
   const { formatDate, formatMoney, formatNumber } = await getFormatters();
-  const filters = await searchParams;
+  const raw = await searchParams;
+  const period = resolveReportPeriod(raw);
+  const filters = {
+    from: period.from,
+    to: period.to,
+    period: period.period ?? raw.period,
+    employeeId: raw.employeeId,
+    customerId: raw.customerId,
+    productId: raw.productId,
+    status: raw.status,
+  };
   const qs = buildQuery(filters);
 
-  const [report, employees] = await Promise.all([
+  const [report, employees, contacts, items] = await Promise.all([
     apiServer<ExecutiveReport>(
       `/companies/${companyId}/reports/executive${qs}`,
       { companyId },
     ).catch(() => null),
     apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
+      companyId,
+    }).catch(() => []),
+    apiServer<Contact[]>(`/companies/${companyId}/crm/contacts`, {
+      companyId,
+    }).catch(() => []),
+    apiServer<Item[]>(`/companies/${companyId}/inventory/items`, {
       companyId,
     }).catch(() => []),
   ]);
@@ -131,7 +157,19 @@ export default async function ReportsPage({
       <ReportFiltersForm
         companyId={companyId}
         actionPath={`/c/${companyId}/reports`}
-        employees={employees}
+        module="executive"
+        employees={employees.map((e) => ({
+          id: e.id,
+          label: `${e.employeeNumber} — ${e.fullName}`,
+        }))}
+        customers={contacts.map((c) => ({
+          id: c.id,
+          label: c.name || c.displayName || c.fullName || c.id,
+        }))}
+        products={items.map((i) => ({
+          id: i.id,
+          label: i.sku ? `${i.sku} — ${i.name}` : i.name,
+        }))}
         defaults={filters}
       />
 

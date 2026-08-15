@@ -64,7 +64,7 @@ export function asArray(value: unknown): unknown[] {
 export function money(value: unknown, fallback = '0'): string {
   if (value == null || value === '') return fallback;
   if (typeof value === 'object' && value && 'amount' in value) {
-    return money((value as { amount: unknown }).amount, fallback);
+    return money(value.amount, fallback);
   }
   const n = Number(value);
   return Number.isFinite(n) ? String(n) : fallback;

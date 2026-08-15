@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  MinLength,
-} from 'class-validator';
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import {
   AttendanceDeviceStatus,
   AttendanceDeviceType,
@@ -17,9 +20,10 @@ class CreateCameraBody {
   @MinLength(2)
   name!: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(4)
-  deviceKey!: string;
+  deviceKey?: string;
 
   @IsOptional()
   @IsString()
@@ -39,9 +43,10 @@ class CreateBiometricBody {
   @MinLength(2)
   name!: string;
 
+  @IsOptional()
   @IsString()
   @MinLength(4)
-  deviceKey!: string;
+  deviceKey?: string;
 
   @IsOptional()
   @IsString()
@@ -166,10 +171,7 @@ export class TrackingController {
 
   @Public()
   @Post('devices/punch')
-  punch(
-    @Param('companyId') companyId: string,
-    @Body() body: DevicePunchBody,
-  ) {
+  punch(@Param('companyId') companyId: string, @Body() body: DevicePunchBody) {
     return this.tracking.punch(companyId, body);
   }
 }

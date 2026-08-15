@@ -106,6 +106,14 @@ export async function clearSessionCookies() {
 
 /** Deduped per RSC request — layouts/pages share one cookie parse. */
 export const getSession = cache(async (): Promise<SessionPayload | null> => {
+  return readSessionFromCookies();
+});
+
+/**
+ * Always re-read cookies (no React cache). Use from Route Handlers / apiServer
+ * so auth is not polluted by a stale RSC memoization entry.
+ */
+export async function readSessionFromCookies(): Promise<SessionPayload | null> {
   const jar = await cookies();
   const accessToken = jar.get(COOKIE_ACCESS)?.value;
   const refreshToken = jar.get(COOKIE_REFRESH)?.value;
@@ -120,4 +128,4 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
   } catch {
     return null;
   }
-});
+}

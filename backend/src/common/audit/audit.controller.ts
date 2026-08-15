@@ -43,10 +43,7 @@ export class AuditController {
 
   @Get()
   @RequirePermissions('audit.read')
-  list(
-    @Param('companyId') companyId: string,
-    @Query() query: AuditQuery,
-  ) {
+  list(@Param('companyId') companyId: string, @Query() query: AuditQuery) {
     return this.audit.list(companyId, {
       ...query,
       limit: query.limit ? Number(query.limit) : undefined,

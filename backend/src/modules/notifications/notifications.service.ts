@@ -78,23 +78,25 @@ export class NotificationsService {
 
   listDevices(companyId: string, userId: string) {
     this.tenant.setCompanyId(companyId);
-    return this.prisma.userPushDevice.findMany({
-      where: { companyId, userId, disabledAt: null },
-      orderBy: { lastSeenAt: 'desc' },
-      select: {
-        id: true,
-        platform: true,
-        deviceName: true,
-        lastSeenAt: true,
-        createdAt: true,
-        token: true,
-      },
-    }).then((rows) =>
-      rows.map(({ token, ...row }) => ({
-        ...row,
-        tokenPreview: `${token.slice(0, 12)}…`,
-      })),
-    );
+    return this.prisma.userPushDevice
+      .findMany({
+        where: { companyId, userId, disabledAt: null },
+        orderBy: { lastSeenAt: 'desc' },
+        select: {
+          id: true,
+          platform: true,
+          deviceName: true,
+          lastSeenAt: true,
+          createdAt: true,
+          token: true,
+        },
+      })
+      .then((rows) =>
+        rows.map(({ token, ...row }) => ({
+          ...row,
+          tokenPreview: `${token.slice(0, 12)}…`,
+        })),
+      );
   }
 
   async registerDevice(input: {
@@ -176,7 +178,9 @@ export class NotificationsService {
       companyId = company?.id;
     }
     if (!companyId) {
-      throw new BadRequestException('No active company available for FCM registration');
+      throw new BadRequestException(
+        'No active company available for FCM registration',
+      );
     }
 
     return this.registerDevice({
@@ -246,8 +250,9 @@ export class NotificationsService {
       },
     });
 
-    let push: Awaited<ReturnType<NotificationsService['sendPushToUser']>> | null =
-      null;
+    let push: Awaited<
+      ReturnType<NotificationsService['sendPushToUser']>
+    > | null = null;
     if (input.sendPush !== false) {
       push = await this.sendPushToUser({
         companyId: input.companyId,
@@ -289,7 +294,9 @@ export class NotificationsService {
     });
     if (!devices.length) {
       return {
-        mode: this.firebase.isReady ? ('LIVE' as const) : ('LOCAL_STUB' as const),
+        mode: this.firebase.isReady
+          ? ('LIVE' as const)
+          : ('LOCAL_STUB' as const),
         successCount: 0,
         failureCount: 0,
         skipped: 'no_devices' as const,

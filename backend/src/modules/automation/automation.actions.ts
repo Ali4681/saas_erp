@@ -114,7 +114,8 @@ export class AutomationActionExecutor {
     const fromPayload =
       (typeof ctx.payload.assigneeUserId === 'string' &&
         ctx.payload.assigneeUserId) ||
-      (typeof ctx.payload.ownerUserId === 'string' && ctx.payload.ownerUserId) ||
+      (typeof ctx.payload.ownerUserId === 'string' &&
+        ctx.payload.ownerUserId) ||
       (typeof ctx.payload.userId === 'string' && ctx.payload.userId) ||
       null;
     return fromPayload;
@@ -135,9 +136,7 @@ export class AutomationActionExecutor {
     }
 
     const title = (action.title ?? ctx.ruleName).toString();
-    const body = (
-      action.body ?? `Triggered by ${ctx.triggerEvent}`
-    ).toString();
+    const body = (action.body ?? `Triggered by ${ctx.triggerEvent}`).toString();
 
     try {
       const sent = await this.notifications.createAndPush({
@@ -164,8 +163,7 @@ export class AutomationActionExecutor {
         },
       };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'notify failed';
+      const message = error instanceof Error ? error.message : 'notify failed';
       this.logger.warn(`notify failed: ${message}`);
       return { type: 'notify', ok: false, reason: message };
     }
@@ -205,9 +203,7 @@ export class AutomationActionExecutor {
     }
 
     const title = (action.title ?? ctx.ruleName).toString();
-    const body = (
-      action.body ?? `Triggered by ${ctx.triggerEvent}`
-    ).toString();
+    const body = (action.body ?? `Triggered by ${ctx.triggerEvent}`).toString();
 
     const results: unknown[] = [];
     let okCount = 0;
@@ -496,8 +492,7 @@ export class AutomationActionExecutor {
         detail: { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber },
       };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'convert failed';
+      const message = error instanceof Error ? error.message : 'convert failed';
       return { type: 'convert_quote_to_invoice', ok: false, reason: message };
     }
   }
@@ -517,8 +512,7 @@ export class AutomationActionExecutor {
     const contactId =
       (typeof ctx.payload.contactId === 'string'
         ? ctx.payload.contactId
-        : null) ||
-      (ctx.entityType === 'crm_contact' ? ctx.entityId : null);
+        : null) || (ctx.entityType === 'crm_contact' ? ctx.entityId : null);
     if (!contactId) {
       return {
         type: 'update_contact_status',
@@ -529,7 +523,7 @@ export class AutomationActionExecutor {
     }
     try {
       await this.crm.updateContact(ctx.companyId, contactId, {
-        status: status as 'ACTIVE' | 'INACTIVE',
+        status: status,
       });
       return {
         type: 'update_contact_status',
@@ -791,7 +785,9 @@ export class AutomationActionExecutor {
           reason: 'Leave is not approved',
         };
       }
-      if ((leave.reason ?? '').includes(AutomationActionExecutor.BALANCE_MARKER)) {
+      if (
+        (leave.reason ?? '').includes(AutomationActionExecutor.BALANCE_MARKER)
+      ) {
         return {
           type: 'update_leave_balance',
           ok: true,

@@ -36,8 +36,16 @@ const MODULE_RULES: Array<{ re: RegExp; module: string; entity: string }> = [
   { re: /\/ai\//, module: 'ai', entity: 'ai' },
   { re: /\/reports\//, module: 'reports', entity: 'reports' },
   { re: /\/messaging\//, module: 'messaging', entity: 'messaging' },
-  { re: /\/payment-methods|\/payment-gateways/, module: 'payments', entity: 'payment' },
-  { re: /\/projects|\/integration|\/webhooks|\/mirrors/, module: 'integrations', entity: 'integration' },
+  {
+    re: /\/payment-methods|\/payment-gateways/,
+    module: 'payments',
+    entity: 'payment',
+  },
+  {
+    re: /\/projects|\/integration|\/webhooks|\/mirrors/,
+    module: 'integrations',
+    entity: 'integration',
+  },
   { re: /\/departments/, module: 'departments', entity: 'company_department' },
   { re: /\/subscriptions/, module: 'subscriptions', entity: 'subscription' },
   { re: /\/audit-logs/, module: 'audit', entity: 'audit_log' },
@@ -106,7 +114,12 @@ export class AuditInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: (body) => {
-          void this.writeAudit(request, 'SUCCEEDED', Date.now() - started, body);
+          void this.writeAudit(
+            request,
+            'SUCCEEDED',
+            Date.now() - started,
+            body,
+          );
         },
         error: (error: unknown) => {
           void this.writeAudit(
@@ -139,7 +152,8 @@ export class AuditInterceptor implements NestInterceptor {
     try {
       const companyId = this.cls.get<string>('companyId');
       const userId = this.cls.get<string>('userId');
-      const routePath = request.route?.path ?? request.originalUrl ?? request.url;
+      const routePath =
+        request.route?.path ?? request.originalUrl ?? request.url;
       const fullPath = request.originalUrl ?? request.url ?? routePath;
       const method = request.method.toUpperCase();
       const op =

@@ -84,9 +84,11 @@ export class SallaProviderAdapter extends BaseProviderAdapter {
         externalId: String(p.id ?? ''),
         name: bilingualName(p.name),
         sku: p.sku != null ? String(p.sku) : null,
-        description:
-          typeof p.description === 'string' ? p.description : null,
-        status: statusRaw === 'sale' || statusRaw === 'active' ? 'ACTIVE' : 'INACTIVE',
+        description: typeof p.description === 'string' ? p.description : null,
+        status:
+          statusRaw === 'sale' || statusRaw === 'active'
+            ? 'ACTIVE'
+            : 'INACTIVE',
         price: money(priceObj.amount ?? p.price),
         currency: String(priceObj.currency ?? 'SAR'),
         imageUrl:
@@ -198,9 +200,7 @@ export class SallaProviderAdapter extends BaseProviderAdapter {
                 asRecord(data.status).name ??
                 'unknown',
             ),
-            totalAmount: money(
-              asRecord(data.amounts).total ?? data.total ?? 0,
-            ),
+            totalAmount: money(asRecord(data.amounts).total ?? data.total ?? 0),
             currency: 'SAR',
             placedAt: (data.date as string) ?? new Date().toISOString(),
             rawPayload: data,

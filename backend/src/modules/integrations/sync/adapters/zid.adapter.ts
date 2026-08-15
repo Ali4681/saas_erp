@@ -218,15 +218,16 @@ export class ZidProviderAdapter extends BaseProviderAdapter {
     }
 
     const data = asRecord(res.data);
-    const rows = asArray(
-      data.orders ?? data.results ?? data.data ?? data,
-    );
+    const rows = asArray(data.orders ?? data.results ?? data.data ?? data);
     const orders: MirrorOrderInput[] = rows.map((row) => {
       const o = asRecord(row);
       const customer = asRecord(o.customer ?? o.consignee);
       const status =
         typeof o.order_status === 'object'
-          ? bilingualName(asRecord(o.order_status).name ?? asRecord(o.order_status).code, 'unknown')
+          ? bilingualName(
+              asRecord(o.order_status).name ?? asRecord(o.order_status).code,
+              'unknown',
+            )
           : String(o.order_status ?? o.status ?? 'unknown');
 
       const items = asArray(o.products ?? o.items ?? o.order_products).map(
@@ -258,7 +259,10 @@ export class ZidProviderAdapter extends BaseProviderAdapter {
         status,
         financialStatus:
           o.payment_status != null ? String(o.payment_status) : null,
-        placedAt: (o.created_at as string) ?? (o.order_date as string) ?? new Date().toISOString(),
+        placedAt:
+          (o.created_at as string) ??
+          (o.order_date as string) ??
+          new Date().toISOString(),
         currency: String(o.currency ?? 'SAR'),
         subtotal: money(o.products_price ?? o.subtotal ?? o.total),
         discountAmount: money(o.discount ?? o.discount_amount ?? 0),
@@ -267,8 +271,7 @@ export class ZidProviderAdapter extends BaseProviderAdapter {
         totalAmount: money(o.total ?? o.order_total ?? 0),
         paymentMethod:
           o.payment_method != null ? String(o.payment_method) : null,
-        customerExternalId:
-          customer.id != null ? String(customer.id) : null,
+        customerExternalId: customer.id != null ? String(customer.id) : null,
         items,
         rawPayload: o,
       };
@@ -377,8 +380,7 @@ export class ZidProviderAdapter extends BaseProviderAdapter {
           status,
           totalAmount: money(order.total ?? order.order_total ?? 0),
           currency: String(order.currency ?? 'SAR'),
-          placedAt:
-            (order.created_at as string) ?? new Date().toISOString(),
+          placedAt: (order.created_at as string) ?? new Date().toISOString(),
           rawPayload: order,
         },
       ],

@@ -5,7 +5,8 @@ export const SCHEMA_CONVENTIONS = {
   primaryKey: {
     type: 'Char(36)',
     default: 'uuid(7)',
-    reason: 'UUIDv7 is time-ordered; safer for InnoDB clustered PK inserts than UUIDv4',
+    reason:
+      'UUIDv7 is time-ordered; safer for InnoDB clustered PK inserts than UUIDv4',
   },
   naming: {
     prismaFields: 'camelCase',
@@ -24,11 +25,13 @@ export const SCHEMA_CONVENTIONS = {
   },
   softDelete: {
     pattern: 'deletedAt + deletedMarker',
-    uniqueKey: 'include deletedMarker so soft-deleted rows release business codes',
+    uniqueKey:
+      'include deletedMarker so soft-deleted rows release business codes',
   },
   appendOnly: {
     pattern: '@@id([id, createdAt])',
-    reason: 'MySQL requires partition key in every unique key for RANGE partitioning',
+    reason:
+      'MySQL requires partition key in every unique key for RANGE partitioning',
   },
   checkConstraints:
     'Hand-written migration SQL survives prisma migrate dev; also validate in app',
@@ -82,6 +85,7 @@ export const TENANT_OWNED_MODELS = new Set<string>([
   'WorkShift',
   'EmployeeShiftAssignment',
   'EmployeeSalesSubmission',
+  'EmployeeQiwaContract',
   'WorkProject',
   'AutomationRule',
   'MarketingPost',

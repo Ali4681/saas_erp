@@ -14,6 +14,7 @@ export type LocalizedBody = {
   i18nKey: string;
   args?: Record<string, unknown>;
   error?: string;
+  details?: string[];
 };
 
 export function isLocalizedBody(body: unknown): body is LocalizedBody {
@@ -21,7 +22,7 @@ export function isLocalizedBody(body: unknown): body is LocalizedBody {
     typeof body === 'object' &&
     body != null &&
     'i18nKey' in body &&
-    typeof (body as { i18nKey: unknown }).i18nKey === 'string'
+    typeof body.i18nKey === 'string'
   );
 }
 
@@ -96,16 +97,20 @@ export function localizedFromHttpException(
     typeof body === 'object' &&
     body != null &&
     'message' in body &&
-    looksLikeI18nKey((body as { message: unknown }).message)
+    looksLikeI18nKey(body.message)
   ) {
+    const details = (body as { details?: unknown }).details;
     return {
       statusCode: exception.getStatus(),
       message: (body as { message: string }).message,
       i18nKey: (body as { message: string }).message,
       error:
         typeof (body as { error?: unknown }).error === 'string'
-          ? ((body as unknown as { error: string }).error)
+          ? (body as unknown as { error: string }).error
           : undefined,
+      details: Array.isArray(details)
+        ? details.map((d) => String(d))
+        : undefined,
     };
   }
   return null;

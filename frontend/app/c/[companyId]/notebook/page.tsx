@@ -14,11 +14,20 @@ export default async function NotebookHubPage({
       title={t("title")}
       description={t("description")}
       links={[
-        { href: `${base}/notes`, label: t("notes"), hint: t("notesHint") },
         {
-          href: `${base}/categories`,
-          label: t("categories"),
-          hint: t("categoriesHint"),
+          href: `${base}/problems`,
+          label: t("bucketProblems"),
+          hint: t("bucketProblemsHint"),
+        },
+        {
+          href: `${base}/dev-ideas`,
+          label: t("bucketDevIdeas"),
+          hint: t("bucketDevIdeasHint"),
+        },
+        {
+          href: `${base}/work-notes`,
+          label: t("bucketWorkNotes"),
+          hint: t("bucketWorkNotesHint"),
         },
       ]}
     />

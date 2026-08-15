@@ -1,8 +1,5 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import {
-  CITIES_BY_COUNTRY,
-  LOOKUP_CITY_DEFAULTS,
-} from './cities.data';
+import { CITIES_BY_COUNTRY, LOOKUP_CITY_DEFAULTS } from './cities.data';
 import {
   COUNTRIES,
   CURRENCIES,

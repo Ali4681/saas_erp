@@ -26,7 +26,7 @@ function resolveI18nPath(): string {
     }
   }
   // Last resort — nestjs-i18n error will name this path
-  return candidates[0]!;
+  return candidates[0];
 }
 
 @Module({

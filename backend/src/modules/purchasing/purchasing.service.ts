@@ -123,9 +123,7 @@ export class PurchasingService {
           warehouseId: input.warehouseId,
           orderNumber,
           orderedOn: input.orderedOn ? new Date(input.orderedOn) : undefined,
-          expectedOn: input.expectedOn
-            ? new Date(input.expectedOn)
-            : undefined,
+          expectedOn: input.expectedOn ? new Date(input.expectedOn) : undefined,
           currency: input.currency ?? 'SAR',
           subtotal: computed.subtotal,
           taxAmount: computed.taxAmount,
@@ -166,9 +164,7 @@ export class PurchasingService {
       where: { id: purchaseOrderId },
       data: {
         status,
-        ...(status === 'APPROVED' && approvedById
-          ? { approvedById }
-          : {}),
+        ...(status === 'APPROVED' && approvedById ? { approvedById } : {}),
       },
       include: { items: true },
     });

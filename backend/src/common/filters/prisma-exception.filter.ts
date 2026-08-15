@@ -38,11 +38,13 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         return;
       }
       const body = exception.getResponse();
-      response.status(status).json(
-        typeof body === 'string'
-          ? { statusCode: status, message: body }
-          : body,
-      );
+      response
+        .status(status)
+        .json(
+          typeof body === 'string'
+            ? { statusCode: status, message: body }
+            : body,
+        );
       return;
     }
 
@@ -55,11 +57,13 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         return;
       }
       const body = mapped.getResponse();
-      response.status(status).json(
-        typeof body === 'string'
-          ? { statusCode: status, message: body, error: mapped.name }
-          : body,
-      );
+      response
+        .status(status)
+        .json(
+          typeof body === 'string'
+            ? { statusCode: status, message: body, error: mapped.name }
+            : body,
+        );
       return;
     }
 
@@ -79,6 +83,7 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     i18nKey: string;
     args?: Record<string, unknown>;
     error?: string;
+    details?: string[];
   }) {
     return {
       statusCode: body.statusCode,
@@ -86,12 +91,13 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       i18nKey: body.i18nKey,
       ...(body.error ? { error: body.error } : {}),
       ...(body.args ? { args: body.args } : {}),
+      ...(body.details?.length ? { details: body.details } : {}),
     };
   }
 
   private t(key: string, args?: Record<string, unknown>) {
     try {
-      return this.i18n.t(key, { args: args ?? {} }) as string;
+      return this.i18n.t(key, { args: args ?? {} });
     } catch {
       return key;
     }
@@ -218,8 +224,11 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         });
       default: {
         const nested = String(
-          (err.meta as { driverAdapterError?: { name?: string; message?: string } })
-            ?.driverAdapterError?.name ??
+          (
+            err.meta as {
+              driverAdapterError?: { name?: string; message?: string };
+            }
+          )?.driverAdapterError?.name ??
             (err.meta as { driverAdapterError?: { message?: string } })
               ?.driverAdapterError?.message ??
             '',
@@ -259,7 +268,9 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     }
   }
 
-  private formatTarget(meta: Record<string, unknown> | undefined): string | null {
+  private formatTarget(
+    meta: Record<string, unknown> | undefined,
+  ): string | null {
     if (!meta) return null;
     const target = meta.target;
     if (Array.isArray(target)) return target.map(String).join(', ');
@@ -269,13 +280,20 @@ export class PrismaExceptionFilter implements ExceptionFilter {
     return null;
   }
 
-  private formatModel(meta: Record<string, unknown> | undefined): string | null {
+  private formatModel(
+    meta: Record<string, unknown> | undefined,
+  ): string | null {
     if (!meta) return null;
     const model = meta.modelName ?? meta.model;
     return model != null ? String(model) : null;
   }
 
   private shortMessage(message: string): string {
-    return message.split('\n').map((l) => l.trim()).filter(Boolean)[0] ?? message;
+    return (
+      message
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)[0] ?? message
+    );
   }
 }

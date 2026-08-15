@@ -24,21 +24,11 @@ export default async function HrHubPage({
           label: t("advances"),
           hint: t("advancesHint"),
         },
-        {
-          href: `${base}/attendance`,
-          label: t("attendance"),
-          hint: t("attendanceHint"),
-        },
-        {
-          href: `/c/${companyId}/tracking`,
-          label: t("devices"),
-          hint: t("devicesHint"),
-        },
         { href: `${base}/leaves`, label: t("leaves"), hint: t("leavesHint") },
         {
-          href: `${base}/payroll`,
-          label: t("payroll"),
-          hint: t("payrollHint"),
+          href: `${base}/sales-submissions`,
+          label: t("salesSubmissions"),
+          hint: t("salesSubmissionsHint"),
         },
         {
           href: `${base}/me`,

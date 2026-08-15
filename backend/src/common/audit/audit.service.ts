@@ -76,8 +76,9 @@ export class AuditService {
     return mapped.map((row) => ({
       ...row,
       entityName:
-        (row.entityId ? names.get(`${row.entityType}:${row.entityId}`) : null) ??
-        null,
+        (row.entityId
+          ? names.get(`${row.entityType}:${row.entityId}`)
+          : null) ?? null,
     }));
   }
 
@@ -107,31 +108,35 @@ export class AuditService {
     };
 
     await Promise.all([
-      load('subscription', [...(byType.get('subscription') ?? [])], async (ids) => {
-        const subs = await this.prisma.subscription.findMany({
-          where: { id: { in: ids } },
-          include: { plan: true, company: { select: { displayName: true } } },
-        });
-        const found = new Set(subs.map((s) => s.id));
-        const asCompanyIds = ids.filter((id) => !found.has(id));
-        const companies = asCompanyIds.length
-          ? await this.prisma.company.findMany({
-              where: { id: { in: asCompanyIds } },
-              select: { id: true, displayName: true },
-            })
-          : [];
+      load(
+        'subscription',
+        [...(byType.get('subscription') ?? [])],
+        async (ids) => {
+          const subs = await this.prisma.subscription.findMany({
+            where: { id: { in: ids } },
+            include: { plan: true, company: { select: { displayName: true } } },
+          });
+          const found = new Set(subs.map((s) => s.id));
+          const asCompanyIds = ids.filter((id) => !found.has(id));
+          const companies = asCompanyIds.length
+            ? await this.prisma.company.findMany({
+                where: { id: { in: asCompanyIds } },
+                select: { id: true, displayName: true },
+              })
+            : [];
 
-        return [
-          ...subs.map((s) => ({
-            id: s.id,
-            name: `${s.plan.name} — ${s.company.displayName}`,
-          })),
-          ...companies.map((c) => ({
-            id: c.id,
-            name: c.displayName,
-          })),
-        ];
-      }),
+          return [
+            ...subs.map((s) => ({
+              id: s.id,
+              name: `${s.plan.name} — ${s.company.displayName}`,
+            })),
+            ...companies.map((c) => ({
+              id: c.id,
+              name: c.displayName,
+            })),
+          ];
+        },
+      ),
       load('company', [...(byType.get('company') ?? [])], async (ids) => {
         const companies = await this.prisma.company.findMany({
           where: { id: { in: ids } },
@@ -163,16 +168,20 @@ export class AuditService {
           ...byCode.map((p) => ({ id: p.code, name: `${p.name} (${p.code})` })),
         ];
       }),
-      load('company_branch', [...(byType.get('company_branch') ?? [])], async (ids) => {
-        const branches = await this.prisma.companyBranch.findMany({
-          where: { id: { in: ids } },
-          select: { id: true, name: true, code: true },
-        });
-        return branches.map((b) => ({
-          id: b.id,
-          name: `${b.name} (${b.code})`,
-        }));
-      }),
+      load(
+        'company_branch',
+        [...(byType.get('company_branch') ?? [])],
+        async (ids) => {
+          const branches = await this.prisma.companyBranch.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, name: true, code: true },
+          });
+          return branches.map((b) => ({
+            id: b.id,
+            name: `${b.name} (${b.code})`,
+          }));
+        },
+      ),
       load(
         'company_department',
         [...(byType.get('company_department') ?? [])],

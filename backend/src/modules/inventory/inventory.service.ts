@@ -263,65 +263,67 @@ export class InventoryService {
     const signedQty = this.signedQuantity(input.movementType, qty);
     const storedQty = Math.abs(qty);
 
-    return this.prisma.$transaction(async (tx) => {
-      const movement = await tx.stockMovement.create({
-        data: {
-          companyId: input.companyId,
-          warehouseId: input.warehouseId,
-          itemId: input.itemId,
-          movementType: input.movementType,
-          quantity: storedQty.toFixed(3),
-          unitCost:
-            input.unitCost != null ? String(input.unitCost) : undefined,
-          notes: input.notes,
-          referenceType: input.referenceType,
-          referenceId: input.referenceId,
-          occurredAt: input.occurredAt
-            ? new Date(input.occurredAt)
-            : new Date(),
-          createdById: input.createdById,
-        },
-      });
-
-      const balance = await tx.stockBalance.findUnique({
-        where: {
-          warehouseId_itemId: {
+    return this.prisma
+      .$transaction(async (tx) => {
+        const movement = await tx.stockMovement.create({
+          data: {
+            companyId: input.companyId,
             warehouseId: input.warehouseId,
             itemId: input.itemId,
+            movementType: input.movementType,
+            quantity: storedQty.toFixed(3),
+            unitCost:
+              input.unitCost != null ? String(input.unitCost) : undefined,
+            notes: input.notes,
+            referenceType: input.referenceType,
+            referenceId: input.referenceId,
+            occurredAt: input.occurredAt
+              ? new Date(input.occurredAt)
+              : new Date(),
+            createdById: input.createdById,
           },
-        },
-      });
-      const nextQty = Number(balance?.quantityOnHand ?? 0) + signedQty;
-      if (nextQty < -0.0001) {
-        throw new BadRequestException('Insufficient stock for this movement');
-      }
+        });
 
-      await tx.stockBalance.upsert({
-        where: {
-          warehouseId_itemId: {
+        const balance = await tx.stockBalance.findUnique({
+          where: {
+            warehouseId_itemId: {
+              warehouseId: input.warehouseId,
+              itemId: input.itemId,
+            },
+          },
+        });
+        const nextQty = Number(balance?.quantityOnHand ?? 0) + signedQty;
+        if (nextQty < -0.0001) {
+          throw new BadRequestException('Insufficient stock for this movement');
+        }
+
+        await tx.stockBalance.upsert({
+          where: {
+            warehouseId_itemId: {
+              warehouseId: input.warehouseId,
+              itemId: input.itemId,
+            },
+          },
+          create: {
             warehouseId: input.warehouseId,
             itemId: input.itemId,
+            quantityOnHand: nextQty.toFixed(3),
           },
-        },
-        create: {
-          warehouseId: input.warehouseId,
-          itemId: input.itemId,
-          quantityOnHand: nextQty.toFixed(3),
-        },
-        update: {
-          quantityOnHand: nextQty.toFixed(3),
-        },
-      });
+          update: {
+            quantityOnHand: nextQty.toFixed(3),
+          },
+        });
 
-      return movement;
-    }).then(async (movement) => {
-      await this.emitLowStockIfNeeded(
-        input.companyId,
-        input.itemId,
-        input.warehouseId,
-      );
-      return movement;
-    });
+        return movement;
+      })
+      .then(async (movement) => {
+        await this.emitLowStockIfNeeded(
+          input.companyId,
+          input.itemId,
+          input.warehouseId,
+        );
+        return movement;
+      });
   }
 
   private async emitLowStockIfNeeded(
@@ -398,9 +400,7 @@ export class InventoryService {
     const balances = await this.prisma.stockBalance.findMany({
       where: {
         warehouseId: input.warehouseId,
-        ...(input.itemIds?.length
-          ? { itemId: { in: input.itemIds } }
-          : {}),
+        ...(input.itemIds?.length ? { itemId: { in: input.itemIds } } : {}),
       },
     });
 
@@ -540,10 +540,7 @@ export class InventoryService {
   }
 
   private signedQuantity(type: StockMovementType, quantity: number): number {
-    if (
-      type === 'COUNT_ADJUSTMENT' ||
-      type === 'MANUAL_ADJUSTMENT'
-    ) {
+    if (type === 'COUNT_ADJUSTMENT' || type === 'MANUAL_ADJUSTMENT') {
       return quantity;
     }
     if (OUTBOUND_TYPES.has(type)) {

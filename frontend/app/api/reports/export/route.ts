@@ -39,8 +39,9 @@ export async function GET(req: NextRequest) {
     "employeeId",
     "customerId",
     "productId",
+    "branchId",
     "status",
-    "limit",
+    "period",
   ];
   const q = new URLSearchParams();
   for (const key of allowed) {

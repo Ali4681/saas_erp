@@ -25,7 +25,7 @@ export default async function TrackingEventsPage({
   const { formatDate } = await getFormatters();
 
   const events = await apiServer<DeviceEvent[]>(
-    `/companies/${companyId}/hr/device-events`,
+    `/companies/${companyId}/tracking/events`,
     { companyId },
   ).catch(() => []);
 

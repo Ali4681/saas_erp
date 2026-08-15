@@ -94,8 +94,7 @@ export class PlansController {
   @RequirePermissions('plans.read')
   list(@Query() query: ListPlansQuery) {
     const includeInactive =
-      query.includeInactive === '1' ||
-      query.includeInactive === 'true';
+      query.includeInactive === '1' || query.includeInactive === 'true';
     return this.plans.list(includeInactive);
   }
 

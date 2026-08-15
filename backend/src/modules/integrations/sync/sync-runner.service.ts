@@ -471,7 +471,9 @@ export class SyncRunnerService {
     return upserted;
   }
 
-  private decryptCredentials(ciphertext: Uint8Array | Buffer): CredentialPayload {
+  private decryptCredentials(
+    ciphertext: Uint8Array | Buffer,
+  ): CredentialPayload {
     return this.effectiveCapabilities.decryptCredentials(
       Buffer.from(ciphertext),
     );

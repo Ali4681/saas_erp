@@ -24,7 +24,12 @@ type Advance = {
   status: string;
   reason: string | null;
   requestedAt: string;
-  employee?: { fullName: string; employeeNumber: string } | null;
+  employee?: {
+    id?: string;
+    userId?: string | null;
+    fullName: string;
+    employeeNumber: string;
+  } | null;
 };
 
 export default async function AdvancesPage({
@@ -40,6 +45,7 @@ export default async function AdvancesPage({
   const { formatDate, formatMoney } = await getFormatters();
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
+  const currentUserId = session?.user?.id;
 
   const [advances, employees] = await Promise.all([
     apiServer<Advance[]>(`/companies/${companyId}/hr/advances`, {
@@ -56,7 +62,7 @@ export default async function AdvancesPage({
     <div className="space-y-5">
       <PageHeader
         title="Salary advances"
-        description="Advances are capped by the employee’s basic salary"
+        description="On approve, the amount is credited to the employee wallet. Mark paid is optional bookkeeping."
         actions={
           <Button href={`/c/${companyId}/hr`} variant="secondary">
             {t("title")}
@@ -106,7 +112,13 @@ export default async function AdvancesPage({
                 </tr>
               </thead>
               <tbody>
-                {advances.map((a) => (
+                {advances.map((a) => {
+                  const isOwnAdvance =
+                    !!currentUserId &&
+                    !!a.employee?.userId &&
+                    a.employee.userId === currentUserId;
+                  const canDecide = canWrite && !isOwnAdvance;
+                  return (
                   <tr
                     key={a.id}
                     className="border-b border-[var(--border)] last:border-0"
@@ -123,7 +135,12 @@ export default async function AdvancesPage({
                       <StatusBadge status={a.status} />
                     </td>
                     <td className="px-2 py-2">
-                      {canWrite && a.status === "PENDING" ? (
+                      {isOwnAdvance &&
+                      (a.status === "PENDING" || a.status === "APPROVED") ? (
+                        <span className="text-xs text-[var(--muted-foreground)]">
+                          {t("advanceCannotSelfApprove")}
+                        </span>
+                      ) : canDecide && a.status === "PENDING" ? (
                         <div className="flex flex-wrap gap-1">
                           <ActionForm
                             label={t("approve")}
@@ -146,7 +163,7 @@ export default async function AdvancesPage({
                             )}
                           />
                         </div>
-                      ) : canWrite && a.status === "APPROVED" ? (
+                      ) : canDecide && a.status === "APPROVED" ? (
                         <div className="flex flex-wrap gap-1">
                           <ActionForm
                             label="Mark paid"
@@ -172,7 +189,8 @@ export default async function AdvancesPage({
                       ) : null}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -12,73 +12,75 @@ export const MODULE_LABELS_EN = {
   general: 'General',
 } as const;
 
-export const TRIGGER_EN: Record<string, { label: string; description: string }> =
-  {
-    manual: {
-      label: 'Manual run',
-      description: 'Runs when you click execute or via the API',
-    },
-    'crm.lead.created': {
-      label: 'New lead added',
-      description: 'When a new lead is created',
-    },
-    'crm.contact.created': {
-      label: 'New contact',
-      description: 'When a contact is created',
-    },
-    'crm.opportunity.status_changed': {
-      label: 'Opportunity status changed',
-      description: 'For example when marked as interested',
-    },
-    'crm.contact.stale': {
-      label: 'Stale contact',
-      description: 'When a contact has not been followed up for a while',
-    },
-    'sales.quote.accepted': {
-      label: 'Quote accepted',
-      description: 'When a quote is accepted',
-    },
-    'sales.invoice.paid': {
-      label: 'Invoice paid',
-      description: 'When an invoice is paid',
-    },
-    'sales.invoice.overdue': {
-      label: 'Overdue invoice',
-      description: 'When an open invoice past due date (scheduled)',
-    },
-    'inventory.stock.low': {
-      label: 'Low stock',
-      description: 'When quantity drops or hits the minimum',
-    },
-    'hr.leave.approved': {
-      label: 'Leave approved',
-      description: 'When a leave request is approved',
-    },
-    'hr.attendance.absence': {
-      label: 'Absence recorded',
-      description: 'When an employee absence is recorded',
-    },
-    'hr.payroll.month_end': {
-      label: 'Month-end payroll',
-      description: 'Scheduled at month end to prepare payroll',
-    },
-    'work.task.overdue': {
-      label: 'Overdue task',
-      description: 'When a task due date is passed',
-    },
-    'work.phase.completed': {
-      label: 'Phase completed',
-      description: 'When a project phase is completed',
-    },
-    'attachments.uploaded': {
-      label: 'File uploaded',
-      description: 'When an attachment linked to a project or task is uploaded',
-    },
-    'schedule.cron': {
-      label: 'Cron schedule',
-      description: 'Periodic run based on a cron expression',
-    },
-  };
+export const TRIGGER_EN: Record<
+  string,
+  { label: string; description: string }
+> = {
+  manual: {
+    label: 'Manual run',
+    description: 'Runs when you click execute or via the API',
+  },
+  'crm.lead.created': {
+    label: 'New lead added',
+    description: 'When a new lead is created',
+  },
+  'crm.contact.created': {
+    label: 'New contact',
+    description: 'When a contact is created',
+  },
+  'crm.opportunity.status_changed': {
+    label: 'Opportunity status changed',
+    description: 'For example when marked as interested',
+  },
+  'crm.contact.stale': {
+    label: 'Stale contact',
+    description: 'When a contact has not been followed up for a while',
+  },
+  'sales.quote.accepted': {
+    label: 'Quote accepted',
+    description: 'When a quote is accepted',
+  },
+  'sales.invoice.paid': {
+    label: 'Invoice paid',
+    description: 'When an invoice is paid',
+  },
+  'sales.invoice.overdue': {
+    label: 'Overdue invoice',
+    description: 'When an open invoice past due date (scheduled)',
+  },
+  'inventory.stock.low': {
+    label: 'Low stock',
+    description: 'When quantity drops or hits the minimum',
+  },
+  'hr.leave.approved': {
+    label: 'Leave approved',
+    description: 'When a leave request is approved',
+  },
+  'hr.attendance.absence': {
+    label: 'Absence recorded',
+    description: 'When an employee absence is recorded',
+  },
+  'hr.payroll.month_end': {
+    label: 'Month-end payroll',
+    description: 'Scheduled at month end to prepare payroll',
+  },
+  'work.task.overdue': {
+    label: 'Overdue task',
+    description: 'When a task due date is passed',
+  },
+  'work.phase.completed': {
+    label: 'Phase completed',
+    description: 'When a project phase is completed',
+  },
+  'attachments.uploaded': {
+    label: 'File uploaded',
+    description: 'When an attachment linked to a project or task is uploaded',
+  },
+  'schedule.cron': {
+    label: 'Cron schedule',
+    description: 'Periodic run based on a cron expression',
+  },
+};
 
 export const ACTION_EN: Record<string, { label: string; description: string }> =
   {
@@ -143,72 +145,73 @@ export const FIELD_EN: Record<string, string> = {
   'create_task.title': 'Task title',
 };
 
-export const TEMPLATE_EN: Record<string, { name: string; description: string }> =
-  {
-    'crm.lead.assign_sales': {
-      name: 'Assign lead to sales user',
-      description: 'When a new lead is added, assign it to a sales user',
-    },
-    'crm.interested.followup': {
-      name: 'Follow-up reminder when interested',
-      description:
-        'When opportunity status becomes interested, create a follow-up reminder',
-    },
-    'crm.stale.manager_alert': {
-      name: 'Alert manager on stale follow-up',
-      description:
-        'When a contact is not followed up, notify the manager and create a reminder',
-    },
-    'sales.quote.to_invoice': {
-      name: 'Convert accepted quote to invoice',
-      description: 'When a quote is accepted, convert it to an invoice',
-    },
-    'sales.invoice.overdue_alert': {
-      name: 'Overdue invoice alert',
-      description:
-        'When invoice payment is late, notify the owner and admins',
-    },
-    'sales.invoice.paid_update_customer': {
-      name: 'Update customer after payment',
-      description: 'When an invoice is paid, update the contact status',
-    },
-    'inventory.low.notify': {
-      name: 'Low stock alert',
-      description: 'When quantity drops, send an alert',
-    },
-    'inventory.min.create_po': {
-      name: 'Purchase order at minimum',
-      description: 'When stock hits minimum, create a purchase order',
-    },
-    'sales.deduct_stock': {
-      name: 'Deduct quantity on sale',
-      description: 'When a product is sold, deduct quantity automatically',
-    },
-    'hr.leave.update_balance': {
-      name: 'Update leave balance',
-      description: 'When leave is approved, update leave balances',
-    },
-    'hr.absence.notify': {
-      name: 'Notify on absence',
-      description: 'When absence is recorded, send a notification',
-    },
-    'hr.payroll.month_end': {
-      name: 'Prepare month-end payroll',
-      description: 'At month end, prepare payroll data',
-    },
-    'work.task.overdue_notify': {
-      name: 'Overdue task notification',
-      description: 'When a task is overdue, send a notification',
-    },
-    'work.phase.open_next': {
-      name: 'Open next phase',
-      description: 'When a phase is completed, open the next phase',
-    },
-    'work.file.notify_pm': {
-      name: 'Notify PM on file upload',
-      description: 'When a file is uploaded, notify the project manager',
-    },
-  };
+export const TEMPLATE_EN: Record<
+  string,
+  { name: string; description: string }
+> = {
+  'crm.lead.assign_sales': {
+    name: 'Assign lead to sales user',
+    description: 'When a new lead is added, assign it to a sales user',
+  },
+  'crm.interested.followup': {
+    name: 'Follow-up reminder when interested',
+    description:
+      'When opportunity status becomes interested, create a follow-up reminder',
+  },
+  'crm.stale.manager_alert': {
+    name: 'Alert manager on stale follow-up',
+    description:
+      'When a contact is not followed up, notify the manager and create a reminder',
+  },
+  'sales.quote.to_invoice': {
+    name: 'Convert accepted quote to invoice',
+    description: 'When a quote is accepted, convert it to an invoice',
+  },
+  'sales.invoice.overdue_alert': {
+    name: 'Overdue invoice alert',
+    description: 'When invoice payment is late, notify the owner and admins',
+  },
+  'sales.invoice.paid_update_customer': {
+    name: 'Update customer after payment',
+    description: 'When an invoice is paid, update the contact status',
+  },
+  'inventory.low.notify': {
+    name: 'Low stock alert',
+    description: 'When quantity drops, send an alert',
+  },
+  'inventory.min.create_po': {
+    name: 'Purchase order at minimum',
+    description: 'When stock hits minimum, create a purchase order',
+  },
+  'sales.deduct_stock': {
+    name: 'Deduct quantity on sale',
+    description: 'When a product is sold, deduct quantity automatically',
+  },
+  'hr.leave.update_balance': {
+    name: 'Update leave balance',
+    description: 'When leave is approved, update leave balances',
+  },
+  'hr.absence.notify': {
+    name: 'Notify on absence',
+    description: 'When absence is recorded, send a notification',
+  },
+  'hr.payroll.month_end': {
+    name: 'Prepare month-end payroll',
+    description: 'At month end, prepare payroll data',
+  },
+  'work.task.overdue_notify': {
+    name: 'Overdue task notification',
+    description: 'When a task is overdue, send a notification',
+  },
+  'work.phase.open_next': {
+    name: 'Open next phase',
+    description: 'When a phase is completed, open the next phase',
+  },
+  'work.file.notify_pm': {
+    name: 'Notify PM on file upload',
+    description: 'When a file is uploaded, notify the project manager',
+  },
+};
 
 export const VERIFICATION_EN: Record<string, string> = {
   'crm.lead.created': 'New lead → assign + task',

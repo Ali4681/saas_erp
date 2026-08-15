@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   IsArray,
   IsEnum,
@@ -206,9 +214,6 @@ export class CompanyIntegrationsController {
     @Param('companyId') companyId: string,
     @Query() query: DeliveriesQuery,
   ) {
-    return this.integrations.listWebhookDeliveries(
-      companyId,
-      query.webhookId,
-    );
+    return this.integrations.listWebhookDeliveries(companyId, query.webhookId);
   }
 }

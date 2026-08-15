@@ -25,6 +25,7 @@ export function NotificationBellDropdown({ companyId }: { companyId: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const authFailedRef = useRef(false);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<{
@@ -77,11 +78,16 @@ export function NotificationBellDropdown({ companyId }: { companyId: string }) {
   }, [open, updatePanelPosition]);
 
   const loadUnreadCount = useCallback(async () => {
+    if (authFailedRef.current) return;
     try {
       const res = await fetch(
         `/api/companies/${companyId}/notifications/unread-count`,
-        { cache: "no-store" },
+        { cache: "no-store", credentials: "same-origin" },
       );
+      if (res.status === 401 || res.status === 403) {
+        authFailedRef.current = true;
+        return;
+      }
       if (!res.ok) return;
       const data = (await res.json()) as { count: number };
       setUnreadCount(data.count ?? 0);
@@ -91,12 +97,17 @@ export function NotificationBellDropdown({ companyId }: { companyId: string }) {
   }, [companyId]);
 
   const loadNotifications = useCallback(async () => {
+    if (authFailedRef.current) return;
     setLoading(true);
     try {
       const res = await fetch(
         `/api/companies/${companyId}/notifications?limit=15`,
-        { cache: "no-store" },
+        { cache: "no-store", credentials: "same-origin" },
       );
+      if (res.status === 401 || res.status === 403) {
+        authFailedRef.current = true;
+        return;
+      }
       if (!res.ok) return;
       const data = (await res.json()) as NotificationItem[];
       setItems(Array.isArray(data) ? data : []);
@@ -108,6 +119,7 @@ export function NotificationBellDropdown({ companyId }: { companyId: string }) {
   }, [companyId]);
 
   useEffect(() => {
+    authFailedRef.current = false;
     const start = window.setTimeout(() => {
       void loadUnreadCount();
     }, 800);
@@ -165,7 +177,7 @@ export function NotificationBellDropdown({ companyId }: { companyId: string }) {
 
       await fetch(
         `/api/companies/${companyId}/notifications/${notification.id}/read`,
-        { method: "PATCH" },
+        { method: "PATCH", credentials: "same-origin" },
       ).catch(() => {
         void loadNotifications();
         void loadUnreadCount();
@@ -184,7 +196,7 @@ export function NotificationBellDropdown({ companyId }: { companyId: string }) {
     try {
       const res = await fetch(
         `/api/companies/${companyId}/notifications/read-all`,
-        { method: "PATCH" },
+        { method: "PATCH", credentials: "same-origin" },
       );
       if (!res.ok) return;
       setItems((current) =>

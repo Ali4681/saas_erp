@@ -90,8 +90,8 @@ export class StorageService {
   private s3Configured(): boolean {
     return Boolean(
       this.config.get<string>('S3_BUCKET')?.trim() &&
-        this.config.get<string>('S3_ACCESS_KEY_ID')?.trim() &&
-        this.config.get<string>('S3_SECRET_ACCESS_KEY')?.trim(),
+      this.config.get<string>('S3_ACCESS_KEY_ID')?.trim() &&
+      this.config.get<string>('S3_SECRET_ACCESS_KEY')?.trim(),
     );
   }
 
@@ -109,9 +109,7 @@ export class StorageService {
 
     const bucket = this.config.getOrThrow<string>('S3_BUCKET').trim();
     const region = (this.config.get<string>('S3_REGION') ?? 'us-east-1').trim();
-    const accessKey = this.config
-      .getOrThrow<string>('S3_ACCESS_KEY_ID')
-      .trim();
+    const accessKey = this.config.getOrThrow<string>('S3_ACCESS_KEY_ID').trim();
     const secretKey = this.config
       .getOrThrow<string>('S3_SECRET_ACCESS_KEY')
       .trim();
@@ -122,12 +120,11 @@ export class StorageService {
     const host = endpoint
       ? new URL(endpoint).host
       : `${bucket}.s3.${region}.amazonaws.com`;
-    const urlPath = forcePath || endpoint
-      ? `/${bucket}/${input.storageKey}`
-      : `/${input.storageKey}`;
-    const baseUrl = endpoint
-      ? endpoint.replace(/\/$/, '')
-      : `https://${host}`;
+    const urlPath =
+      forcePath || endpoint
+        ? `/${bucket}/${input.storageKey}`
+        : `/${input.storageKey}`;
+    const baseUrl = endpoint ? endpoint.replace(/\/$/, '') : `https://${host}`;
     const url = `${baseUrl}${urlPath}`;
 
     const amzDate = this.amzDate();
@@ -215,9 +212,7 @@ export class StorageService {
     region: string,
     service: string,
   ): Buffer {
-    const kDate = createHmac('sha256', `AWS4${key}`)
-      .update(dateStamp)
-      .digest();
+    const kDate = createHmac('sha256', `AWS4${key}`).update(dateStamp).digest();
     const kRegion = createHmac('sha256', kDate).update(region).digest();
     const kService = createHmac('sha256', kRegion).update(service).digest();
     return createHmac('sha256', kService).update('aws4_request').digest();

@@ -42,7 +42,11 @@ export class ExtensionBridgeController {
       return { ok: false, message: 'unknown_channel', channel };
     }
     if (!this.bridge.isConnected(normalized)) {
-      return { ok: false, message: 'extension_not_connected', channel: normalized };
+      return {
+        ok: false,
+        message: 'extension_not_connected',
+        channel: normalized,
+      };
     }
     try {
       const data = await this.bridge.sendCommand(

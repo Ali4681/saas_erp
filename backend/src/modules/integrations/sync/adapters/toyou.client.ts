@@ -57,12 +57,7 @@ export class ToYouClient {
       raw: true,
     });
     if (res.status === 401) {
-      throw new ProviderHttpError(
-        'TOYOU: token expired',
-        401,
-        res.data,
-        path,
-      );
+      throw new ProviderHttpError('TOYOU: token expired', 401, res.data, path);
     }
     if (!res.ok) {
       throw new ProviderHttpError(
@@ -140,7 +135,11 @@ export class ToYouClient {
     const lines = asArray(row.orderLines ?? row.items ?? row.lines);
     return {
       externalId: String(
-        row.id ?? row.orderId ?? row.orderNumber ?? row.displayableOrderNumber ?? '',
+        row.id ??
+          row.orderId ??
+          row.orderNumber ??
+          row.displayableOrderNumber ??
+          '',
       ),
       externalNumber: String(
         row.displayableOrderNumber ?? row.orderNumber ?? row.id ?? '',
@@ -151,7 +150,9 @@ export class ToYouClient {
       placedAt: this.toIso(row.creationDate ?? row.createdAt ?? row.created),
       currency: String(row.currency ?? 'SAR'),
       subtotal: money(row.orderCost ?? row.totalPrice ?? row.grandTotal ?? 0),
-      totalAmount: money(row.orderCost ?? row.totalPrice ?? row.grandTotal ?? 0),
+      totalAmount: money(
+        row.orderCost ?? row.totalPrice ?? row.grandTotal ?? 0,
+      ),
       items: lines.map((line, index) => {
         const item = asRecord(line);
         const qty = money(item.quantity ?? 1, '1');

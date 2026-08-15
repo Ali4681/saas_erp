@@ -3,7 +3,10 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ReportFiltersForm } from "@/components/erp/ReportFiltersForm";
+import {
+  ReportFiltersForm,
+  resolveReportPeriod,
+} from "@/components/erp/ReportFiltersForm";
 import { ReportExportButtons } from "@/components/erp/ReportExportButtons";
 import { apiServer } from "@/lib/api/server";
 import {
@@ -15,6 +18,13 @@ import {
 import { getFormatters } from "@/lib/format-server";
 
 type Employee = { id: string; fullName: string; employeeNumber: string };
+type Contact = {
+  id: string;
+  displayName?: string | null;
+  fullName?: string | null;
+  name?: string | null;
+};
+type Item = { id: string; name: string; sku?: string | null };
 
 type RowTable = {
   key: string;
@@ -47,28 +57,63 @@ export default async function ModuleReportPage({
   searchParams: Promise<{
     from?: string;
     to?: string;
+    period?: string;
     employeeId?: string;
-    limit?: string;
+    customerId?: string;
+    productId?: string;
+    status?: string;
   }>;
 }) {
   const { companyId, module } = await params;
   const t = await getTranslations("reports");
   const { formatMoney, formatNumber } = await getFormatters();
-  const filters = await searchParams;
+  const raw = await searchParams;
+  const period = resolveReportPeriod(raw);
+  const filters = {
+    from: period.from,
+    to: period.to,
+    period: period.period ?? raw.period,
+    employeeId: raw.employeeId,
+    customerId: raw.customerId,
+    productId: raw.productId,
+    status: raw.status,
+  };
   const qs = buildQuery(filters);
   const known = REPORT_MODULES.find((m) => m.value === module);
   const label = known
     ? t(`modules.${known.value}` as "modules.sales")
     : module;
 
-  const [data, employees] = await Promise.all([
+  const needsEmployees = [
+    "sales",
+    "purchases",
+    "hr",
+    "projects",
+    "notes",
+  ].includes(module);
+  const needsCustomers = ["sales", "customers"].includes(module);
+  const needsProducts = ["sales", "inventory"].includes(module);
+
+  const [data, employees, contacts, items] = await Promise.all([
     apiServer<Record<string, unknown>>(
       `/companies/${companyId}/reports/modules/${module}${qs}`,
       { companyId },
     ).catch(() => null),
-    apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
-      companyId,
-    }).catch(() => []),
+    needsEmployees
+      ? apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
+          companyId,
+        }).catch(() => [])
+      : Promise.resolve([] as Employee[]),
+    needsCustomers
+      ? apiServer<Contact[]>(`/companies/${companyId}/crm/contacts`, {
+          companyId,
+        }).catch(() => [])
+      : Promise.resolve([] as Contact[]),
+    needsProducts
+      ? apiServer<Item[]>(`/companies/${companyId}/inventory/items`, {
+          companyId,
+        }).catch(() => [])
+      : Promise.resolve([] as Item[]),
   ]);
 
   const classifications = data
@@ -108,7 +153,19 @@ export default async function ModuleReportPage({
       <ReportFiltersForm
         companyId={companyId}
         actionPath={`/c/${companyId}/reports/modules/${module}`}
-        employees={employees}
+        module={module}
+        employees={employees.map((e) => ({
+          id: e.id,
+          label: `${e.employeeNumber} — ${e.fullName}`,
+        }))}
+        customers={contacts.map((c) => ({
+          id: c.id,
+          label: c.name || c.displayName || c.fullName || c.id,
+        }))}
+        products={items.map((i) => ({
+          id: i.id,
+          label: i.sku ? `${i.sku} — ${i.name}` : i.name,
+        }))}
         defaults={filters}
       />
 
