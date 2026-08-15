@@ -8,6 +8,7 @@
   "scripts": {
     "build": "prisma generate && nest build",
     "build:migrate": "prisma generate && prisma migrate deploy && nest build",
+    "postbuild": "node scripts/copy-i18n.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
