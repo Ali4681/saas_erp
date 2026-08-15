@@ -63,6 +63,8 @@
     "partnerApprovalRequired": "يتطلب موافقة الشريك",
     "savedSuccessfully": "تم الحفظ بنجاح",
     "forbiddenWithDetail": "غير مصرح (403): {detail}",
+    "yes": "نعم",
+    "no": "لا",
     "metadataDescription": "نظام إدارة موارد المؤسسات متعدد الشركات"
   },
   "language": {

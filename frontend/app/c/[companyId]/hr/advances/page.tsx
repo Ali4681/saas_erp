@@ -61,8 +61,8 @@ export default async function AdvancesPage({
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Salary advances"
-        description="On approve, the amount is credited to the employee wallet. Mark paid is optional bookkeeping."
+        title={t("advancesTitle")}
+        description={t("advancesDesc")}
         actions={
           <Button href={`/c/${companyId}/hr`} variant="secondary">
             {t("title")}
@@ -72,7 +72,7 @@ export default async function AdvancesPage({
       <FlashFromSearch searchParams={flash} />
 
       {canWrite ? (
-        <CreateFormDialog title="Request advance" triggerLabel="Add advance">
+        <CreateFormDialog title={t("newAdvance")} triggerLabel={t("addAdvance")}>
           <form action={create} className="grid gap-3 md:grid-cols-2">
             <Select
               name="employeeId"
@@ -84,7 +84,7 @@ export default async function AdvancesPage({
                 label: `${e.employeeNumber} — ${e.fullName}`,
               }))}
             />
-            <Input name="amount" label="Amount" required />
+            <Input name="amount" label={t("amount")} required />
             <div className="md:col-span-2">
               <Textarea name="reason" label={t("reason")} />
             </div>
@@ -97,14 +97,14 @@ export default async function AdvancesPage({
 
       <Card>
         {advances.length === 0 ? (
-          <EmptyState message="No advances" />
+          <EmptyState message={t("emptyAdvances")} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[880px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("employee")}</th>
-                  <th className="px-2 py-2 font-medium">Amount</th>
+                  <th className="px-2 py-2 font-medium">{t("amount")}</th>
                   <th className="px-2 py-2 font-medium">{t("date")}</th>
                   <th className="px-2 py-2 font-medium">{t("reason")}</th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
@@ -166,7 +166,7 @@ export default async function AdvancesPage({
                       ) : canDecide && a.status === "APPROVED" ? (
                         <div className="flex flex-wrap gap-1">
                           <ActionForm
-                            label="Mark paid"
+                            label={t("markPaid")}
                             variant="primary"
                             action={decideAdvance.bind(
                               null,
@@ -176,7 +176,7 @@ export default async function AdvancesPage({
                             )}
                           />
                           <ActionForm
-                            label="Cancel"
+                            label={t("cancelAdvance")}
                             variant="danger"
                             action={decideAdvance.bind(
                               null,

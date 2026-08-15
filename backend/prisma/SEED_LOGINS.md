@@ -2,10 +2,40 @@
 
 Password for **all** users below: `Admin123!`
 
-Run from `backend/`:
+## Production (Plesk / server)
+
+From the **backend** folder (e.g. `/var/www/vhosts/bssflow.com/erpwejha.bssflow.com/backend`):
 
 ```bash
+# Recommended: migrate schema, then seed roles + demo data
+npm run seed:prod
+
+# Equivalent:
+npx prisma migrate deploy
+npm run seed
+```
+
+Roles/permissions only (skip demo company bulk data):
+
+```bash
+SEED_SKIP_DEMO=1 npm run seed
+```
+
+Then reload the API:
+
+```bash
+pm2 reload ecosystem.config.cjs --update-env
+```
+
+If seed fails with `identity_type` / `ColumnNotFound`, migrations were not applied — run `npx prisma migrate deploy` first.
+
+## Local
+
+```bash
+cd backend
 npx prisma db seed
+# or
+npm run seed
 ```
 
 ## Platform
@@ -48,3 +78,6 @@ companies R, users R, plans R, integrations R/W, finance R, crm R/W, sales R, pu
 
 ### EMPLOYEE_VIEWER
 companies R, plans R, integrations R, finance/crm/sales/purchasing/inventory R, hr R, tracking R, work/automation/marketing R, attachments R/**W** (receipts), ai R, notebook/integration_center/messaging/notifications R, reports R.
+
+### COMPANY_EMPLOYEE
+Same broad reads as EMPLOYEE_VIEWER + **hr.self** (My Profile self-service). Created automatically when HR checks “Create app login” on a new employee.

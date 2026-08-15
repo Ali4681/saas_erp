@@ -91,14 +91,14 @@ export default async function ItemsPage({
             />
             <Select
               name="parentItemId"
-              label="Parent item"
+              label={t("parentItem")}
               placeholder={t("optional")}
               options={items.map((i) => ({
                 value: i.id,
                 label: i.sku ? `${i.name} (${i.sku})` : i.name,
               }))}
             />
-            <Input name="sku" label="SKU" />
+            <Input name="sku" label={t("sku")} />
             <Input name="cost" label={t("cost")} />
             <Input name="salePrice" label={t("salePrice")} />
             <Input name="minStock" label={t("minStock")} defaultValue="0" />

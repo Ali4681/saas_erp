@@ -169,6 +169,7 @@ export default async function EmployeeDetailPage({
   const flash = await searchParams;
   const tab = (TABS.includes(flash.tab as Tab) ? flash.tab : "personal") as Tab;
   const t = await getTranslations("hr");
+  const tc = await getTranslations("common");
   const { formatMoney, formatDate } = await getFormatters();
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
@@ -825,7 +826,7 @@ export default async function EmployeeDetailPage({
                 {t("overTarget")}
               </p>
               <p className="mt-1 font-semibold">
-                {employee.salesProgress?.overTarget ? "Yes" : "No"}
+                {employee.salesProgress?.overTarget ? tc("yes") : tc("no")}
               </p>
             </Card>
           </div>

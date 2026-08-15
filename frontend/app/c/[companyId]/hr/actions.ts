@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 import { erpMutate } from "@/lib/erp/mutate";
@@ -9,6 +10,14 @@ import { optStr, str } from "@/lib/erp/form";
 
 function page(companyId: string, segment: string) {
   return `/c/${companyId}/hr/${segment}`;
+}
+
+async function hrT() {
+  return getTranslations("hr");
+}
+
+async function commonT() {
+  return getTranslations("common");
 }
 
 function currentMonth(): string {
@@ -77,6 +86,8 @@ async function uploadInsuranceViaHr(
 }
 
 export async function createEmployee(companyId: string, formData: FormData) {
+  const t = await hrT();
+  const tc = await commonT();
   const pagePath = page(companyId, "employees");
   const file = formData.get("cv");
   const hasCv = file instanceof File && file.size > 0;
@@ -96,13 +107,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
       !allowed.includes(mimeType) &&
       !/\.(pdf|doc|docx|jpg|jpeg|png)$/i.test(file.name)
     ) {
-      redirect(
-        flashPath(
-          pagePath,
-          "error",
-          "صيغة الـ CV غير مدعومة (PDF / Word / صورة)",
-        ),
-      );
+      redirect(flashPath(pagePath, "error", t("flash.cvUnsupportedType")));
     }
   }
 
@@ -191,7 +196,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
       const q = new URLSearchParams({
         loginEmail: employee.appLogin.email,
         loginPassword: employee.appLogin.temporaryPassword,
-        ok: "تم إنشاء الموظف وحساب الدخول — انسخ بيانات الدخول أدناه",
+        ok: t("flash.employeeCreatedWithLogin"),
       });
       redirect(`${detailPath}?${q.toString()}`);
     }
@@ -199,7 +204,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
       flashPath(
         pagePath,
         "ok",
-        hasCv ? "تم إنشاء الموظف ورفع الـ CV" : "تم إنشاء الموظف",
+        hasCv ? t("flash.employeeCreatedWithCv") : t("flash.employeeCreated"),
       ),
     );
   } catch (error) {
@@ -214,7 +219,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
         details.length > 0 ? details.join("; ") : error.message;
       const message =
         error.status === 403
-          ? `غير مصرح (403): ${detailText}`
+          ? tc("forbiddenWithDetail", { detail: detailText })
           : detailText;
       redirect(flashPath(pagePath, "error", message));
     }
@@ -227,17 +232,19 @@ export async function setEmployeeStatus(
   employeeId: string,
   employmentStatus: string,
 ) {
+  const t = await hrT();
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/employees/${employeeId}/status`,
     method: "PATCH",
     body: { employmentStatus },
     pagePath: page(companyId, "employees"),
-    okMessage: `تم تحديث الحالة إلى ${employmentStatus}`,
+    okMessage: t("flash.statusUpdated", { status: employmentStatus }),
   });
 }
 
 export async function createAttendance(companyId: string, formData: FormData) {
+  const t = await hrT();
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/attendance`,
@@ -250,11 +257,12 @@ export async function createAttendance(companyId: string, formData: FormData) {
       notes: optStr(formData, "notes"),
     },
     pagePath: page(companyId, "attendance"),
-    okMessage: "تم تسجيل الحضور",
+    okMessage: t("flash.attendanceRecorded"),
   });
 }
 
 export async function createLeave(companyId: string, formData: FormData) {
+  const t = await hrT();
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/leaves`,
@@ -267,7 +275,7 @@ export async function createLeave(companyId: string, formData: FormData) {
       reason: str(formData, "reason"),
     },
     pagePath: page(companyId, "leaves"),
-    okMessage: "تم تقديم طلب الإجازة",
+    okMessage: t("flash.leaveRequested"),
   });
 }
 
@@ -276,17 +284,24 @@ export async function decideLeave(
   leaveId: string,
   status: string,
 ) {
+  const t = await hrT();
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/leaves/${leaveId}/decision`,
     method: "PATCH",
     body: { status },
     pagePath: page(companyId, "leaves"),
-    okMessage: `تم ${status === "APPROVED" ? "اعتماد" : "رفض"} الطلب`,
+    okMessage: t("flash.leaveDecided", {
+      action:
+        status === "APPROVED"
+          ? t("flash.leaveApproved")
+          : t("flash.leaveRejected"),
+    }),
   });
 }
 
 export async function createPayrollRun(companyId: string, formData: FormData) {
+  const t = await hrT();
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/payroll-runs`,
@@ -295,7 +310,7 @@ export async function createPayrollRun(companyId: string, formData: FormData) {
       periodEnd: str(formData, "periodEnd"),
     },
     pagePath: page(companyId, "payroll"),
-    okMessage: "تم إنشاء مسير الرواتب",
+    okMessage: t("flash.payrollCreated"),
   });
 }
 
@@ -304,13 +319,14 @@ export async function setPayrollStatus(
   payrollRunId: string,
   status: string,
 ) {
+  const t = await hrT();
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/payroll-runs/${payrollRunId}/status`,
     method: "PATCH",
     body: { status },
     pagePath: page(companyId, "payroll"),
-    okMessage: `تم تحديث المسير إلى ${status}`,
+    okMessage: t("flash.payrollUpdated", { status }),
   });
 }
 
@@ -365,7 +381,7 @@ export async function updateEmployeeCompensation(
         : {}),
     },
     pagePath: page(companyId, "employees"),
-    okMessage: "Employee updated",
+    okMessage: (await hrT())("flash.employeeUpdated"),
   });
 }
 
@@ -377,12 +393,12 @@ export async function uploadEmployeeInsurance(
   const pagePath = `/c/${companyId}/hr/employees/${employeeId}?tab=personal`;
   const file = formData.get("insurance");
   if (!(file instanceof File) || file.size <= 0) {
-    redirect(flashPath(pagePath, "error", "Insurance file required"));
+    redirect(flashPath(pagePath, "error", (await hrT())("flash.insuranceRequired")));
   }
   try {
     await uploadInsuranceViaHr(companyId, employeeId, file);
     revalidatePath(pagePath);
-    redirect(flashPath(pagePath, "ok", "Insurance uploaded"));
+    redirect(flashPath(pagePath, "ok", (await hrT())("flash.insuranceUploaded")));
   } catch (error) {
     if (error instanceof ApiError) {
       redirect(flashPath(pagePath, "error", error.message));
@@ -410,7 +426,7 @@ export async function updateEmployeeQiwa(
       },
     );
     revalidatePath(pagePath);
-    redirect(flashPath(pagePath, "ok", "Qiwa link saved"));
+    redirect(flashPath(pagePath, "ok", (await hrT())("flash.qiwaLinkSaved")));
   } catch (error) {
     if (error instanceof ApiError) {
       redirect(flashPath(pagePath, "error", error.message));
@@ -436,7 +452,7 @@ export async function setEmployeeAdvanceAllowance(
       month: optStr(formData, "month"),
     },
     pagePath: `/c/${companyId}/hr/employees/${employeeId}?tab=financial`,
-    okMessage: "Advance allowance updated",
+    okMessage: (await hrT())("flash.advanceAllowanceUpdated"),
   });
 }
 
@@ -458,7 +474,7 @@ export async function setEmployeeFinancialSettings(
       basicSalary: optStr(formData, "basicSalary"),
     },
     pagePath: `/c/${companyId}/hr/employees/${employeeId}?tab=financial`,
-    okMessage: "Financial settings updated",
+    okMessage: (await hrT())("flash.financialUpdated"),
   });
 }
 
@@ -473,7 +489,7 @@ export async function createShift(companyId: string, formData: FormData) {
       breakMinutes: Number(optStr(formData, "breakMinutes") ?? "0"),
     },
     pagePath: page(companyId, "employees"),
-    okMessage: "Shift created",
+    okMessage: (await hrT())("flash.shiftCreated"),
   });
 }
 
@@ -491,7 +507,7 @@ export async function assignEmployeeShift(
       effectiveTo: optStr(formData, "effectiveTo"),
     },
     pagePath: `/c/${companyId}/hr/employees/${employeeId}?tab=shifts`,
-    okMessage: "Shift assigned",
+    okMessage: (await hrT())("flash.shiftAssigned"),
   });
 }
 
@@ -507,7 +523,7 @@ export async function decideSalesSubmission(
     method: "PATCH",
     body: { status },
     pagePath: returnPath ?? page(companyId, "sales-submissions"),
-    okMessage: status === "APPROVED" ? "Sale approved" : "Sale rejected",
+    okMessage: status === "APPROVED" ? (await hrT())("flash.saleApproved") : (await hrT())("flash.saleRejected"),
   });
 }
 
@@ -552,7 +568,7 @@ export async function submitMySale(companyId: string, formData: FormData) {
     });
 
     revalidatePath(pagePath);
-    redirect(flashPath(pagePath, "ok", "Sale submitted"));
+    redirect(flashPath(pagePath, "ok", (await hrT())("flash.saleSubmitted")));
   } catch (error) {
     if (error instanceof ApiError) {
       redirect(flashPath(pagePath, "error", error.message));
@@ -571,7 +587,7 @@ export async function updateMyTargetCompleted(
     method: "PATCH",
     body: {},
     pagePath: page(companyId, "me"),
-    okMessage: "Target refreshed from approved sales",
+    okMessage: (await hrT())("flash.targetRefreshed"),
   });
 }
 
@@ -594,7 +610,7 @@ export async function createContract(companyId: string, formData: FormData) {
       !/\.(pdf|doc|docx|jpg|jpeg|png)$/i.test(file.name)
     ) {
       redirect(
-        flashPath(pagePath, "error", "Unsupported contract file type"),
+        flashPath(pagePath, "error", (await hrT())("flash.contractFileUnsupported")),
       );
     }
   }
@@ -629,7 +645,7 @@ export async function createContract(companyId: string, formData: FormData) {
     }
 
     revalidatePath(pagePath);
-    redirect(flashPath(pagePath, "ok", "Contract created"));
+    redirect(flashPath(pagePath, "ok", (await hrT())("flash.contractCreated")));
   } catch (error) {
     if (error instanceof ApiError) {
       redirect(flashPath(pagePath, "error", error.message));
@@ -656,7 +672,7 @@ export async function updateContract(
       notes: optStr(formData, "notes"),
     },
     pagePath: page(companyId, "contracts"),
-    okMessage: "Contract updated",
+    okMessage: (await hrT())("flash.contractUpdated"),
   });
 }
 
@@ -667,7 +683,7 @@ export async function submitContract(companyId: string, contractId: string) {
     method: "POST",
     body: {},
     pagePath: page(companyId, "contracts"),
-    okMessage: "Contract submitted",
+    okMessage: (await hrT())("flash.contractSubmitted"),
   });
 }
 
@@ -681,7 +697,7 @@ export async function createAdvance(companyId: string, formData: FormData) {
       reason: optStr(formData, "reason"),
     },
     pagePath: page(companyId, "advances"),
-    okMessage: "Advance created",
+    okMessage: (await hrT())("flash.advanceCreated"),
   });
 }
 
@@ -696,7 +712,7 @@ export async function decideAdvance(
     method: "PATCH",
     body: { status },
     pagePath: page(companyId, "advances"),
-    okMessage: `Advance marked ${status}`,
+    okMessage: (await hrT())("flash.advanceMarked", { status }),
   });
 }
 
@@ -711,7 +727,7 @@ export async function upsertEwallet(companyId: string, formData: FormData) {
       currency: optStr(formData, "currency"),
     },
     pagePath: page(companyId, "employees"),
-    okMessage: "E-wallet saved",
+    okMessage: (await hrT())("flash.ewalletSaved"),
   });
 }
 
@@ -727,7 +743,7 @@ export async function createDevice(companyId: string, formData: FormData) {
       streamUrl: optStr(formData, "streamUrl"),
     },
     pagePath: page(companyId, "devices"),
-    okMessage: "Device created",
+    okMessage: (await hrT())("flash.deviceCreated"),
   });
 }
 
@@ -743,7 +759,7 @@ export async function updateMyProfile(companyId: string, formData: FormData) {
       ...(iban ? { iban } : {}),
     },
     pagePath: page(companyId, "me"),
-    okMessage: "Profile updated",
+    okMessage: (await hrT())("flash.profileUpdated"),
   });
 }
 
@@ -756,7 +772,7 @@ export async function requestMyAdvance(companyId: string, formData: FormData) {
       reason: str(formData, "reason"),
     },
     pagePath: page(companyId, "me"),
-    okMessage: "Advance requested",
+    okMessage: (await hrT())("flash.advanceRequested"),
   });
 }
 
@@ -772,7 +788,7 @@ export async function requestMyLeave(companyId: string, formData: FormData) {
       reason: str(formData, "reason"),
     },
     pagePath: page(companyId, "me"),
-    okMessage: "Leave requested",
+    okMessage: (await hrT())("flash.leaveRequested"),
   });
 }
 

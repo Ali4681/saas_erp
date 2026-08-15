@@ -51,8 +51,8 @@ export default async function CategoriesPage({
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Item categories"
-        description="Nested categories via parent"
+        title={t("categoriesTitle")}
+        description={t("categoriesDesc")}
         actions={
           <Button href={`/c/${companyId}/inventory`} variant="secondary">
             {t("title")}
@@ -62,13 +62,13 @@ export default async function CategoriesPage({
       <FlashFromSearch searchParams={flash} />
 
       {canWrite ? (
-        <CreateFormDialog title="New category" triggerLabel="Add category">
+        <CreateFormDialog title={t("newCategory")} triggerLabel={t("addCategory")}>
           <form action={create} className="grid gap-3 md:grid-cols-2">
             <Input name="name" label={t("name")} required />
             <Input name="code" label={t("code")} />
             <Select
               name="parentId"
-              label="Parent category"
+              label={t("parentCategory")}
               placeholder={t("optional")}
               options={categories.map((c) => ({
                 value: c.id,
@@ -84,7 +84,7 @@ export default async function CategoriesPage({
 
       <Card>
         {sorted.length === 0 ? (
-          <EmptyState message="No categories" />
+          <EmptyState message={t("emptyCategories")} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">

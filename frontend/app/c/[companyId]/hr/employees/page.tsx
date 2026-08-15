@@ -437,8 +437,8 @@ export default async function EmployeesPage({
                           </Button>
                           {canWrite ? (
                             <CreateFormDialog
-                              title={`Compensation — ${e.fullName}`}
-                              triggerLabel="Edit"
+                              title={t("compensationTitle", { name: e.fullName })}
+                              triggerLabel={t("edit")}
                               triggerVariant="outline"
                               showPlus={false}
                               className="!px-2 !py-1 text-xs"

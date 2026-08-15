@@ -1420,11 +1420,45 @@ async function main() {
     });
   }
 
-  const demoSummary = await seedDemoCompanyData({
-    prisma,
-    companyId: company.id,
-    adminUserId: admin.id,
-  });
+  const skipDemo =
+    process.env.SEED_SKIP_DEMO === '1' ||
+    process.env.SEED_SKIP_DEMO === 'true';
+
+  let demoSummary: unknown = skipDemo
+    ? { skipped: true, reason: 'SEED_SKIP_DEMO' }
+    : null;
+
+  if (!skipDemo) {
+    await assertHrSchemaReady(prisma);
+    try {
+      demoSummary = await seedDemoCompanyData({
+        prisma,
+        companyId: company.id,
+        adminUserId: admin.id,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (/identity_type|ColumnNotFound|P2022/i.test(msg)) {
+        console.error(`
+═══════════════════════════════════════════════════════════
+  Schema is behind the code (missing HR columns).
+
+  On the server, from backend/:
+
+    npx prisma migrate deploy
+    npm run seed
+
+  Or roles/permissions only (no demo company data):
+
+    SEED_SKIP_DEMO=1 npm run seed
+═══════════════════════════════════════════════════════════
+`);
+      }
+      throw error;
+    }
+  } else {
+    console.log('Skipping demo company data (SEED_SKIP_DEMO=1)');
+  }
 
   const notebookBuckets = [
     { codeKey: 'PROBLEMS', name: 'المشاكل' },
@@ -1474,8 +1508,28 @@ async function main() {
   console.log('  demo plan: ENTERPRISE');
   console.log('  providers:', PROVIDERS.length);
   console.log('  demo summary:', demoSummary);
+  console.log('');
+  console.log('Production tip: always migrate before seed:');
+  console.log('  npx prisma migrate deploy && npm run seed');
 
   await prisma.$disconnect();
+}
+
+/** Fails fast with clear ops steps if prod DB was never migrated for HR fields. */
+async function assertHrSchemaReady(prisma: PrismaClient) {
+  const rows = await prisma.$queryRaw<Array<{ c: bigint | number }>>`
+    SELECT COUNT(*) AS c
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'employees'
+      AND COLUMN_NAME = 'identity_type'
+  `;
+  const count = Number(rows[0]?.c ?? 0);
+  if (count < 1) {
+    throw new Error(
+      'Missing employees.identity_type — run: npx prisma migrate deploy',
+    );
+  }
 }
 
 main().catch(async (error) => {

@@ -63,6 +63,8 @@
     "partnerApprovalRequired": "Partner approval required",
     "savedSuccessfully": "Saved successfully",
     "forbiddenWithDetail": "Forbidden (403): {detail}",
+    "yes": "Yes",
+    "no": "No",
     "metadataDescription": "Multi-tenant enterprise resource planning platform"
   },
   "language": {
