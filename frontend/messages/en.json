@@ -77,7 +77,8 @@
     "COMPANY_ADMIN": "Company admin",
     "ACCOUNTANT": "Accountant",
     "OPERATIONS_MANAGER": "Operations manager",
-    "EMPLOYEE_VIEWER": "Employee / viewer"
+    "EMPLOYEE_VIEWER": "Employee / viewer",
+    "COMPANY_EMPLOYEE": "Employee (self-service)"
   },
   "sections": {
     "home": "Home",

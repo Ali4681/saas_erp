@@ -51,11 +51,12 @@ function filterItems(user: AuthUser, items: NavItem[]): NavItem[] {
       if (!item.permissions?.length) return true;
       return canAny(user, ...item.permissions);
     })
-    .map((item) =>
-      item.children?.length
-        ? { ...item, children: filterItems(user, item.children) }
-        : item,
-    );
+    .map((item) => {
+      if (!item.children?.length) return item;
+      const children = filterItems(user, item.children);
+      return { ...item, children };
+    })
+    .filter((item) => !item.children || item.children.length > 0);
 }
 
 function iconFor(href: string) {

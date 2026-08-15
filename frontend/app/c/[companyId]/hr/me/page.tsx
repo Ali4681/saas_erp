@@ -250,54 +250,6 @@ export default async function HrMePage({
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-sm font-semibold">{t("requestAdvance")}</h2>
-            <form
-              action={requestAdvance}
-              className="grid gap-3 md:grid-cols-2"
-            >
-              <Input name="amount" label={t("amount")} required />
-              <div className="md:col-span-2">
-                <Textarea name="reason" label={t("reason")} required />
-              </div>
-              <div className="md:col-span-2">
-                <Button type="submit">{t("submit")}</Button>
-              </div>
-            </form>
-          </Card>
-
-          <Card>
-            <h2 className="mb-3 text-sm font-semibold">{t("requestLeave")}</h2>
-            <form action={requestLeave} className="grid gap-3 md:grid-cols-2">
-              <Select
-                name="leaveType"
-                label={t("type")}
-                required
-                options={[
-                  { value: "ANNUAL", label: t("leaveAnnual") },
-                  { value: "SICK", label: t("leaveSick") },
-                  { value: "UNPAID", label: t("leaveUnpaid") },
-                  { value: "EMERGENCY", label: t("leaveEmergency") },
-                  { value: "OTHER", label: t("leaveOther") },
-                ]}
-              />
-              <Input
-                name="requestedDays"
-                label={t("days")}
-                required
-                defaultValue="1"
-              />
-              <Input name="startsOn" label={t("from")} type="date" required />
-              <Input name="endsOn" label={t("to")} type="date" required />
-              <div className="md:col-span-2">
-                <Textarea name="reason" label={t("reason")} required />
-              </div>
-              <div className="md:col-span-2">
-                <Button type="submit">{t("submit")}</Button>
-              </div>
-            </form>
-          </Card>
-
-          <Card>
             <h2 className="mb-3 text-sm font-semibold">{t("tabTargets")}</h2>
             <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
@@ -449,7 +401,20 @@ export default async function HrMePage({
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-sm font-semibold">{t("myAdvances")}</h2>
+            <h2 className="mb-3 text-sm font-semibold">{t("requestAdvance")}</h2>
+            <form
+              action={requestAdvance}
+              className="mb-6 grid gap-3 md:grid-cols-2"
+            >
+              <Input name="amount" label={t("amount")} required />
+              <div className="md:col-span-2">
+                <Textarea name="reason" label={t("reason")} required />
+              </div>
+              <div className="md:col-span-2">
+                <Button type="submit">{t("submit")}</Button>
+              </div>
+            </form>
+            <h3 className="mb-3 text-sm font-semibold">{t("myAdvances")}</h3>
             {!me.salaryAdvances?.length ? (
               <EmptyState message={t("emptyAdvances")} />
             ) : (
@@ -486,7 +451,41 @@ export default async function HrMePage({
           </Card>
 
           <Card>
-            <h2 className="mb-3 text-sm font-semibold">{t("myLeaves")}</h2>
+            <h2 className="mb-3 text-sm font-semibold">{t("requestLeave")}</h2>
+            <form
+              action={requestLeave}
+              className="mb-6 grid gap-3 md:grid-cols-2"
+            >
+              <Select
+                name="leaveType"
+                label={t("type")}
+                required
+                defaultValue="ANNUAL"
+                showPlaceholderOption={false}
+                options={[
+                  { value: "ANNUAL", label: t("leaveAnnual") },
+                  { value: "SICK", label: t("leaveSick") },
+                  { value: "UNPAID", label: t("leaveUnpaid") },
+                  { value: "EMERGENCY", label: t("leaveEmergency") },
+                  { value: "OTHER", label: t("leaveOther") },
+                ]}
+              />
+              <Input
+                name="requestedDays"
+                label={t("days")}
+                required
+                defaultValue="1"
+              />
+              <Input name="startsOn" label={t("from")} type="date" required />
+              <Input name="endsOn" label={t("to")} type="date" required />
+              <div className="md:col-span-2">
+                <Textarea name="reason" label={t("reason")} required />
+              </div>
+              <div className="md:col-span-2">
+                <Button type="submit">{t("submit")}</Button>
+              </div>
+            </form>
+            <h3 className="mb-3 text-sm font-semibold">{t("myLeaves")}</h3>
             {!me.leaveRequests?.length ? (
               <EmptyState message={t("emptyLeaves")} />
             ) : (

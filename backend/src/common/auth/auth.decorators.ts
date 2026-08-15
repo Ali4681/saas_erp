@@ -14,8 +14,13 @@ export const IS_PUBLIC_KEY = 'isPublic';
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
 export const PERMISSIONS_KEY = 'permissions';
+export const PERMISSIONS_ANY_KEY = 'permissionsAny';
+/** Requires every listed permission (AND). */
 export const RequirePermissions = (...permissions: string[]) =>
   SetMetadata(PERMISSIONS_KEY, permissions);
+/** Requires at least one listed permission (OR). */
+export const RequireAnyPermission = (...permissions: string[]) =>
+  SetMetadata(PERMISSIONS_ANY_KEY, permissions);
 
 export type AuthUser = {
   userId: string;
@@ -63,11 +68,18 @@ export class PermissionsGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const required = this.reflector.getAllAndOverride<string[]>(
+    const requiredAll = this.reflector.getAllAndOverride<string[]>(
       PERMISSIONS_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (!required || required.length === 0) {
+    const requiredAny = this.reflector.getAllAndOverride<string[]>(
+      PERMISSIONS_ANY_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (
+      (!requiredAll || requiredAll.length === 0) &&
+      (!requiredAny || requiredAny.length === 0)
+    ) {
       return true;
     }
 
@@ -79,13 +91,25 @@ export class PermissionsGuard implements CanActivate {
     if (user.isPlatformAdmin) {
       return true;
     }
-    const ok = required.every((permission) =>
-      user.permissions.includes(permission),
-    );
-    if (!ok) {
-      throw new ForbiddenException(
-        `Missing permission: ${required.join(', ')}`,
+    if (requiredAll?.length) {
+      const ok = requiredAll.every((permission) =>
+        user.permissions.includes(permission),
       );
+      if (!ok) {
+        throw new ForbiddenException(
+          `Missing permission: ${requiredAll.join(', ')}`,
+        );
+      }
+    }
+    if (requiredAny?.length) {
+      const ok = requiredAny.some((permission) =>
+        user.permissions.includes(permission),
+      );
+      if (!ok) {
+        throw new ForbiddenException(
+          `Missing permission (need one of): ${requiredAny.join(', ')}`,
+        );
+      }
     }
     return true;
   }

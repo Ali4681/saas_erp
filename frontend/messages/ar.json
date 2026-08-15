@@ -77,7 +77,8 @@
     "COMPANY_ADMIN": "مدير الشركة",
     "ACCOUNTANT": "محاسب",
     "OPERATIONS_MANAGER": "مدير العمليات",
-    "EMPLOYEE_VIEWER": "موظف / مشاهدة"
+    "EMPLOYEE_VIEWER": "موظف / مشاهدة",
+    "COMPANY_EMPLOYEE": "موظف (خدمة ذاتية)"
   },
   "sections": {
     "home": "الرئيسية",

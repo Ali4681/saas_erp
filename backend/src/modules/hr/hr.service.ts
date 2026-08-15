@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -29,9 +29,21 @@ import { PrismaService } from '../../database/prisma.service';
 import { AutomationEngine } from '../automation/automation.engine';
 import { PlatformService } from '../platform/platform.service';
 import { SalesService } from '../sales/sales.service';
+import { UsersService } from '../users/users.service';
 
 function fingerprintIban(iban: string): string {
   return createHash('sha256').update(normalizeIban(iban)).digest('hex');
+}
+
+function generateTempPassword(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const bytes = randomBytes(10);
+  let out = 'Emp';
+  for (let i = 0; i < 8; i++) {
+    out += alphabet[bytes[i]! % alphabet.length];
+  }
+  out += '!';
+  return out;
 }
 
 function mapSalePaymentMethod(
@@ -61,6 +73,7 @@ export class HrService {
     private readonly encryption: EncryptionService,
     private readonly platform: PlatformService,
     private readonly sales: SalesService,
+    private readonly users: UsersService,
     @Inject(forwardRef(() => AutomationEngine))
     private readonly automation: AutomationEngine,
   ) {}
@@ -418,6 +431,11 @@ export class HrService {
     approvalStatus?:
       EmployeeApprovalStatus | 'PENDING' | 'APPROVED' | 'REJECTED';
     userId?: string;
+    /** When true, creates a COMPANY_EMPLOYEE login and links it to this employee. */
+    createAppLogin?: boolean;
+    /** Optional password for the new login; generated if omitted. */
+    loginPassword?: string;
+    loginRoleCode?: string;
     companyBranchId?: string;
     companyDepartmentId?: string;
     email?: string;
@@ -483,9 +501,47 @@ export class HrService {
     ) {
       throw new BadRequestException('advanceAllowanceMonth must be YYYY-MM');
     }
-    if (input.userId) {
+
+    let linkedUserId = input.userId;
+    let appLogin:
+      | {
+          email: string;
+          temporaryPassword: string;
+          roleCode: string;
+        }
+      | undefined;
+
+    if (input.createAppLogin) {
+      const email = input.email?.trim().toLowerCase();
+      if (!email) {
+        throw new BadRequestException(
+          'email is required when creating an app login',
+        );
+      }
+      const temporaryPassword =
+        input.loginPassword?.trim() && input.loginPassword.trim().length >= 8
+          ? input.loginPassword.trim()
+          : generateTempPassword();
+      const roleCode = (input.loginRoleCode?.trim() || 'COMPANY_EMPLOYEE').toUpperCase();
+      const membership = await this.users.inviteToCompany({
+        companyId: input.companyId,
+        fullName: input.fullName.trim(),
+        email,
+        password: temporaryPassword,
+        roleCode,
+        branchId: input.companyBranchId,
+      });
+      linkedUserId = membership.userId;
+      appLogin = {
+        email,
+        temporaryPassword,
+        roleCode: membership.role.code,
+      };
+    }
+
+    if (linkedUserId) {
       const existing = await this.prisma.employee.findFirst({
-        where: { companyId: input.companyId, userId: input.userId },
+        where: { companyId: input.companyId, userId: linkedUserId },
       });
       if (existing) {
         throw new BadRequestException('User is already linked to an employee');
@@ -503,8 +559,8 @@ export class HrService {
         companyId: input.companyId,
         employeeNumber: input.employeeNumber,
         fullName: input.fullName,
-        userId: input.userId,
-        userKey: input.userId ?? '',
+        userId: linkedUserId,
+        userKey: linkedUserId ?? '',
         companyBranchId: input.companyBranchId,
         companyDepartmentId: input.companyDepartmentId,
         email: input.email,
@@ -556,7 +612,10 @@ export class HrService {
         attendanceBadgeId: input.attendanceBadgeId?.trim() || undefined,
       } as Prisma.EmployeeUncheckedCreateInput,
     });
-    return this.stripSensitiveIban(created);
+    return {
+      ...this.stripSensitiveIban(created),
+      ...(appLogin ? { appLogin } : {}),
+    };
   }
 
   async updateEmployee(

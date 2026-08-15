@@ -16,6 +16,18 @@ function currentMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function normalizeSaudiId(raw: string): string {
+  return raw
+    .replace(/[\s-]+/g, "")
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
+function normalizeSaudiIban(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const n = raw.replace(/[\s-]+/g, "").toUpperCase();
+  return n || undefined;
+}
+
 function flashPath(pagePath: string, key: "ok" | "error", message: string) {
   const sep = pagePath.includes("?") ? "&" : "?";
   return `${pagePath}${sep}${key}=${encodeURIComponent(message)}`;
@@ -109,37 +121,45 @@ export async function createEmployee(companyId: string, formData: FormData) {
       optStr(formData, "approvalStatus") === "APPROVED"
         ? "APPROVED"
         : "PENDING";
-    const employee = await apiServer<{ id: string }>(
-      `/companies/${companyId}/hr/employees`,
-      {
-        method: "POST",
-        companyId,
-        body: JSON.stringify({
-          employeeNumber: str(formData, "employeeNumber"),
-          fullName: str(formData, "fullName"),
-          identityType: str(formData, "identityType"),
-          identityNumber: str(formData, "identityNumber"),
-          identityExpiresOn: optStr(formData, "identityExpiresOn"),
-          email: optStr(formData, "email"),
-          phone: optStr(formData, "phone"),
-          jobTitle: optStr(formData, "jobTitle"),
-          hireDate: optStr(formData, "hireDate"),
-          basicSalary: optStr(formData, "basicSalary"),
-          salesTargetMode,
-          salesTargetAmount: optStr(formData, "salesTargetAmount"),
-          targetPercent: optStr(formData, "targetPercent"),
-          lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
-          absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
-          iban: optStr(formData, "iban"),
-          advanceAllowancePercent: advancePercent,
-          advanceAllowanceMonthly: advanceAmount,
-          advanceAllowanceMonth: advanceAmount ? advanceMonth : undefined,
-          attendanceBadgeId: optStr(formData, "attendanceBadgeId"),
-          approvalStatus,
-          currency: "SAR",
-        }),
-      },
-    );
+    const identityType = str(formData, "identityType").toUpperCase();
+    const identityNumber = normalizeSaudiId(str(formData, "identityNumber"));
+    const createAppLogin = formData.get("createAppLogin") === "on";
+    const employee = await apiServer<{
+      id: string;
+      appLogin?: {
+        email: string;
+        temporaryPassword: string;
+        roleCode: string;
+      };
+    }>(`/companies/${companyId}/hr/employees`, {
+      method: "POST",
+      companyId,
+      body: JSON.stringify({
+        employeeNumber: str(formData, "employeeNumber"),
+        fullName: str(formData, "fullName"),
+        identityType,
+        identityNumber,
+        identityExpiresOn: optStr(formData, "identityExpiresOn"),
+        email: optStr(formData, "email"),
+        phone: optStr(formData, "phone"),
+        jobTitle: optStr(formData, "jobTitle"),
+        hireDate: optStr(formData, "hireDate"),
+        basicSalary: optStr(formData, "basicSalary"),
+        salesTargetMode,
+        salesTargetAmount: optStr(formData, "salesTargetAmount"),
+        targetPercent: optStr(formData, "targetPercent"),
+        lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
+        absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
+        iban: normalizeSaudiIban(optStr(formData, "iban")),
+        advanceAllowancePercent: advancePercent,
+        advanceAllowanceMonthly: advanceAmount,
+        advanceAllowanceMonth: advanceAmount ? advanceMonth : undefined,
+        attendanceBadgeId: optStr(formData, "attendanceBadgeId"),
+        approvalStatus,
+        createAppLogin,
+        currency: "SAR",
+      }),
+    });
 
     if (hasCv && file instanceof File) {
       await uploadAttachmentFile(
@@ -166,6 +186,15 @@ export async function createEmployee(companyId: string, formData: FormData) {
     }
 
     revalidatePath(pagePath);
+    const detailPath = `/c/${companyId}/hr/employees/${employee.id}`;
+    if (employee.appLogin) {
+      const q = new URLSearchParams({
+        loginEmail: employee.appLogin.email,
+        loginPassword: employee.appLogin.temporaryPassword,
+        ok: "تم إنشاء الموظف وحساب الدخول — انسخ بيانات الدخول أدناه",
+      });
+      redirect(`${detailPath}?${q.toString()}`);
+    }
     redirect(
       flashPath(
         pagePath,

@@ -28,6 +28,11 @@ const ROLE_CODES = [
     name: 'Employee / Viewer',
     scope: 'TENANT' as const,
   },
+  {
+    code: 'COMPANY_EMPLOYEE',
+    name: 'Company Employee',
+    scope: 'TENANT' as const,
+  },
 ];
 
 const PERMISSIONS = [
@@ -54,6 +59,7 @@ const PERMISSIONS = [
   ['inventory', 'write'],
   ['hr', 'read'],
   ['hr', 'write'],
+  ['hr', 'self'],
   ['hr', 'sales_cash.approve'],
   ['hr', 'qiwa.manage'],
   ['hr', 'qiwa.approve'],
@@ -83,6 +89,7 @@ const PERMISSIONS = [
 
 const PHASE8_READ = [
   'hr.read',
+  'hr.self',
   'tracking.read',
   'work.read',
   'automation.read',
@@ -192,6 +199,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'purchasing.write',
     'crm.read',
     'hr.read',
+    'hr.self',
     'hr.sales_cash.approve',
     'tracking.read',
     'attachments.read',
@@ -214,6 +222,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'inventory.read',
     'inventory.write',
     'hr.read',
+    'hr.self',
     'hr.write',
     'hr.sales_cash.approve',
     'hr.qiwa.manage',
@@ -234,6 +243,24 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     ...PHASE10_READ,
   ],
   EMPLOYEE_VIEWER: [
+    'companies.read',
+    'plans.read',
+    'integrations.read',
+    'finance.read',
+    'crm.read',
+    'sales.read',
+    'purchasing.read',
+    'inventory.read',
+    ...PHASE8_READ,
+    'attachments.write',
+    ...PHASE9_READ,
+    'reports.read',
+  ],
+  /**
+   * New-hire app login. Full module nav for now (module gating later);
+   * hr.self powers My Profile self-service.
+   */
+  COMPANY_EMPLOYEE: [
     'companies.read',
     'plans.read',
     'integrations.read',

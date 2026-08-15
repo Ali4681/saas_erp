@@ -27,7 +27,15 @@ export class UsersService {
     this.tenant.setCompanyId(input.companyId);
     await this.planLimits.assertCanAddUser(input.companyId);
 
-    const role = await this.resolveTenantRole(input.companyId, input.roleCode);
+    const requestedRole = input.roleCode.trim().toUpperCase();
+    if (requestedRole === 'COMPANY_EMPLOYEE') {
+      await this.ensureCompanyEmployeeRole();
+    }
+
+    let role = await this.resolveTenantRole(input.companyId, requestedRole);
+    if (!role && requestedRole === 'COMPANY_EMPLOYEE') {
+      role = await this.ensureCompanyEmployeeRole();
+    }
     if (!role) {
       throw i18nNotFound('errors.users.roleNotFound');
     }
@@ -94,6 +102,104 @@ export class UsersService {
         include: { user: true, role: true },
       });
     });
+  }
+
+  /**
+   * Provisions COMPANY_EMPLOYEE + hr.self when missing (e.g. DB seeded before that role existed).
+   */
+  async ensureCompanyEmployeeRole() {
+    const hrSelf = await this.prisma.permission.upsert({
+      where: { code: 'hr.self' },
+      update: { module: 'hr', action: 'self' },
+      create: {
+        code: 'hr.self',
+        module: 'hr',
+        action: 'self',
+        description: 'self hr',
+      },
+    });
+
+    const role = await this.prisma.role.upsert({
+      where: { code: 'COMPANY_EMPLOYEE' },
+      update: {
+        name: 'Company Employee',
+        scope: 'TENANT',
+        isSystem: true,
+      },
+      create: {
+        code: 'COMPANY_EMPLOYEE',
+        name: 'Company Employee',
+        scope: 'TENANT',
+        isSystem: true,
+      },
+    });
+
+    const permissionCodes = [
+      'companies.read',
+      'plans.read',
+      'integrations.read',
+      'finance.read',
+      'crm.read',
+      'sales.read',
+      'purchasing.read',
+      'inventory.read',
+      'hr.read',
+      'hr.self',
+      'tracking.read',
+      'work.read',
+      'automation.read',
+      'marketing.read',
+      'attachments.read',
+      'attachments.write',
+      'ai.read',
+      'notebook.read',
+      'integration_center.read',
+      'messaging.read',
+      'notifications.read',
+      'reports.read',
+    ];
+    for (const code of permissionCodes) {
+      const permission =
+        code === 'hr.self'
+          ? hrSelf
+          : await this.prisma.permission.findUnique({ where: { code } });
+      if (!permission) continue;
+      await this.prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: { roleId: role.id, permissionId: permission.id },
+      });
+    }
+
+    // Managers with hr.read also need hr.self for My Profile APIs.
+    const hrRead = await this.prisma.permission.findUnique({
+      where: { code: 'hr.read' },
+    });
+    if (hrRead) {
+      const withHrRead = await this.prisma.rolePermission.findMany({
+        where: { permissionId: hrRead.id },
+        select: { roleId: true },
+      });
+      for (const { roleId } of withHrRead) {
+        await this.prisma.rolePermission.upsert({
+          where: {
+            roleId_permissionId: {
+              roleId,
+              permissionId: hrSelf.id,
+            },
+          },
+          update: {},
+          create: { roleId, permissionId: hrSelf.id },
+        });
+      }
+    }
+
+    return role;
   }
 
   listCompanyUsers(companyId: string) {
@@ -194,4 +300,5 @@ const RESERVED_SYSTEM = new Set([
   'ACCOUNTANT',
   'OPERATIONS_MANAGER',
   'EMPLOYEE_VIEWER',
+  'COMPANY_EMPLOYEE',
 ]);

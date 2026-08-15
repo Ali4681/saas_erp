@@ -10,6 +10,7 @@ import {
 } from '../../common/i18n/localized-exception';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
+import { UsersService } from '../users/users.service';
 
 export type LoginDto = {
   email: string;
@@ -42,6 +43,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly tenant: TenantContextService,
     private readonly i18n: I18nService,
+    private readonly users: UsersService,
   ) {}
 
   async updateLocale(userId: string, locale: string) {
@@ -135,7 +137,11 @@ export class AuthService {
       };
     }
 
-    const membership = await this.loadActiveMembership(user.id, dto);
+    let membership = await this.loadActiveMembership(user.id, dto);
+    if (membership.role.code === 'COMPANY_EMPLOYEE') {
+      await this.users.ensureCompanyEmployeeRole();
+      membership = await this.loadActiveMembership(user.id, dto);
+    }
     const companyId = membership.companyId;
     this.tenant.setCompanyId(companyId);
 

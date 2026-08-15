@@ -14,6 +14,7 @@ import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
 import { createEmployee, updateEmployeeCompensation } from "../actions";
+import { EmployeeIdentityFields } from "./EmployeeIdentityFields";
 
 type Employee = {
   id: string;
@@ -215,8 +216,27 @@ export default async function EmployeesPage({
               defaultValue={nextEmployeeNumber}
             />
             <Input name="fullName" label={t("fullName")} required />
-            <Input name="email" label={t("email")} type="email" />
+            <Input name="email" label={t("email")} type="email" required />
             <Input name="phone" label={t("phone")} />
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3 md:col-span-2">
+              <label className="flex cursor-pointer items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  name="createAppLogin"
+                  value="on"
+                  defaultChecked
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)]"
+                />
+                <span>
+                  <span className="block font-semibold text-[var(--foreground)]">
+                    {t("createAppLogin")}
+                  </span>
+                  <span className="mt-1 block text-xs leading-relaxed text-[var(--muted-foreground)]">
+                    {t("createAppLoginHint")}
+                  </span>
+                </span>
+              </label>
+            </div>
             <Input name="jobTitle" label={t("jobTitle")} />
             <Input name="hireDate" label={t("hireDate")} type="date" />
             <Input name="basicSalary" label={`${t("basicSalary")} (SAR)`} />
@@ -224,6 +244,7 @@ export default async function EmployeesPage({
               name="salesTargetMode"
               label={t("salesTargetMode")}
               defaultValue="AMOUNT"
+              showPlaceholderOption={false}
               options={[
                 { value: "AMOUNT", label: t("salesTargetModeAmount") },
                 { value: "PERCENT", label: t("salesTargetModePercent") },
@@ -246,6 +267,7 @@ export default async function EmployeesPage({
               name="approvalStatus"
               label={t("qiwaVerifiedStatus")}
               defaultValue="PENDING"
+              showPlaceholderOption={false}
               options={[
                 { value: "PENDING", label: t("qiwaNotVerified") },
                 { value: "APPROVED", label: t("qiwaVerified") },
@@ -254,35 +276,7 @@ export default async function EmployeesPage({
             <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
               {t("qiwaVerifiedHint")}
             </p>
-            <Select
-              name="identityType"
-              label={t("identityType")}
-              required
-              options={[
-                { value: "RESIDENT", label: t("identityResident") },
-                { value: "CITIZEN", label: t("identityCitizen") },
-              ]}
-            />
-            <div>
-              <Input
-                name="identityNumber"
-                label={t("identityNumber")}
-                required
-                inputMode="numeric"
-                pattern="[12][0-9]{9}"
-                maxLength={10}
-                placeholder={t("identityNumberPlaceholder")}
-              />
-              <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
-                {t("identityNumberHint")}
-              </p>
-            </div>
-            <Input
-              name="identityExpiresOn"
-              label={t("identityExpiresOn")}
-              type="date"
-              required
-            />
+            <EmployeeIdentityFields />
             <div>
               <Input
                 name="iban"

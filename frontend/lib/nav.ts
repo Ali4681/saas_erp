@@ -29,8 +29,13 @@ export function platformNav(): NavItem[] {
   ];
 }
 
-function child(base: string, path: string, labelKey: string): NavItem {
-  return { href: `${base}${path}`, labelKey };
+function child(
+  base: string,
+  path: string,
+  labelKey: string,
+  permissions?: string[],
+): NavItem {
+  return { href: `${base}${path}`, labelKey, permissions };
 }
 
 function childLabel(base: string, path: string, label: string): NavItem {
@@ -135,13 +140,15 @@ export function tenantNav(companyId: string): NavItem[] {
     {
       href: `${root}/hr`,
       labelKey: "hr",
-      permissions: ["hr.read"],
+      permissions: ["hr.read", "hr.self"],
       children: [
-        child(`${root}/hr`, "/employees", "hrEmployees"),
-        child(`${root}/hr`, "/advances", "hrAdvances"),
-        child(`${root}/hr`, "/leaves", "hrLeaves"),
-        child(`${root}/hr`, "/sales-submissions", "hrSalesSubmissions"),
-        child(`${root}/hr`, "/me", "hrMe"),
+        child(`${root}/hr`, "/employees", "hrEmployees", ["hr.read"]),
+        child(`${root}/hr`, "/advances", "hrAdvances", ["hr.read"]),
+        child(`${root}/hr`, "/leaves", "hrLeaves", ["hr.read"]),
+        child(`${root}/hr`, "/sales-submissions", "hrSalesSubmissions", [
+          "hr.read",
+        ]),
+        child(`${root}/hr`, "/me", "hrMe", ["hr.self", "hr.read"]),
       ],
     },
     {

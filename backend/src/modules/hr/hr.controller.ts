@@ -37,6 +37,7 @@ import {
 import {
   CurrentUser,
   Public,
+  RequireAnyPermission,
   RequirePermissions,
   type AuthUser,
 } from '../../common/auth/auth.decorators';
@@ -146,6 +147,21 @@ class CreateEmployeeBody {
   @Transform(emptyToUndefined)
   @IsString()
   userId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  createAppLogin?: boolean;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MinLength(8)
+  loginPassword?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  loginRoleCode?: string;
 
   @IsOptional()
   @Transform(emptyToUndefined)
@@ -1131,7 +1147,7 @@ export class HrController {
   }
 
   @Get('payable-invoices')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   listPayableInvoices(@Param('companyId') companyId: string) {
     return this.hr.listPayableInvoices(companyId);
   }
@@ -1244,7 +1260,7 @@ export class HrController {
   }
 
   @Get('me')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   myProfile(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1253,7 +1269,7 @@ export class HrController {
   }
 
   @Patch('me')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   updateMyProfile(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1263,7 +1279,7 @@ export class HrController {
   }
 
   @Post('me/advances')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   myAdvance(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1278,7 +1294,7 @@ export class HrController {
   }
 
   @Post('me/leaves')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   myLeave(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1288,7 +1304,7 @@ export class HrController {
   }
 
   @Post('me/sales')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   mySalesSubmit(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1298,7 +1314,7 @@ export class HrController {
   }
 
   @Get('me/sales')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   mySalesList(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1307,7 +1323,7 @@ export class HrController {
   }
 
   @Patch('me/target-completed')
-  @RequirePermissions('hr.read')
+  @RequireAnyPermission('hr.self', 'hr.read')
   myTargetCompleted(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,

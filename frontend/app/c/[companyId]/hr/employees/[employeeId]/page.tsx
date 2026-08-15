@@ -22,6 +22,7 @@ import {
   setEmployeeFinancialSettings,
   uploadEmployeeInsurance,
 } from "../../actions";
+import { AppLoginCredentials } from "../AppLoginCredentials";
 import {
   QiwaContractSection,
   type QiwaContractView,
@@ -160,6 +161,8 @@ export default async function EmployeeDetailPage({
     to?: string;
     ok?: string;
     error?: string;
+    loginEmail?: string;
+    loginPassword?: string;
   }>;
 }) {
   const { companyId, employeeId } = await params;
@@ -271,6 +274,12 @@ export default async function EmployeeDetailPage({
         }
       />
       <FlashFromSearch searchParams={flash} />
+      {flash.loginEmail && flash.loginPassword ? (
+        <AppLoginCredentials
+          email={flash.loginEmail}
+          password={flash.loginPassword}
+        />
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge

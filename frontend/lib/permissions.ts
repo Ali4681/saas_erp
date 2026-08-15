@@ -18,6 +18,7 @@ const ROLE_LABELS_AR: Record<string, string> = {
   ACCOUNTANT: "محاسب",
   OPERATIONS_MANAGER: "مدير العمليات",
   EMPLOYEE_VIEWER: "موظف / مشاهدة",
+  COMPANY_EMPLOYEE: "موظف (خدمة ذاتية)",
   guest: "زائر",
   user: "مستخدم",
 };
@@ -29,6 +30,7 @@ const ROLE_LABELS_EN: Record<string, string> = {
   ACCOUNTANT: "Accountant",
   OPERATIONS_MANAGER: "Operations manager",
   EMPLOYEE_VIEWER: "Employee / viewer",
+  COMPANY_EMPLOYEE: "Employee (self-service)",
   guest: "Guest",
   user: "User",
 };
