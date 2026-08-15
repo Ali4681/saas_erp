@@ -4,30 +4,29 @@ Password for **all** users below: `Admin123!`
 
 ## Production (Plesk / server)
 
-From the **backend** folder (e.g. `/var/www/vhosts/bssflow.com/erpwejha.bssflow.com/backend`):
+From the **backend** folder for **erpwejha** (not other projects like `theana` or `/var/www/html`):
 
 ```bash
-# Recommended: migrate schema, then seed roles + demo data
-npm run seed:prod
+cd /var/www/vhosts/bssflow.com/erpwejha.bssflow.com/backend
 
-# Equivalent:
-npx prisma migrate deploy
-npm run seed
+npm run build          # generate + migrate deploy + nest build + copy i18n
+npm run seed           # roles + demo-co data (password Admin123!)
+pm2 reload ecosystem.config.cjs --update-env
 ```
 
-Roles/permissions only (skip demo company bulk data):
+Optional check:
+
+```bash
+npm run seed:verify
+```
+
+Log in on the live site: `owner@demo-co.local` / `Admin123!`
+
+Roles/permissions only (skip demo bulk data):
 
 ```bash
 SEED_SKIP_DEMO=1 npm run seed
 ```
-
-Then reload the API:
-
-```bash
-pm2 reload ecosystem.config.cjs --update-env
-```
-
-If seed fails with `identity_type` / `ColumnNotFound`, migrations were not applied — run `npx prisma migrate deploy` first.
 
 ## Local
 

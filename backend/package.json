@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "prisma generate && nest build",
+    "build": "prisma generate && prisma migrate deploy && nest build",
     "build:migrate": "prisma generate && prisma migrate deploy && nest build",
     "postbuild": "node scripts/copy-i18n.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -29,6 +29,7 @@
     "prisma:seed": "npx tsx prisma/seed.ts",
     "seed": "tsx prisma/seed.ts",
     "seed:prod": "prisma migrate deploy && tsx prisma/seed.ts",
+    "seed:verify": "tsx scripts/verify-demo-seed.ts",
     "db:ping": "tsx scripts/db-ping.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
