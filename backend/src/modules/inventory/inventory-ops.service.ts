@@ -298,6 +298,16 @@ export class InventoryOpsService {
     return { parentId: parent.id, count: created.length, variants: created };
   }
 
+  async listBarcodes(companyId: string) {
+    this.tenant.setCompanyId(companyId);
+    return this.prisma.itemBarcode.findMany({
+      where: { companyId },
+      include: { item: { select: { id: true, name: true } } },
+      orderBy: { barcode: 'asc' },
+      take: 200,
+    });
+  }
+
   async generateBarcode(input: {
     companyId: string;
     itemId: string;

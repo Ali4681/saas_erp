@@ -185,6 +185,12 @@ export class InventoryOpsController {
     return this.ops.generateBarcode({ companyId, itemId, ...body });
   }
 
+  @Get('barcodes')
+  @RequirePermissions('inventory.read')
+  listBarcodes(@Param('companyId') companyId: string) {
+    return this.ops.listBarcodes(companyId);
+  }
+
   @Get('barcodes/lookup')
   @RequirePermissions('inventory.read')
   lookup(

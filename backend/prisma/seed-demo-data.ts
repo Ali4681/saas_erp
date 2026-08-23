@@ -161,7 +161,27 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     {
       email: 'warehouse@demo-co.local',
       fullName: 'Yousef Almutairi',
-      role: 'OPERATIONS_MANAGER',
+      role: 'WAREHOUSE_MANAGER',
+    },
+    {
+      email: 'keeper@demo-co.local',
+      fullName: 'Sami Alharbi',
+      role: 'WAREHOUSE_KEEPER',
+    },
+    {
+      email: 'procurement@demo-co.local',
+      fullName: 'Reem Alotaibi',
+      role: 'PROCUREMENT_MANAGER',
+    },
+    {
+      email: 'cashier@demo-co.local',
+      fullName: 'Dana Alqahtani',
+      role: 'CASHIER',
+    },
+    {
+      email: 'b2b@demo-co.local',
+      fullName: 'Nasser Aldossary',
+      role: 'B2B_ACCOUNT_MANAGER',
     },
     {
       email: 'support@demo-co.local',
@@ -3209,6 +3229,27 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   }
 
   // Advance document sequences past seed + prior audit collisions (monotonic)
+  // ── Enterprise inventory / CRM ops / governance demo ─────────────
+  const { seedEnterpriseOpsDemoData } = await import('./seed-enterprise-ops');
+  const enterpriseOps = await seedEnterpriseOpsDemoData(prisma, {
+    companyId,
+    adminUserId,
+    opsUserId,
+  });
+  Object.assign(summary, {
+    itemBarcodes: enterpriseOps.itemBarcodes,
+    stockTransfers: enterpriseOps.stockTransfers,
+    stockAdjustments: enterpriseOps.stockAdjustments,
+    labelTemplates: enterpriseOps.labelTemplates,
+    priceLists: enterpriseOps.priceLists,
+    coupons: enterpriseOps.coupons,
+    bundles: enterpriseOps.bundles,
+    loyaltyAccounts: enterpriseOps.loyaltyAccounts,
+    supportTickets: enterpriseOps.supportTickets,
+    sodRules: enterpriseOps.sodRules,
+    industryActivities: enterpriseOps.industryActivities,
+  });
+
   const settingsRow = await prisma.companySettings.findUnique({
     where: { companyId },
   });

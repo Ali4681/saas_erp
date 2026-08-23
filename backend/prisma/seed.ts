@@ -338,11 +338,17 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'finance.read',
     'crm.read',
     'crm.write',
+    'crm.loyalty',
+    'crm.coupons',
     'sales.read',
+    'sales.write',
     'purchasing.read',
     'purchasing.write',
     'inventory.read',
     'inventory.write',
+    'inventory.approve',
+    'inventory.transfer',
+    'inventory.import',
     'hr.read',
     'hr.self',
     'hr.write',
@@ -437,9 +443,11 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'companies.read',
     'inventory.read',
     'inventory.write',
+    'inventory.approve',
     'inventory.transfer',
     'inventory.import',
     'purchasing.read',
+    'purchasing.write',
     'reports.read',
     'hr.self',
   ],
@@ -448,6 +456,8 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'purchasing.read',
     'purchasing.write',
     'inventory.read',
+    'inventory.transfer',
+    'finance.read',
     'reports.read',
   ],
   TREASURY_CUSTODIAN: [
@@ -465,10 +475,17 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'finance.approve',
     'sales.read',
     'sales.write',
+    'sales.discount_override',
+    'crm.read',
+    'crm.loyalty',
     'inventory.read',
+    'inventory.write',
+    'inventory.transfer',
+    'inventory.approve',
     'hr.read',
     'hr.write',
     'hr.self',
+    'reports.read',
   ],
   B2B_ACCOUNT_MANAGER: [
     'companies.read',
@@ -483,10 +500,12 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'companies.read',
     'crm.read',
     'crm.loyalty',
+    'crm.coupons',
     'sales.read',
     'sales.write',
     'sales.discount_override',
     'finance.read',
+    'finance.write',
   ],
   MARKETING_SPECIALIST: [
     'companies.read',
@@ -1731,10 +1750,21 @@ async function main() {
   console.log('    finance@demo-co.local         ACCOUNTANT (+ cash sales approve)');
   console.log('    ops@demo-co.local             OPERATIONS_MANAGER');
   console.log('    hr@demo-co.local              OPERATIONS_MANAGER');
-  console.log('    warehouse@demo-co.local       OPERATIONS_MANAGER');
+  console.log('    warehouse@demo-co.local       WAREHOUSE_MANAGER');
+  console.log('    keeper@demo-co.local          WAREHOUSE_KEEPER');
+  console.log('    procurement@demo-co.local     PROCUREMENT_MANAGER');
+  console.log('    cashier@demo-co.local         CASHIER');
+  console.log('    b2b@demo-co.local             B2B_ACCOUNT_MANAGER');
   console.log('    sales@demo-co.local           COMPANY_ADMIN');
   console.log('    viewer@demo-co.local          EMPLOYEE_VIEWER');
   console.log('    support@demo-co.local         EMPLOYEE_VIEWER');
+  console.log('');
+  console.log('  Seed packs included:');
+  console.log('    - Chart of accounts + account mapping (seed-coa)');
+  console.log('    - Standard work shifts / business hours (seed-standard-shifts)');
+  console.log('    - Procurement / GL journals (seed-procurement)');
+  console.log('    - Enterprise ops: barcodes, transfers, adjustments, labels,');
+  console.log('      CRM pricing/loyalty/tickets, SoD, industry packs (seed-enterprise-ops)');
   console.log('');
   console.log('  Role permissions summary:');
   for (const [roleCode, codes] of Object.entries(ROLE_PERMISSION_MAP)) {
