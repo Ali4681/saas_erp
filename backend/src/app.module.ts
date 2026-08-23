@@ -41,12 +41,14 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { LookupsModule } from './modules/lookups/lookups.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { AppI18nModule } from './common/i18n/app-i18n.module';
+import { applyEnvAliases } from './common/config/env-aliases';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      load: [applyEnvAliases],
     }),
     AppI18nModule,
     ScheduleModule.forRoot(),

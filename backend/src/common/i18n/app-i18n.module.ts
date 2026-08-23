@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import * as path from 'node:path';
 import { Logger, Module } from '@nestjs/common';
 import {
@@ -7,48 +7,30 @@ import {
   I18nModule,
   QueryResolver,
 } from 'nestjs-i18n';
+import arCommon from '../../i18n/ar/common.json';
+import arErrors from '../../i18n/ar/errors.json';
+import enCommon from '../../i18n/en/common.json';
+import enErrors from '../../i18n/en/errors.json';
 
 const logger = new Logger('AppI18nModule');
 
+function writeJson(filePath: string, data: unknown) {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, JSON.stringify(data));
+}
+
 /**
- * Ensure dist/i18n exists even when deploy skipped nest assets / postbuild.
- * Safe to run at module load (sync, once per process).
+ * Always materialize JSON on disk. Production deploys often ship `dist/`
+ * without src/i18n; nestjs-i18n must scandir a real folder.
  */
 function ensureI18nOnDisk(): string {
-  const cwd = process.cwd();
-  const distI18n = path.join(cwd, 'dist', 'i18n');
-  const srcI18n = path.join(cwd, 'src', 'i18n');
-  // When main.js is at dist/main.js, __dirname for this file is dist/common/i18n
-  const siblingI18n = path.join(__dirname, '..', '..', 'i18n');
-  const packageRootI18n = path.join(__dirname, '..', '..', '..', 'src', 'i18n');
-
-  const sources = [srcI18n, packageRootI18n].filter((p) => existsSync(p));
-  const already = [distI18n, siblingI18n].filter((p) => existsSync(p));
-
-  if (already.length > 0) {
-    const chosen = already[0]!;
-    logger.log(`Using i18n path: ${chosen}`);
-    return chosen;
-  }
-
-  if (sources.length > 0) {
-    try {
-      mkdirSync(path.dirname(distI18n), { recursive: true });
-      cpSync(sources[0]!, distI18n, { recursive: true });
-      logger.warn(`Copied i18n JSON → ${distI18n} (was missing from build)`);
-      return distI18n;
-    } catch (err) {
-      logger.error(`Failed to copy i18n to dist: ${String(err)}`);
-      logger.log(`Falling back to source i18n: ${sources[0]}`);
-      return sources[0]!;
-    }
-  }
-
-  const tried = [distI18n, siblingI18n, srcI18n, packageRootI18n];
-  throw new Error(
-    `i18n JSON not found. Tried:\n${tried.map((c) => `  - ${c}`).join('\n')}\n` +
-      `On the server run from backend/: npm run build   (or: node scripts/copy-i18n.js)`,
-  );
+  const dest = path.join(process.cwd(), 'dist', 'i18n');
+  writeJson(path.join(dest, 'en', 'common.json'), enCommon);
+  writeJson(path.join(dest, 'en', 'errors.json'), enErrors);
+  writeJson(path.join(dest, 'ar', 'common.json'), arCommon);
+  writeJson(path.join(dest, 'ar', 'errors.json'), arErrors);
+  logger.log(`Using i18n path: ${dest}`);
+  return dest;
 }
 
 const i18nPath = ensureI18nOnDisk();

@@ -23,8 +23,8 @@ const src = path.join(root, 'src', 'i18n');
 const dest = path.join(root, 'dist', 'i18n');
 
 if (!fs.existsSync(src)) {
-  console.error(`[copy-i18n] missing source: ${src}`);
-  process.exit(1);
+  console.warn(`[copy-i18n] missing source: ${src} (AppI18nModule will write bundled JSON at boot)`);
+  process.exit(0);
 }
 
 copyDir(src, dest);

@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           message: backendDown
-            ? "خدمة الـ API غير متاحة. تأكد أن Nest يعمل على المنفذ 3000 ثم أعد المحاولة."
+            ? "خدمة الـ API غير متاحة. تأكد أن خادم Nest يعمل وأن NEXT_PUBLIC_API_BASE_URL يشير إليه."
             : error.message,
           payload: error.payload,
         },

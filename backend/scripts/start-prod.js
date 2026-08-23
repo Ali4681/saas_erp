@@ -11,7 +11,7 @@ const copy = spawnSync(process.execPath, [path.join(root, 'copy-i18n.js')], {
   stdio: 'inherit',
 });
 if (copy.status !== 0) {
-  process.exit(copy.status ?? 1);
+  console.warn('[start-prod] copy-i18n skipped/failed; Nest will write i18n at boot');
 }
 
 require(path.join(root, '..', 'dist', 'main.js'));

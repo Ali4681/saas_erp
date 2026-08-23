@@ -20,8 +20,8 @@ module.exports = {
         // Must be production on the live server (Secure session cookies + Next optimizations).
         NODE_ENV: 'production',
         PORT: 3370,
-        // BFF talks to Nest on loopback (not through Nginx).
-        API_INTERNAL_URL: 'http://127.0.0.1:3000',
+        // Do NOT set API_INTERNAL_URL=127.0.0.1 if Nest is on another host.
+        // Point NEXT_PUBLIC_API_BASE_URL at the public API (or Nginx /api proxy).
       },
     },
   ],
