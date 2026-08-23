@@ -11,7 +11,7 @@ module.exports = {
     {
       name: 'erpwejha-backend',
       cwd: __dirname,
-      script: 'dist/main.js',
+      script: 'scripts/start-prod.js',
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,

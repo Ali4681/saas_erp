@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import * as path from 'node:path';
 import { Logger, Module } from '@nestjs/common';
 import {
@@ -10,34 +10,48 @@ import {
 
 const logger = new Logger('AppI18nModule');
 
-/** Resolve i18n JSON dir for both `nest start` (dist) and missing asset copies. */
-function resolveI18nPath(): string {
-  const candidates = [
-    // Preferred: always copy to dist/i18n via nest assets + scripts/copy-i18n.js
-    path.join(process.cwd(), 'dist', 'i18n'),
-    // Compiled module lives at dist/common/i18n → sibling dist/i18n
-    path.join(__dirname, '..', '..', 'i18n'),
-    // Legacy nested emit: dist/src/common/i18n → dist/src/i18n
-    path.join(__dirname, '..', '..', '..', 'i18n'),
-    path.join(process.cwd(), 'dist', 'src', 'i18n'),
-    // Dev / source checkout still on disk next to dist
-    path.join(process.cwd(), 'src', 'i18n'),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      logger.log(`Using i18n path: ${candidate}`);
-      return candidate;
+/**
+ * Ensure dist/i18n exists even when deploy skipped nest assets / postbuild.
+ * Safe to run at module load (sync, once per process).
+ */
+function ensureI18nOnDisk(): string {
+  const cwd = process.cwd();
+  const distI18n = path.join(cwd, 'dist', 'i18n');
+  const srcI18n = path.join(cwd, 'src', 'i18n');
+  // When main.js is at dist/main.js, __dirname for this file is dist/common/i18n
+  const siblingI18n = path.join(__dirname, '..', '..', 'i18n');
+  const packageRootI18n = path.join(__dirname, '..', '..', '..', 'src', 'i18n');
+
+  const sources = [srcI18n, packageRootI18n].filter((p) => existsSync(p));
+  const already = [distI18n, siblingI18n].filter((p) => existsSync(p));
+
+  if (already.length > 0) {
+    const chosen = already[0]!;
+    logger.log(`Using i18n path: ${chosen}`);
+    return chosen;
+  }
+
+  if (sources.length > 0) {
+    try {
+      mkdirSync(path.dirname(distI18n), { recursive: true });
+      cpSync(sources[0]!, distI18n, { recursive: true });
+      logger.warn(`Copied i18n JSON → ${distI18n} (was missing from build)`);
+      return distI18n;
+    } catch (err) {
+      logger.error(`Failed to copy i18n to dist: ${String(err)}`);
+      logger.log(`Falling back to source i18n: ${sources[0]}`);
+      return sources[0]!;
     }
   }
-  logger.error(
-    `i18n JSON not found. Tried:\n${candidates.map((c) => `  - ${c}`).join('\n')}\n` +
-      `Run: npm run build (copies src/i18n → dist/i18n)`,
+
+  const tried = [distI18n, siblingI18n, srcI18n, packageRootI18n];
+  throw new Error(
+    `i18n JSON not found. Tried:\n${tried.map((c) => `  - ${c}`).join('\n')}\n` +
+      `On the server run from backend/: npm run build   (or: node scripts/copy-i18n.js)`,
   );
-  // Last resort — nestjs-i18n will throw with this path
-  return candidates[0]!;
 }
 
-const i18nPath = resolveI18nPath();
+const i18nPath = ensureI18nOnDisk();
 const isProd = process.env.NODE_ENV === 'production';
 
 @Module({
@@ -46,7 +60,6 @@ const isProd = process.env.NODE_ENV === 'production';
       fallbackLanguage: 'ar',
       loaderOptions: {
         path: i18nPath,
-        // Watching a missing dir throws ENOENT scandir loops under PM2.
         watch: !isProd && existsSync(i18nPath),
       },
       resolvers: [
