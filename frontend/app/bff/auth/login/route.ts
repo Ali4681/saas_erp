@@ -60,9 +60,15 @@ export async function POST(request: Request) {
     return res;
   } catch (error) {
     if (error instanceof ApiError) {
+      const backendDown = error.status === 502 || error.status === 503;
       return NextResponse.json(
-        { message: error.message, payload: error.payload },
-        { status: error.status },
+        {
+          message: backendDown
+            ? "خدمة الـ API غير متاحة. تأكد أن Nest يعمل على المنفذ 3000 ثم أعد المحاولة."
+            : error.message,
+          payload: error.payload,
+        },
+        { status: backendDown ? 503 : error.status },
       );
     }
     return NextResponse.json(

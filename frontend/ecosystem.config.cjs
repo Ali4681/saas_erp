@@ -20,6 +20,8 @@ module.exports = {
         // Must be production on the live server (Secure session cookies + Next optimizations).
         NODE_ENV: 'production',
         PORT: 3370,
+        // BFF talks to Nest on loopback (not through Nginx).
+        API_INTERNAL_URL: 'http://127.0.0.1:3000',
       },
     },
   ],

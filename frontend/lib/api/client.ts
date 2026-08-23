@@ -13,11 +13,19 @@ export class ApiError extends Error {
 }
 
 export function getApiBaseUrl(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-    "http://127.0.0.1:3000";
+  const isServer = typeof window === "undefined";
+  // BFF (server) must talk to Nest on loopback. Using the public HTTPS URL
+  // goes Next → Nginx → Nest; if Nest is down Nginx returns 502 on /bff/auth/login.
+  const origin = (
+    (isServer && process.env.API_INTERNAL_URL?.trim()) ||
+    (isServer && process.env.NODE_ENV === "production"
+      ? "http://127.0.0.1:3000"
+      : "") ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    "http://127.0.0.1:3000"
+  ).replace(/\/$/, "");
   // Nest uses global prefix `api` (see backend/src/main.ts)
-  return raw.endsWith("/api") ? raw : `${raw}/api`;
+  return origin.endsWith("/api") ? origin : `${origin}/api`;
 }
 
 export async function nestFetch<T>(
