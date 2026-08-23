@@ -30,7 +30,31 @@
     "bills": "فواتير الموردين",
     "billsHint": "مستحقات الشراء",
     "operators": "مسؤولو الشراء والمحافظ",
-    "operatorsHint": "مسؤولو الشراء مع محافظ إلكترونية داخل التطبيق"
+    "operatorsHint": "مسؤولو الشراء مع محافظ إلكترونية داخل التطبيق",
+    "requisitions": "طلبات الشراء",
+    "requisitionsHint": "طلبات الشراء واقتراحات إعادة الطلب"
+  },
+  "requisitions": {
+    "title": "طلبات الشراء",
+    "newTitle": "طلب شراء جديد",
+    "add": "إضافة طلب",
+    "demandSource": "مصدر الطلب",
+    "sourceBranch": "طلب فرع",
+    "sourceReorder": "حد إعادة الطلب",
+    "sourceManagement": "خطة إدارية",
+    "sourceOther": "أخرى",
+    "neededBy": "مطلوب بتاريخ",
+    "item": "الصنف (اختياري)",
+    "empty": "لا توجد طلبات شراء",
+    "submit": "إرسال",
+    "approve": "اعتماد",
+    "reorderTitle": "اقتراحات إعادة الطلب",
+    "reorderEmpty": "لا أصناف دون الحد الأدنى",
+    "createFromReorder": "إنشاء من اقتراحات إعادة الطلب",
+    "onHand": "الرصيد",
+    "minStock": "الحد الأدنى",
+    "shortfall": "العجز",
+    "lineCount": "{count} بنود"
   },
   "operators": {
     "title": "مسؤولو الشراء",
@@ -51,6 +75,9 @@
     "add": "إضافة مورد",
     "code": "الرمز",
     "taxNumber": "الرقم الضريبي",
+    "supplierType": "نوع المورد",
+    "typeLocal": "محلي",
+    "typeInternational": "دولي",
     "empty": "لا يوجد موردون"
   },
   "purchaseOrders": {
@@ -78,6 +105,10 @@
     "purchaseOrderCreated": "تم إنشاء أمر الشراء",
     "purchaseOrderReceived": "تم استلام أمر الشراء",
     "statusUpdated": "تم تحديث الحالة إلى {status}",
-    "billCreated": "تم إنشاء فاتورة المورد"
+    "billCreated": "تم إنشاء فاتورة المورد",
+    "requisitionCreated": "تم إنشاء طلب الشراء",
+    "requisitionSubmitted": "تم إرسال طلب الشراء",
+    "requisitionApproved": "تم اعتماد طلب الشراء",
+    "reorderRequisitionCreated": "تم إنشاء طلب من اقتراحات إعادة الطلب"
   }
 }

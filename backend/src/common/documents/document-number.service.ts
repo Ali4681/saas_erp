@@ -9,7 +9,11 @@ type SequenceKey =
   | 'contract'
   | 'purchaseOrder'
   | 'supplierPayment'
-  | 'stockCount';
+  | 'stockCount'
+  | 'goodsReceipt'
+  | 'purchaseRequisition'
+  | 'stockTransfer'
+  | 'stockAdjustment';
 
 const DEFAULT_PREFIX: Record<SequenceKey, string> = {
   quote: 'QT',
@@ -19,6 +23,10 @@ const DEFAULT_PREFIX: Record<SequenceKey, string> = {
   purchaseOrder: 'PO',
   supplierPayment: 'SP',
   stockCount: 'SC',
+  goodsReceipt: 'GRN',
+  purchaseRequisition: 'PR',
+  stockTransfer: 'TR',
+  stockAdjustment: 'ADJ',
 };
 
 /** Accepts base or extended Prisma clients / interactive transactions. */

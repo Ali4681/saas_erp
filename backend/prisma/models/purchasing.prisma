@@ -1,18 +1,24 @@
 model Supplier {
-  id        String       @id @default(uuid(7)) @db.Char(36)
-  companyId String       @map("company_id") @db.Char(36)
-  code      String?      @db.VarChar(40)
-  codeKey   String       @default("") @map("code_key") @db.VarChar(40)
-  name      String       @db.VarChar(180)
-  taxNumber String?      @map("tax_number") @db.VarChar(80)
-  email     String?      @db.VarChar(254)
-  phone     String?      @db.VarChar(40)
-  status    RecordStatus @default(ACTIVE)
-  notes     String?      @db.Text
+  id            String       @id @default(uuid(7)) @db.Char(36)
+  companyId     String       @map("company_id") @db.Char(36)
+  code          String?      @db.VarChar(40)
+  codeKey       String       @default("") @map("code_key") @db.VarChar(40)
+  name          String       @db.VarChar(180)
+  taxNumber     String?      @map("tax_number") @db.VarChar(80)
+  email         String?      @db.VarChar(254)
+  phone         String?      @db.VarChar(40)
+  status        RecordStatus @default(ACTIVE)
+  notes         String?      @db.Text
+  supplierType  SupplierType @default(LOCAL) @map("supplier_type")
+  currency      String       @default("SAR") @db.Char(3)
+  paymentTermsDays Int       @default(0) @map("payment_terms_days") @db.SmallInt
+  country       String?      @db.VarChar(80)
+  originCountry String?      @map("origin_country") @db.VarChar(80)
 
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   purchaseOrders PurchaseOrder[]
   bills          SupplierBill[]
+  preferredItems Item[]          @relation("ItemPreferredSupplier")
 
   @@unique([companyId, codeKey], map: "uq_supplier_company_code")
   @@index([companyId, status, name], map: "idx_supplier_status_name")
@@ -24,24 +30,36 @@ model PurchaseOrder {
   companyId    String              @map("company_id") @db.Char(36)
   supplierId   String              @map("supplier_id") @db.Char(36)
   warehouseId  String?             @map("warehouse_id") @db.Char(36)
+  requisitionId String?            @map("requisition_id") @db.Char(36)
   orderNumber  String              @map("order_number") @db.VarChar(60)
   status       PurchaseOrderStatus @default(DRAFT)
+  purchaseType PurchaseType        @default(LOCAL) @map("purchase_type")
+  demandSource PurchaseDemandSource @default(OTHER) @map("demand_source")
   orderedOn    DateTime?           @map("ordered_on") @db.Date
   expectedOn   DateTime?           @map("expected_on") @db.Date
   currency     String              @db.Char(3)
   subtotal     Decimal             @db.Decimal(18, 2)
   taxAmount    Decimal             @default(0) @map("tax_amount") @db.Decimal(18, 2)
   totalAmount  Decimal             @map("total_amount") @db.Decimal(18, 2)
+  freightAmount    Decimal         @default(0) @map("freight_amount") @db.Decimal(18, 2)
+  insuranceAmount  Decimal         @default(0) @map("insurance_amount") @db.Decimal(18, 2)
+  customsAmount    Decimal         @default(0) @map("customs_amount") @db.Decimal(18, 2)
+  portFeesAmount   Decimal         @default(0) @map("port_fees_amount") @db.Decimal(18, 2)
+  customsDeclarationNumber String? @map("customs_declaration_number") @db.VarChar(80)
+  originCountry    String?         @map("origin_country") @db.VarChar(80)
+  inTransit        Boolean         @default(false) @map("in_transit")
   requestedById String             @map("requested_by") @db.Char(36)
   approvedById String?             @map("approved_by") @db.Char(36)
 
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
   supplier    Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   warehouse   Warehouse?          @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  requisition PurchaseRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
   requestedBy User                @relation("PurchaseOrderRequester", fields: [requestedById], references: [id], onDelete: Restrict)
   approvedBy  User?               @relation("PurchaseOrderApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   items       PurchaseOrderItem[]
   bills       SupplierBill[]
+  goodsReceipts GoodsReceipt[]
 
   @@unique([companyId, orderNumber], map: "uq_purchase_order_number")
   @@index([companyId, status, orderedOn], map: "idx_purchase_order_status_ordered")
@@ -61,6 +79,7 @@ model PurchaseOrderItem {
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   item          Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  goodsReceiptItems GoodsReceiptItem[]
 
   @@unique([purchaseOrderId, position], map: "uq_purchase_order_item_position")
   @@map("purchase_order_items")
@@ -71,6 +90,8 @@ model SupplierBill {
   companyId       String        @map("company_id") @db.Char(36)
   supplierId      String        @map("supplier_id") @db.Char(36)
   purchaseOrderId String?       @map("purchase_order_id") @db.Char(36)
+  goodsReceiptId  String?       @map("goods_receipt_id") @db.Char(36)
+  threeWayMatched Boolean       @default(false) @map("three_way_matched")
   billNumber      String        @map("bill_number") @db.VarChar(80)
   status          InvoiceStatus @default(DRAFT)
   issuedOn        DateTime      @map("issued_on") @db.Date
@@ -84,6 +105,7 @@ model SupplierBill {
   company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
   supplier    Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   purchaseOrder PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  goodsReceipt  GoodsReceipt?     @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
   items       SupplierBillItem[]
   payments    SupplierPayment[]
   financeTxns FinancialTransaction[]

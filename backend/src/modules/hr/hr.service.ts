@@ -12,6 +12,7 @@ import {
   AttendanceStatus,
   EmployeeApprovalStatus,
   EmployeeContractKind,
+  EmployeeEmploymentCategory,
   EmployeeIdentityType,
   EmployeeSalesStatus,
   EmploymentStatus,
@@ -27,6 +28,10 @@ import { assertValidSaudiIdentity } from '../../common/saudi-identity';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AutomationEngine } from '../automation/automation.engine';
+import {
+  ALL_STANDARD_SHIFTS,
+  displayShiftName,
+} from '../governance/standard-shifts';
 import { PlatformService } from '../platform/platform.service';
 import { SalesService } from '../sales/sales.service';
 import { UsersService } from '../users/users.service';
@@ -325,18 +330,37 @@ export class HrService {
           take: 1,
           select: { status: true },
         },
+        shiftAssignments: {
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+          include: {
+            shift: {
+              select: {
+                id: true,
+                name: true,
+                startTime: true,
+                endTime: true,
+              },
+            },
+          },
+        },
       },
     });
     return rows.map((row) => {
       const stripped = this.stripSensitiveIban(row);
-      const { qiwaContracts: _qc, ...rest } = stripped as Record<
+      const { qiwaContracts: _qc, shiftAssignments, ...rest } = stripped as Record<
         string,
         unknown
-      > & { qiwaContracts?: unknown };
+      > & {
+        qiwaContracts?: unknown;
+        shiftAssignments?: Array<{ shift: unknown }>;
+      };
       const latest = row.qiwaContracts[0];
+      const currentShift = row.shiftAssignments[0]?.shift ?? null;
       return {
         ...rest,
         qiwaStatus: latest?.status ?? 'NOT_STARTED',
+        workShift: currentShift,
       };
     });
   }
@@ -442,6 +466,12 @@ export class HrService {
     phone?: string;
     jobTitle?: string;
     hireDate?: string;
+    employmentCategory:
+      | EmployeeEmploymentCategory
+      | 'WAGE_WORKER'
+      | 'EMPLOYMENT_CONTRACT';
+    /** Work shift assigned at hire (from company roster / business hours). */
+    workShiftId: string;
     basicSalary?: string | number;
     targetPercent?: string | number;
     targetCompletedPercent?: string | number;
@@ -456,6 +486,31 @@ export class HrService {
     }
     if (!input.identityNumber?.trim()) {
       throw new BadRequestException('identityNumber is required');
+    }
+    if (
+      input.employmentCategory !== 'WAGE_WORKER' &&
+      input.employmentCategory !== 'EMPLOYMENT_CONTRACT'
+    ) {
+      throw new BadRequestException(
+        'employmentCategory must be WAGE_WORKER or EMPLOYMENT_CONTRACT',
+      );
+    }
+    if (!input.workShiftId?.trim()) {
+      throw new BadRequestException(
+        'workShiftId is required — choose the employee work shift',
+      );
+    }
+    const workShift = await this.prisma.workShift.findFirst({
+      where: {
+        id: input.workShiftId,
+        companyId: input.companyId,
+        isActive: true,
+      },
+    });
+    if (!workShift) {
+      throw new BadRequestException(
+        'Active work shift not found. Configure business hours / shifts first.',
+      );
     }
     let identityNumber: string;
     try {
@@ -567,6 +622,7 @@ export class HrService {
         phone: input.phone,
         jobTitle: input.jobTitle,
         hireDate: input.hireDate ? new Date(input.hireDate) : undefined,
+        employmentCategory: input.employmentCategory as EmployeeEmploymentCategory,
         basicSalary: basic != null ? String(basic) : undefined,
         targetPercent:
           input.targetPercent != null ? String(input.targetPercent) : undefined,
@@ -612,8 +668,27 @@ export class HrService {
         attendanceBadgeId: input.attendanceBadgeId?.trim() || undefined,
       } as Prisma.EmployeeUncheckedCreateInput,
     });
+
+    const effectiveFrom = input.hireDate
+      ? new Date(input.hireDate)
+      : new Date();
+    await this.prisma.employeeShiftAssignment.create({
+      data: {
+        companyId: input.companyId,
+        employeeId: created.id,
+        shiftId: workShift.id,
+        effectiveFrom,
+      },
+    });
+
     return {
       ...this.stripSensitiveIban(created),
+      workShift: {
+        id: workShift.id,
+        name: workShift.name,
+        startTime: workShift.startTime,
+        endTime: workShift.endTime,
+      },
       ...(appLogin ? { appLogin } : {}),
     };
   }
@@ -629,6 +704,10 @@ export class HrService {
       phone?: string;
       email?: string;
       jobTitle?: string;
+      employmentCategory?:
+        | EmployeeEmploymentCategory
+        | 'WAGE_WORKER'
+        | 'EMPLOYMENT_CONTRACT';
       approvalStatus?:
         EmployeeApprovalStatus | 'PENDING' | 'APPROVED' | 'REJECTED';
       // financial
@@ -735,6 +814,12 @@ export class HrService {
         ...(input.phone !== undefined ? { phone: input.phone } : {}),
         ...(input.email !== undefined ? { email: input.email } : {}),
         ...(input.jobTitle !== undefined ? { jobTitle: input.jobTitle } : {}),
+        ...(input.employmentCategory != null
+          ? {
+              employmentCategory:
+                input.employmentCategory as EmployeeEmploymentCategory,
+            }
+          : {}),
         ...(input.approvalStatus != null
           ? { approvalStatus: input.approvalStatus }
           : {}),
@@ -1629,12 +1714,82 @@ export class HrService {
   }
 
   // —— Shifts ——
-  listShifts(companyId: string) {
+  async listShifts(companyId: string) {
     this.tenant.setCompanyId(companyId);
-    return this.prisma.workShift.findMany({
-      orderBy: { name: 'asc' },
+    let rows = await this.prisma.workShift.findMany({
+      where: { isActive: true },
+      orderBy: [{ sequenceIndex: 'asc' }, { name: 'asc' }],
       take: 200,
+      include: {
+        businessHoursProfile: {
+          select: { mode: true, defaultStartTime: true, defaultEndTime: true },
+        },
+      },
     });
+    if (rows.length === 0) {
+      const profile = await this.prisma.companyBusinessHoursProfile.findUnique({
+        where: { companyId },
+      });
+      if (profile?.mode === 'HOURS_24' || profile?.mode === 'HOURS_12' || profile?.mode === 'DYNAMIC') {
+        for (const d of ALL_STANDARD_SHIFTS) {
+          await this.prisma.workShift.create({
+            data: {
+              companyId,
+              businessHoursProfileId: profile.id,
+              name: displayShiftName(d, 'ar'),
+              startTime: d.startTime,
+              endTime: d.endTime,
+              sequenceIndex: d.sequenceIndex,
+              crossesMidnight: d.crossesMidnight ?? false,
+              isActive: true,
+            },
+          });
+        }
+      } else if (!profile) {
+        const created = await this.prisma.companyBusinessHoursProfile.create({
+          data: {
+            companyId,
+            mode: 'HOURS_24',
+            defaultStartTime: '06:00',
+            defaultEndTime: '06:00',
+            autoSplitShifts: true,
+            autoShiftHours: 8,
+            twelveHourMode: 'TWO_PERIODS',
+            period2StartTime: '20:00',
+            period2EndTime: '08:00',
+          },
+        });
+        for (const d of ALL_STANDARD_SHIFTS) {
+          await this.prisma.workShift.create({
+            data: {
+              companyId,
+              businessHoursProfileId: created.id,
+              name: displayShiftName(d, 'ar'),
+              startTime: d.startTime,
+              endTime: d.endTime,
+              sequenceIndex: d.sequenceIndex,
+              crossesMidnight: d.crossesMidnight ?? false,
+              isActive: true,
+            },
+          });
+        }
+      }
+      rows = await this.prisma.workShift.findMany({
+        where: { isActive: true },
+        orderBy: [{ sequenceIndex: 'asc' }, { name: 'asc' }],
+        take: 200,
+        include: {
+          businessHoursProfile: {
+            select: {
+              mode: true,
+              defaultStartTime: true,
+              defaultEndTime: true,
+            },
+          },
+        },
+      });
+    }
+    return rows;
   }
 
   createShift(input: {

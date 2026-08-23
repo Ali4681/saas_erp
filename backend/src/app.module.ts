@@ -22,6 +22,7 @@ import { AutomationModule } from './modules/automation/automation.module';
 import { CompanyIntegrationsModule } from './modules/company-integrations/company-integrations.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { GovernanceModule } from './modules/governance/governance.module';
 import { HrModule } from './modules/hr/hr.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
@@ -80,6 +81,7 @@ import { AppI18nModule } from './common/i18n/app-i18n.module';
     UsersModule,
     IntegrationsModule,
     FinanceModule,
+    GovernanceModule,
     CrmModule,
     SalesModule,
     PurchasingModule,

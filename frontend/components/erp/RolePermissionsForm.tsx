@@ -23,6 +23,8 @@ type Props = {
   initialSelected?: string[];
   initialName?: string;
   initialCode?: string;
+  initialDescription?: string;
+  initialFinancialProfile?: string;
   lockCode?: boolean;
   submitLabel?: string;
 };
@@ -34,6 +36,8 @@ export function RolePermissionsForm({
   initialSelected = [],
   initialName = "",
   initialCode = "",
+  initialDescription = "",
+  initialFinancialProfile = "NONE",
   lockCode = false,
   submitLabel,
 }: Props) {
@@ -159,6 +163,43 @@ export function RolePermissionsForm({
           pattern="[A-Za-z][A-Za-z0-9_]{1,39}"
           title="UPPER_SNAKE_CASE"
         />
+        <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+          <span className="font-medium text-[var(--foreground)]">
+            {t("formDescription")}
+          </span>
+          <textarea
+            name="description"
+            defaultValue={initialDescription}
+            rows={2}
+            placeholder={t("formDescriptionPh")}
+            className="rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 py-2 text-[var(--foreground)] shadow-sm outline-none focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+          <span className="font-medium text-[var(--foreground)]">
+            {t("formFinancialProfile")}
+          </span>
+          <select
+            name="financialProfile"
+            defaultValue={initialFinancialProfile}
+            className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-[var(--foreground)] shadow-sm outline-none focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20"
+          >
+            <option value="NONE">{t("profileNone")}</option>
+            <option value="CASHIER">{t("profileCashier")}</option>
+            <option value="SALES_DELIVERY">{t("profileSalesDelivery")}</option>
+            <option value="MANAGER_SUPERVISOR">
+              {t("profileManagerSupervisor")}
+            </option>
+            <option value="WAREHOUSE_KEEPER">{t("profileWarehouse")}</option>
+            <option value="ACCOUNTANT">{t("profileAccountant")}</option>
+            <option value="TREASURY_CUSTODIAN">{t("profileTreasury")}</option>
+            <option value="BRANCH_MANAGER">{t("profileBranchManager")}</option>
+            <option value="SYSTEM_ADMIN">{t("profileSystemAdmin")}</option>
+          </select>
+          <span className="text-xs text-[var(--muted-foreground)]">
+            {t("formFinancialProfileHint")}
+          </span>
+        </label>
       </div>
 
       {[...selected].map((code) => (

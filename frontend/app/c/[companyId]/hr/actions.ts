@@ -149,6 +149,8 @@ export async function createEmployee(companyId: string, formData: FormData) {
         phone: optStr(formData, "phone"),
         jobTitle: optStr(formData, "jobTitle"),
         hireDate: optStr(formData, "hireDate"),
+        employmentCategory: str(formData, "employmentCategory"),
+        workShiftId: str(formData, "workShiftId"),
         basicSalary: optStr(formData, "basicSalary"),
         salesTargetMode,
         salesTargetAmount: optStr(formData, "salesTargetAmount"),
@@ -381,6 +383,24 @@ export async function updateEmployeeCompensation(
         : {}),
     },
     pagePath: page(companyId, "employees"),
+    okMessage: (await hrT())("flash.employeeUpdated"),
+  });
+}
+
+export async function updateEmployeeEmploymentCategory(
+  companyId: string,
+  employeeId: string,
+  formData: FormData,
+) {
+  const pagePath = `/c/${companyId}/hr/employees/${employeeId}?tab=personal`;
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/employees/${employeeId}`,
+    method: "PATCH",
+    body: {
+      employmentCategory: str(formData, "employmentCategory"),
+    },
+    pagePath,
     okMessage: (await hrT())("flash.employeeUpdated"),
   });
 }

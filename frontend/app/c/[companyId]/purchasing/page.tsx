@@ -25,6 +25,11 @@ export default async function PurchasingHubPage({
           hint: t("hub.purchaseOrdersHint"),
         },
         {
+          href: `${base}/requisitions`,
+          label: t("hub.requisitions"),
+          hint: t("hub.requisitionsHint"),
+        },
+        {
           href: `${base}/bills`,
           label: t("hub.bills"),
           hint: t("hub.billsHint"),

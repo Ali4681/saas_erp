@@ -2,10 +2,19 @@ model CrmContact {
   id          String         @id @default(uuid(7)) @db.Char(36)
   companyId   String         @map("company_id") @db.Char(36)
   contactType CrmContactType @map("contact_type")
+  /// Customer track: B2C (retail) vs B2B (business/merchant)
+  customerTrack CustomerTrack @default(B2C) @map("customer_track")
   name        String         @db.VarChar(180)
   companyName String?        @map("company_name") @db.VarChar(180)
+  /// B2B keys (optional but required by process)
+  taxNumber    String? @map("tax_number") @db.VarChar(80)
+  companyRegNumber String? @map("company_reg_number") @db.VarChar(80)
   email       String?        @db.VarChar(254)
   phone       String?        @db.VarChar(40)
+  /// B2B credit management settings
+  creditLimit Decimal @default(0) @map("credit_limit") @db.Decimal(18, 2)
+  creditTermsDays Int @default(0) @map("credit_terms_days") @db.SmallInt
+  dateOfBirth DateTime? @map("date_of_birth") @db.Date
   source      String?        @db.VarChar(80)
   status      RecordStatus   @default(ACTIVE)
   ownerUserId String?        @map("owner_user_id") @db.Char(36)
@@ -20,10 +29,16 @@ model CrmContact {
   contracts     CrmContract[]
   salesQuotes   SalesQuote[]
   salesInvoices SalesInvoice[]
+  customerPurchaseOrders CustomerPurchaseOrder[]
+  otpChallenges CrmOtpChallenge[]
   workProjects  WorkProject[]
   businessNotes BusinessNote[]
+  loyaltyAccount  LoyaltyAccount?
+  storeCredit     CustomerStoreCredit?
+  supportTickets  SupportTicket[]
 
   @@index([companyId, contactType, status], map: "idx_crm_contact_type_status")
+  @@index([companyId, customerTrack, status], map: "idx_crm_contact_track_status")
   @@index([companyId, ownerUserId], map: "idx_crm_contact_owner")
   @@map("crm_contacts")
 }
@@ -127,10 +142,200 @@ model CrmContract {
   notes           String?        @db.Text
   createdAt       DateTime       @default(now()) @map("created_at") @db.DateTime(3)
 
+  contractType   String?  @map("contract_type") @db.VarChar(40)
+  autoRenew      Boolean  @default(false) @map("auto_renew")
+  renewalAlertDays Int    @default(30) @map("renewal_alert_days") @db.SmallInt
+  priceListId    String?  @map("price_list_id") @db.Char(36)
+  discountPct    Decimal  @default(0) @map("discount_pct") @db.Decimal(5, 2)
+  renewedFromId  String?  @map("renewed_from_id") @db.Char(36)
+
   company     Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
   contact     CrmContact      @relation(fields: [contactId], references: [id], onDelete: Restrict)
   opportunity CrmOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  priceList   PriceList?      @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  renewedFrom CrmContract?    @relation("ContractRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
+  renewals    CrmContract[]   @relation("ContractRenewal")
 
   @@unique([companyId, contractNumber], map: "uq_crm_contract_number")
   @@map("crm_contracts")
+}
+
+model LoyaltyAccount {
+  id             String  @id @default(uuid(7)) @db.Char(36)
+  companyId      String  @map("company_id") @db.Char(36)
+  contactId      String  @unique @map("contact_id") @db.Char(36)
+  pointsBalance  Decimal @default(0) @map("points_balance") @db.Decimal(18, 2)
+  lifetimePoints Decimal @default(0) @map("lifetime_points") @db.Decimal(18, 2)
+  tierLevel      String  @default("STANDARD") @map("tier_level") @db.VarChar(40)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact   CrmContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  events    LoyaltyEvent[]
+
+  @@index([companyId, tierLevel], map: "idx_loyalty_account_tier")
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyEvent {
+  id               String   @id @default(uuid(7)) @db.Char(36)
+  companyId        String   @map("company_id") @db.Char(36)
+  loyaltyAccountId String   @map("loyalty_account_id") @db.Char(36)
+  eventType        String   @map("event_type") @db.VarChar(40)
+  /// EARN or REDEEM
+  direction        String   @db.VarChar(10)
+  points           Decimal  @db.Decimal(18, 2)
+  /// e.g. invoice id
+  sourceId         String?  @map("source_id") @db.Char(36)
+  sourceType       String?  @map("source_type") @db.VarChar(40)
+  note             String?  @db.VarChar(240)
+  createdByUserId  String?  @map("created_by_user_id") @db.Char(36)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  loyaltyAccount LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Restrict)
+
+  @@index([loyaltyAccountId, createdAt], map: "idx_loyalty_event_account")
+  @@map("loyalty_events")
+}
+
+model CustomerStoreCredit {
+  id        String  @id @default(uuid(7)) @db.Char(36)
+  companyId String  @map("company_id") @db.Char(36)
+  contactId String  @unique @map("contact_id") @db.Char(36)
+  balance   Decimal @default(0) @db.Decimal(18, 2)
+  currency  String  @default("SAR") @db.Char(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact   CrmContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  events    StoreCreditEvent[]
+
+  @@index([companyId], map: "idx_store_credit_company")
+  @@map("customer_store_credits")
+}
+
+model StoreCreditEvent {
+  id              String   @id @default(uuid(7)) @db.Char(36)
+  companyId       String   @map("company_id") @db.Char(36)
+  storeCreditId   String   @map("store_credit_id") @db.Char(36)
+  /// CREDIT (add) or DEBIT (use)
+  direction       String   @db.VarChar(10)
+  amount          Decimal  @db.Decimal(18, 2)
+  sourceId        String?  @map("source_id") @db.Char(36)
+  sourceType      String?  @map("source_type") @db.VarChar(40)
+  note            String?  @db.VarChar(240)
+  createdByUserId String?  @map("created_by_user_id") @db.Char(36)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  storeCredit CustomerStoreCredit @relation(fields: [storeCreditId], references: [id], onDelete: Restrict)
+
+  @@index([storeCreditId, createdAt], map: "idx_store_credit_event_account")
+  @@map("store_credit_events")
+}
+
+model SupportTicket {
+  id              String   @id @default(uuid(7)) @db.Char(36)
+  companyId       String   @map("company_id") @db.Char(36)
+  contactId       String   @map("contact_id") @db.Char(36)
+  ticketNumber    String   @map("ticket_number") @db.VarChar(60)
+  subject         String   @db.VarChar(220)
+  status          String   @default("OPEN") @db.VarChar(40)
+  priority        String   @default("NORMAL") @db.VarChar(20)
+  assignedToId    String?  @map("assigned_to") @db.Char(36)
+  invoiceId       String?  @map("invoice_id") @db.Char(36)
+  contractId      String?  @map("contract_id") @db.Char(36)
+  ticketKind      String   @default("SUPPORT") @map("ticket_kind") @db.VarChar(40)
+  itemId          String?  @map("item_id") @db.Char(36)
+  warrantyExpiresOn DateTime? @map("warranty_expires_on") @db.Date
+  slaDeadline     DateTime? @map("sla_deadline") @db.DateTime(3)
+  resolvedAt      DateTime? @map("resolved_at") @db.DateTime(3)
+  closedAt        DateTime? @map("closed_at") @db.DateTime(3)
+  description     String?  @db.Text
+  resolution      String?  @db.Text
+  createdByUserId String?  @map("created_by_user_id") @db.Char(36)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact    CrmContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  assignedTo User?      @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("TicketCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  item       Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  comments   TicketComment[]
+
+  @@unique([companyId, ticketNumber], map: "uq_support_ticket_number")
+  @@index([companyId, status, priority], map: "idx_ticket_status_priority")
+  @@index([companyId, contactId], map: "idx_ticket_contact")
+  @@map("support_tickets")
+}
+
+model TicketComment {
+  id              String   @id @default(uuid(7)) @db.Char(36)
+  ticketId        String   @map("ticket_id") @db.Char(36)
+  body            String   @db.Text
+  isInternal      Boolean  @default(false) @map("is_internal")
+  createdByUserId String?  @map("created_by_user_id") @db.Char(36)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdBy User?         @relation("TicketCommentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt], map: "idx_ticket_comment_ticket")
+  @@map("ticket_comments")
+}
+
+model CrmOtpChallenge {
+  id         String    @id @default(uuid(7)) @db.Char(36)
+  companyId  String    @map("company_id") @db.Char(36)
+  contactId  String    @map("contact_id") @db.Char(36)
+  purpose    String    @db.VarChar(40)
+  codeHash   String    @map("code_hash") @db.VarChar(64)
+  expiresAt  DateTime  @map("expires_at") @db.DateTime(3)
+  consumedAt DateTime? @map("consumed_at") @db.DateTime(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact CrmContact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@index([contactId, purpose, expiresAt], map: "idx_crm_otp_contact_purpose")
+  @@map("crm_otp_challenges")
+}
+
+model CustomerPurchaseOrder {
+  id             String              @id @default(uuid(7)) @db.Char(36)
+  companyId      String              @map("company_id") @db.Char(36)
+  contactId      String              @map("contact_id") @db.Char(36)
+  poNumber       String              @map("po_number") @db.VarChar(80)
+  status         SalesDocumentStatus @default(DRAFT)
+  issuedOn       DateTime            @map("issued_on") @db.Date
+  currency       String              @default("SAR") @db.Char(3)
+  notes          String?             @db.Text
+  salesInvoiceId String?             @map("sales_invoice_id") @db.Char(36)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  contact CrmContact                 @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  items   CustomerPurchaseOrderItem[]
+
+  @@unique([companyId, poNumber], map: "uq_customer_po_number")
+  @@index([companyId, contactId, status], map: "idx_customer_po_contact")
+  @@map("customer_purchase_orders")
+}
+
+model CustomerPurchaseOrderItem {
+  id                     String  @id @default(uuid(7)) @db.Char(36)
+  customerPurchaseOrderId String @map("customer_purchase_order_id") @db.Char(36)
+  itemId                 String? @map("item_id") @db.Char(36)
+  description            String  @db.VarChar(240)
+  quantity               Decimal @db.Decimal(18, 3)
+  unitPrice              Decimal @map("unit_price") @db.Decimal(18, 2)
+  position               Int     @db.SmallInt
+
+  purchaseOrder CustomerPurchaseOrder @relation(fields: [customerPurchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@map("customer_purchase_order_items")
 }

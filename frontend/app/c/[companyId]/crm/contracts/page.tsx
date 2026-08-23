@@ -14,7 +14,7 @@ import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
-import { createContract, setContractStatus } from "../actions";
+import { createContract, setContractStatus, renewContract } from "../actions";
 
 type Contact = { id: string; name: string };
 type Contract = {
@@ -23,6 +23,8 @@ type Contract = {
   status: string;
   value: string | null;
   currency: string;
+  endsOn?: string | null;
+  autoRenew?: boolean;
   contact?: { name: string } | null;
 };
 
@@ -41,11 +43,14 @@ export default async function ContractsPage({
   const session = await getSession();
   const canWrite = can(session?.user, "crm.write");
 
-  const [contracts, contacts] = await Promise.all([
+  const [contracts, contacts, expiring] = await Promise.all([
     apiServer<Contract[]>(`/companies/${companyId}/crm/contracts`, {
       companyId,
     }).catch(() => []),
     apiServer<Contact[]>(`/companies/${companyId}/crm/contacts`, {
+      companyId,
+    }).catch(() => []),
+    apiServer<Contract[]>(`/companies/${companyId}/crm/contracts/expiring?withinDays=30`, {
       companyId,
     }).catch(() => []),
   ]);
@@ -63,6 +68,26 @@ export default async function ContractsPage({
         }
       />
       <FlashFromSearch searchParams={flash} />
+
+      {expiring.length > 0 ? (
+        <Card title={t("contracts.expiringTitle")}>
+          <ul className="space-y-2 text-sm">
+            {expiring.map((row) => (
+              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {row.title} · {row.contact?.name ?? "—"} · {row.endsOn}
+                </span>
+                {canWrite ? (
+                  <ActionForm
+                    label={t("contracts.renew")}
+                    action={renewContract.bind(null, companyId, row.id)}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       {canWrite ? (
         <CreateFormDialog
@@ -82,6 +107,25 @@ export default async function ContractsPage({
             <Input name="currency" label={t("currency")} defaultValue="SAR" />
             <Input name="startsOn" label={t("contracts.startsOn")} type="date" />
             <Input name="endsOn" label={t("contracts.endsOn")} type="date" />
+            <Select
+              name="contractType"
+              label={t("contracts.contractType")}
+              defaultValue="SERVICE"
+              options={[
+                { value: "SUPPLY", label: t("contracts.supply") },
+                { value: "SUBSCRIPTION", label: t("contracts.subscription") },
+                { value: "SERVICE", label: t("contracts.service") },
+              ]}
+            />
+            <Select
+              name="autoRenew"
+              label={t("contracts.autoRenew")}
+              defaultValue="false"
+              options={[
+                { value: "false", label: tCommon("select") },
+                { value: "true", label: t("contracts.autoRenewYes") },
+              ]}
+            />
             <div className="md:col-span-2">
               <Textarea name="notes" label={t("notes")} />
             </div>
@@ -131,6 +175,12 @@ export default async function ContractsPage({
                             row.id,
                             "ACTIVE",
                           )}
+                        />
+                      ) : null}
+                      {canWrite && row.status === "ACTIVE" ? (
+                        <ActionForm
+                          label={t("contracts.renew")}
+                          action={renewContract.bind(null, companyId, row.id)}
                         />
                       ) : null}
                     </td>

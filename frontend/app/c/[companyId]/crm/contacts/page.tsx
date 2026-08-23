@@ -19,6 +19,11 @@ type Contact = {
   id: string;
   name: string;
   contactType: string;
+  customerTrack?: string;
+  taxNumber?: string | null;
+  companyRegNumber?: string | null;
+  creditLimit?: string | null;
+  creditTermsDays?: string | null;
   status: string;
   companyName: string | null;
   email: string | null;
@@ -77,10 +82,32 @@ export default async function ContactsPage({
                 { value: "LEAD", label: t("contacts.leadType") },
               ]}
             />
+            <Select
+              name="customerTrack"
+              label={t("track")}
+              required
+              defaultValue="B2C"
+              options={[
+                { value: "B2C", label: t("b2c") },
+                { value: "B2B", label: t("b2b") },
+              ]}
+            />
             <Input name="name" label={t("name")} required />
             <Input name="companyName" label={t("contacts.companyName")} />
             <Input name="email" label={t("email")} type="email" />
             <Input name="phone" label={t("phone")} />
+            <Input name="taxNumber" label={t("taxNumber")} />
+            <Input
+              name="companyRegNumber"
+              label={t("companyRegNumber")}
+            />
+            <Input name="creditLimit" label={t("creditLimit")} type="number" />
+            <Input
+              name="creditTermsDays"
+              label={t("creditTermsDays")}
+              type="number"
+            />
+            <Input name="dateOfBirth" label={t("dateOfBirth")} type="date" />
             <div className="md:col-span-2">
               <Textarea name="notes" label={t("notes")} />
             </div>
@@ -132,6 +159,25 @@ export default async function ContactsPage({
                     <td className="px-2 py-2">{formatDate(c.createdAt)}</td>
                     <td className="px-2 py-2">
                       {canWrite ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            href={`/c/${companyId}/crm/contacts/${c.id}/insights`}
+                            variant="outline"
+                          >
+                            {t("insights.short")}
+                          </Button>
+                          <Button
+                            href={`/c/${companyId}/crm/contacts/${c.id}/loyalty`}
+                            variant="outline"
+                          >
+                            {t("loyalty.title")}
+                          </Button>
+                          <Button
+                            href={`/c/${companyId}/crm/contacts/${c.id}/store-credit`}
+                            variant="outline"
+                          >
+                            {t("storeCredit.title")}
+                          </Button>
                         <CreateFormDialog
                           title={t("contacts.editTitle")}
                           triggerLabel={t("contacts.edit")}
@@ -156,6 +202,16 @@ export default async function ContactsPage({
                                   value: "LEAD",
                                   label: t("contacts.leadType"),
                                 },
+                              ]}
+                            />
+                            <Select
+                              name="customerTrack"
+                              label={t("track")}
+                              required
+                              defaultValue={c.customerTrack ?? "B2C"}
+                              options={[
+                                { value: "B2C", label: t("b2c") },
+                                { value: "B2B", label: t("b2b") },
                               ]}
                             />
                             <Select
@@ -189,6 +245,33 @@ export default async function ContactsPage({
                               label={t("phone")}
                               defaultValue={c.phone ?? ""}
                             />
+                            <Input
+                              name="taxNumber"
+                              label={t("taxNumber")}
+                              defaultValue={c.taxNumber ?? ""}
+                            />
+                            <Input
+                              name="companyRegNumber"
+                              label={t("companyRegNumber")}
+                              defaultValue={c.companyRegNumber ?? ""}
+                            />
+                            <Input
+                              name="creditLimit"
+                              label={t("creditLimit")}
+                              type="number"
+                              defaultValue={c.creditLimit ?? 0}
+                            />
+                            <Input
+                              name="creditTermsDays"
+                              label={t("creditTermsDays")}
+                              type="number"
+                              defaultValue={c.creditTermsDays ?? 0}
+                            />
+                            <Input
+                              name="dateOfBirth"
+                              label={t("dateOfBirth")}
+                              type="date"
+                            />
                             <div className="md:col-span-2">
                               <Textarea
                                 name="notes"
@@ -201,7 +284,15 @@ export default async function ContactsPage({
                             </div>
                           </form>
                         </CreateFormDialog>
-                      ) : null}
+                        </div>
+                      ) : (
+                        <Button
+                          href={`/c/${companyId}/crm/contacts/${c.id}/insights`}
+                          variant="outline"
+                        >
+                          {t("insights.short")}
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}

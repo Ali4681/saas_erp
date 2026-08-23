@@ -98,6 +98,15 @@ export default async function CreditNotesPage({
             <Input name="description" label={t("lineDescription")} required />
             <Input name="quantity" label={t("quantity")} defaultValue="1" />
             <Input name="amount" label={t("amount")} required />
+            <Select
+              name="toStoreCredit"
+              label={t("creditNotes.toStoreCredit")}
+              defaultValue="true"
+              options={[
+                { value: "true", label: t("creditNotes.wallet") },
+                { value: "false", label: t("creditNotes.invoiceOnly") },
+              ]}
+            />
             <div className="md:col-span-2">
               <Button type="submit">{t("create")}</Button>
             </div>

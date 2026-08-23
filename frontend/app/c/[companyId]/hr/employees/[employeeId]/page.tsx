@@ -20,6 +20,7 @@ import {
   decideSalesSubmission,
   setEmployeeAdvanceAllowance,
   setEmployeeFinancialSettings,
+  updateEmployeeEmploymentCategory,
   uploadEmployeeInsurance,
 } from "../../actions";
 import { AppLoginCredentials } from "../AppLoginCredentials";
@@ -88,6 +89,7 @@ type EmployeeDetail = {
   jobTitle: string | null;
   hireDate: string | null;
   employmentStatus: string;
+  employmentCategory?: string | null;
   basicSalary: string | null;
   salesTargetMode?: string | null;
   salesTargetAmount?: string | null;
@@ -375,6 +377,51 @@ export default async function EmployeeDetailPage({
                   ? formatDate(employee.identityExpiresOn)
                   : "—"}
               </p>
+            </Card>
+            <Card className="p-4 sm:col-span-2 lg:col-span-3">
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {t("employmentCategory")}
+              </p>
+              <p className="mt-1 font-medium">
+                {employee.employmentCategory === "WAGE_WORKER"
+                  ? t("employmentCategoryWage")
+                  : employee.employmentCategory === "EMPLOYMENT_CONTRACT"
+                    ? t("employmentCategoryContract")
+                    : "—"}
+              </p>
+              {canWrite ? (
+                <form
+                  action={updateEmployeeEmploymentCategory.bind(
+                    null,
+                    companyId,
+                    employeeId,
+                  )}
+                  className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end"
+                >
+                  <Select
+                    name="employmentCategory"
+                    label={t("employmentCategory")}
+                    required
+                    showPlaceholderOption={false}
+                    defaultValue={
+                      employee.employmentCategory === "WAGE_WORKER"
+                        ? "WAGE_WORKER"
+                        : "EMPLOYMENT_CONTRACT"
+                    }
+                    options={[
+                      {
+                        value: "EMPLOYMENT_CONTRACT",
+                        label: t("employmentCategoryContract"),
+                      },
+                      {
+                        value: "WAGE_WORKER",
+                        label: t("employmentCategoryWage"),
+                      },
+                    ]}
+                  />
+                  <Button type="submit">{t("save")}</Button>
+                </form>
+              ) : null}
             </Card>
           </div>
 

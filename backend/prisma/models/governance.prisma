@@ -1,0 +1,313 @@
+/// Governance & operations: business hours, industry packs, SoD,
+/// approval thresholds, period locks, break-glass, cashier Z-report journals.
+/// See docs/GOVERNANCE_OPERATIONS_ARCHITECTURE.md
+
+model CompanyBusinessHoursProfile {
+  id               String               @id @default(uuid(7)) @db.Char(36)
+  companyId        String               @unique @map("company_id") @db.Char(36)
+  mode             BusinessHoursMode    @default(HOURS_12)
+  defaultStartTime String               @default("09:00") @map("default_start_time") @db.VarChar(8)
+  defaultEndTime   String               @default("21:00") @map("default_end_time") @db.VarChar(8)
+  /// For HOURS_24: auto-generate sequential WorkShift rows
+  autoSplitShifts  Boolean              @default(true) @map("auto_split_shifts")
+  /// Target hours per auto-generated shift (e.g. 8 or 12)
+  autoShiftHours   Int                  @default(8) @map("auto_shift_hours") @db.SmallInt
+  twelveHourMode   TwelveHourPeriodMode @default(FIXED) @map("twelve_hour_mode")
+  period2StartTime String?              @map("period2_start_time") @db.VarChar(8)
+  period2EndTime   String?              @map("period2_end_time") @db.VarChar(8)
+  notes            String?              @db.Text
+  createdAt        DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  windows DynamicHoursWindow[]
+  shifts  WorkShift[]
+
+  @@map("company_business_hours_profiles")
+}
+
+model DynamicHoursWindow {
+  id        String   @id @default(uuid(7)) @db.Char(36)
+  companyId String   @map("company_id") @db.Char(36)
+  profileId String   @map("profile_id") @db.Char(36)
+  label     String?  @db.VarChar(120)
+  startsAt  DateTime @map("starts_at") @db.DateTime(3)
+  endsAt    DateTime @map("ends_at") @db.DateTime(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  profile CompanyBusinessHoursProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, startsAt], map: "idx_dynamic_hours_company_start")
+  @@map("dynamic_hours_windows")
+}
+
+/// Platform catalog of 50+ commercial activities (flowers, F&B, retail, …).
+model IndustryActivity {
+  id          String   @id @default(uuid(7)) @db.Char(36)
+  code        String   @unique @db.VarChar(60)
+  nameEn      String   @map("name_en") @db.VarChar(160)
+  nameAr      String   @map("name_ar") @db.VarChar(160)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  roleTemplates     IndustryPackRoleTemplate[]
+  categoryTemplates IndustryPackCategoryTemplate[]
+  activations       CompanyIndustryActivation[]
+
+  @@map("industry_activities")
+}
+
+model IndustryPackRoleTemplate {
+  id                 String               @id @default(uuid(7)) @db.Char(36)
+  industryActivityId String               @map("industry_activity_id") @db.Char(36)
+  roleCode           String               @map("role_code") @db.VarChar(50)
+  roleNameEn         String               @map("role_name_en") @db.VarChar(120)
+  roleNameAr         String               @map("role_name_ar") @db.VarChar(120)
+  financialProfile   RoleFinancialProfile @default(NONE) @map("financial_profile")
+  permissionCodes    Json                 @default("[]") @map("permission_codes")
+
+  industry IndustryActivity @relation(fields: [industryActivityId], references: [id], onDelete: Cascade)
+
+  @@unique([industryActivityId, roleCode], map: "uq_industry_pack_role")
+  @@map("industry_pack_role_templates")
+}
+
+model IndustryPackCategoryTemplate {
+  id                 String @id @default(uuid(7)) @db.Char(36)
+  industryActivityId String @map("industry_activity_id") @db.Char(36)
+  kind               String @db.VarChar(40) // ITEM_CATEGORY | EXPENSE_CATEGORY | SUPPLIER_TYPE
+  code               String @db.VarChar(60)
+  nameEn             String @map("name_en") @db.VarChar(160)
+  nameAr             String @map("name_ar") @db.VarChar(160)
+
+  industry IndustryActivity @relation(fields: [industryActivityId], references: [id], onDelete: Cascade)
+
+  @@unique([industryActivityId, kind, code], map: "uq_industry_pack_category")
+  @@map("industry_pack_category_templates")
+}
+
+model CompanyIndustryActivation {
+  id                 String   @id @default(uuid(7)) @db.Char(36)
+  companyId          String   @map("company_id") @db.Char(36)
+  industryActivityId String   @map("industry_activity_id") @db.Char(36)
+  appliedAt          DateTime @default(now()) @map("applied_at") @db.DateTime(3)
+  appliedByUserId    String?  @map("applied_by_user_id") @db.Char(36)
+
+  company  Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  industry IndustryActivity @relation(fields: [industryActivityId], references: [id], onDelete: Restrict)
+  appliedBy User?           @relation("IndustryActivationActor", fields: [appliedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, industryActivityId], map: "uq_company_industry")
+  @@map("company_industry_activations")
+}
+
+/// Forbidden permission-code pairs (Segregation of Duties).
+model SodConflictRule {
+  id              String   @id @default(uuid(7)) @db.Char(36)
+  /// Null = platform default rule for all tenants
+  companyId       String?  @map("company_id") @db.Char(36)
+  permissionCodeA String   @map("permission_code_a") @db.VarChar(100)
+  permissionCodeB String   @map("permission_code_b") @db.VarChar(100)
+  label           String?  @db.VarChar(180)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, permissionCodeA, permissionCodeB], map: "uq_sod_pair")
+  @@index([companyId, isActive], map: "idx_sod_company_active")
+  @@map("sod_conflict_rules")
+}
+
+model ApprovalThreshold {
+  id                 String                  @id @default(uuid(7)) @db.Char(36)
+  companyId          String                  @map("company_id") @db.Char(36)
+  actionType         ApprovalThresholdAction @map("action_type")
+  maxAmount          Decimal                 @map("max_amount") @db.Decimal(18, 2)
+  currency           String                  @db.Char(3)
+  /// Approver must hold this permission (e.g. finance.approve)
+  requiredPermission String                  @map("required_permission") @db.VarChar(100)
+  /// Escalation when amount exceeds maxAmount
+  escalatePermission String?                 @map("escalate_permission") @db.VarChar(100)
+  branchId           String?                 @map("branch_id") @db.Char(36)
+  isActive           Boolean                 @default(true) @map("is_active")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, actionType, isActive], map: "idx_approval_threshold_action")
+  @@map("approval_thresholds")
+}
+
+model FinancialPeriodLock {
+  id              String    @id @default(uuid(7)) @db.Char(36)
+  companyId       String    @map("company_id") @db.Char(36)
+  periodStart     DateTime  @map("period_start") @db.Date
+  periodEnd       DateTime  @map("period_end") @db.Date
+  lockedAt        DateTime  @default(now()) @map("locked_at") @db.DateTime(3)
+  lockedByUserId  String    @map("locked_by_user_id") @db.Char(36)
+  /// Soft window allowing finance.backdate until this timestamp
+  backdateUntil   DateTime? @map("backdate_until") @db.DateTime(3)
+  notes           String?   @db.Text
+
+  company  Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lockedBy User    @relation("PeriodLockActor", fields: [lockedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, periodStart, periodEnd], map: "uq_period_lock_range")
+  @@index([companyId, periodStart, periodEnd], map: "idx_period_lock_range")
+  @@map("financial_period_locks")
+}
+
+model BreakGlassSession {
+  id              String           @id @default(uuid(7)) @db.Char(36)
+  companyId       String           @map("company_id") @db.Char(36)
+  userId          String           @map("user_id") @db.Char(36)
+  reason          String           @db.Text
+  status          BreakGlassStatus @default(ACTIVE)
+  startsAt        DateTime         @default(now()) @map("starts_at") @db.DateTime(3)
+  endsAt          DateTime         @map("ends_at") @db.DateTime(3)
+  revokedAt       DateTime?        @map("revoked_at") @db.DateTime(3)
+  revokedByUserId String?          @map("revoked_by_user_id") @db.Char(36)
+  alertedAt       DateTime?        @map("alerted_at") @db.DateTime(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.DateTime(3)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User    @relation("BreakGlassSubject", fields: [userId], references: [id], onDelete: Restrict)
+  revokedBy User?   @relation("BreakGlassRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, endsAt], map: "idx_break_glass_active")
+  @@map("break_glass_sessions")
+}
+
+/// Intermediate / clearing GL accounts used by Z-report and handovers.
+model ClearingAccount {
+  id        String   @id @default(uuid(7)) @db.Char(36)
+  companyId String   @map("company_id") @db.Char(36)
+  code      String   @db.VarChar(40)
+  name      String   @db.VarChar(160)
+  kind      String   @db.VarChar(40) // CASH | CARD | TRANSFER | OVER_SHORT | PETTY | REVENUE | VAT | FLOAT
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   JournalLine[]
+
+  @@unique([companyId, code], map: "uq_clearing_account_code")
+  @@map("clearing_accounts")
+}
+
+model JournalEntry {
+  id                   String             @id @default(uuid(7)) @db.Char(36)
+  companyId            String             @map("company_id") @db.Char(36)
+  entryType            JournalEntryType   @map("entry_type")
+  status               JournalEntryStatus @default(DRAFT)
+  entryDate            DateTime           @map("entry_date") @db.Date
+  memo                 String?            @db.VarChar(255)
+  currency             String             @db.Char(3)
+  cashierShiftSessionId String?           @map("cashier_shift_session_id") @db.Char(36)
+  sourceType           String?            @map("source_type") @db.VarChar(40)
+  sourceId             String?            @map("source_id") @db.Char(36)
+  createdByUserId      String             @map("created_by_user_id") @db.Char(36)
+  postedAt             DateTime?          @map("posted_at") @db.DateTime(3)
+  postedByUserId       String?            @map("posted_by_user_id") @db.Char(36)
+  createdAt            DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company              Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  cashierShiftSession  CashierShiftSession? @relation(fields: [cashierShiftSessionId], references: [id], onDelete: SetNull)
+  createdBy            User                 @relation("JournalCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  postedBy             User?                @relation("JournalPoster", fields: [postedByUserId], references: [id], onDelete: SetNull)
+  lines                JournalLine[]
+
+  @@index([companyId, entryDate, entryType], map: "idx_journal_company_date")
+  @@index([companyId, sourceType, sourceId], map: "idx_journal_source")
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id                String  @id @default(uuid(7)) @db.Char(36)
+  companyId         String  @map("company_id") @db.Char(36)
+  journalEntryId    String  @map("journal_entry_id") @db.Char(36)
+  clearingAccountId String? @map("clearing_account_id") @db.Char(36)
+  glAccountId       String? @map("gl_account_id") @db.Char(36)
+  debit             Decimal @default(0) @db.Decimal(18, 2)
+  credit            Decimal @default(0) @db.Decimal(18, 2)
+  memo              String? @db.VarChar(255)
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  journalEntry    JournalEntry     @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  clearingAccount ClearingAccount? @relation(fields: [clearingAccountId], references: [id], onDelete: Restrict)
+  glAccount       GlAccount?       @relation(fields: [glAccountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId], map: "idx_journal_line_entry")
+  @@index([glAccountId], map: "idx_journal_line_gl_account")
+  @@map("journal_lines")
+}
+
+/// Per-cashier operational shift with opening float and Z-report close.
+model CashierShiftSession {
+  id              String             @id @default(uuid(7)) @db.Char(36)
+  companyId       String             @map("company_id") @db.Char(36)
+  branchId        String?            @map("branch_id") @db.Char(36)
+  employeeId      String             @map("employee_id") @db.Char(36)
+  userId          String             @map("user_id") @db.Char(36)
+  workShiftId     String?            @map("work_shift_id") @db.Char(36)
+  status          CashierShiftStatus @default(OPEN)
+  openedAt        DateTime           @default(now()) @map("opened_at") @db.DateTime(3)
+  closedAt        DateTime?          @map("closed_at") @db.DateTime(3)
+  openingFloat    Decimal            @default(0) @map("opening_float") @db.Decimal(18, 2)
+  cashSales       Decimal            @default(0) @map("cash_sales") @db.Decimal(18, 2)
+  cardSales       Decimal            @default(0) @map("card_sales") @db.Decimal(18, 2)
+  transferSales   Decimal            @default(0) @map("transfer_sales") @db.Decimal(18, 2)
+  pettyExpenses   Decimal            @default(0) @map("petty_expenses") @db.Decimal(18, 2)
+  expectedCash    Decimal            @default(0) @map("expected_cash") @db.Decimal(18, 2)
+  countedCash     Decimal?           @map("counted_cash") @db.Decimal(18, 2)
+  variance        Decimal?           @db.Decimal(18, 2)
+  currency        String             @db.Char(3)
+  zReportNumber   String?            @map("z_report_number") @db.VarChar(40)
+  approvedByUserId String?           @map("approved_by_user_id") @db.Char(36)
+  approvedAt      DateTime?          @map("approved_at") @db.DateTime(3)
+  notes           String?            @db.Text
+  createdAt       DateTime           @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  branch     CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  user       User           @relation("CashierShiftUser", fields: [userId], references: [id], onDelete: Restrict)
+  workShift  WorkShift?     @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
+  approvedBy User?          @relation("CashierShiftApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  journals   JournalEntry[]
+  handoversFrom CashierShiftHandover[] @relation("HandoverFrom")
+  handoversTo   CashierShiftHandover[] @relation("HandoverTo")
+
+  @@index([companyId, status, openedAt], map: "idx_cashier_shift_status")
+  @@index([companyId, employeeId, openedAt], map: "idx_cashier_shift_employee")
+  @@map("cashier_shift_sessions")
+}
+
+model CashierShiftHandover {
+  id              String   @id @default(uuid(7)) @db.Char(36)
+  companyId       String   @map("company_id") @db.Char(36)
+  fromSessionId   String   @map("from_session_id") @db.Char(36)
+  toSessionId     String?  @map("to_session_id") @db.Char(36)
+  amount          Decimal  @db.Decimal(18, 2)
+  currency        String   @db.Char(3)
+  target          String   @db.VarChar(40) // NEXT_CASHIER | TREASURY | BANK
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdByUserId String   @map("created_by_user_id") @db.Char(36)
+
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  fromSession CashierShiftSession @relation("HandoverFrom", fields: [fromSessionId], references: [id], onDelete: Restrict)
+  toSession   CashierShiftSession? @relation("HandoverTo", fields: [toSessionId], references: [id], onDelete: SetNull)
+  createdBy   User                @relation("HandoverCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, createdAt], map: "idx_cashier_handover_company")
+  @@map("cashier_shift_handovers")
+}

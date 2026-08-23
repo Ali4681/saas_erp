@@ -23,6 +23,8 @@ export async function createRole(companyId: string, formData: FormData) {
     body: {
       code: str(formData, "code"),
       name: str(formData, "name"),
+      description: optStr(formData, "description"),
+      financialProfile: optStr(formData, "financialProfile") ?? "NONE",
       permissionCodes,
     },
     pagePath: rolesPage(companyId),
@@ -40,6 +42,8 @@ export async function updateRole(
     .map((v) => String(v).trim())
     .filter(Boolean);
   const name = optStr(formData, "name");
+  const description = optStr(formData, "description");
+  const financialProfile = optStr(formData, "financialProfile");
 
   await erpMutate({
     companyId,
@@ -47,6 +51,8 @@ export async function updateRole(
     method: "PATCH",
     body: {
       ...(name ? { name } : {}),
+      ...(description !== undefined ? { description: description ?? "" } : {}),
+      ...(financialProfile ? { financialProfile } : {}),
       permissionCodes,
     },
     pagePath: rolesPage(companyId),

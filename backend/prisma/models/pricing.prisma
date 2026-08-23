@@ -1,0 +1,126 @@
+model PriceList {
+  id        String  @id @default(uuid(7)) @db.Char(36)
+  companyId String  @map("company_id") @db.Char(36)
+  name      String  @db.VarChar(120)
+  listType  String  @default("RETAIL") @map("list_type") @db.VarChar(40)
+  currency  String  @default("SAR") @db.Char(3)
+  isDefault Boolean @default(false) @map("is_default")
+  isActive  Boolean @default(true) @map("is_active")
+  notes     String? @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  entries   PriceListEntry[]
+  contracts CrmContract[]
+  invoices  SalesInvoice[]
+
+  @@unique([companyId, name], map: "uq_price_list_company_name")
+  @@index([companyId, listType, isActive], map: "idx_price_list_type")
+  @@map("price_lists")
+}
+
+model PriceListEntry {
+  id            String   @id @default(uuid(7)) @db.Char(36)
+  priceListId   String   @map("price_list_id") @db.Char(36)
+  itemId        String   @map("item_id") @db.Char(36)
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(18, 2)
+  minQty        Decimal  @default(1) @map("min_qty") @db.Decimal(18, 3)
+  isVolumeBreak Boolean  @default(false) @map("is_volume_break")
+  floorPrice    Decimal? @map("floor_price") @db.Decimal(18, 2)
+  validFrom     DateTime? @map("valid_from") @db.Date
+  validTo       DateTime? @map("valid_to") @db.Date
+
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  item      Item      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([priceListId, itemId], map: "idx_price_list_entry_item")
+  @@map("price_list_entries")
+}
+
+model CouponCode {
+  id                  String   @id @default(uuid(7)) @db.Char(36)
+  companyId           String   @map("company_id") @db.Char(36)
+  code                String   @db.VarChar(80)
+  codeKey             String   @map("code_key") @db.VarChar(80)
+  couponType          String   @default("PERCENT") @map("coupon_type") @db.VarChar(40)
+  discountValue       Decimal  @map("discount_value") @db.Decimal(18, 2)
+  maxUsages           Int?     @map("max_usages")
+  usageCount          Int      @default(0) @map("usage_count")
+  maxUsagePerContact  Int?     @map("max_usage_per_contact")
+  minOrderAmount      Decimal? @map("min_order_amount") @db.Decimal(18, 2)
+  validFrom           DateTime? @map("valid_from") @db.DateTime(3)
+  validTo             DateTime? @map("valid_to") @db.DateTime(3)
+  saleChannel         String?  @map("sale_channel") @db.VarChar(40)
+  isActive            Boolean  @default(true) @map("is_active")
+  notes               String?  @db.Text
+  createdByUserId     String?  @map("created_by_user_id") @db.Char(36)
+  createdAt           DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  usages  CouponUsage[]
+
+  @@unique([companyId, codeKey], map: "uq_coupon_company_code")
+  @@index([companyId, isActive, validTo], map: "idx_coupon_active")
+  @@map("coupon_codes")
+}
+
+model CouponUsage {
+  id        String   @id @default(uuid(7)) @db.Char(36)
+  couponId  String   @map("coupon_id") @db.Char(36)
+  contactId String?  @map("contact_id") @db.Char(36)
+  invoiceId String?  @map("invoice_id") @db.Char(36)
+  usedAt    DateTime @default(now()) @map("used_at") @db.DateTime(3)
+
+  coupon CouponCode @relation(fields: [couponId], references: [id], onDelete: Restrict)
+
+  @@index([couponId, usedAt], map: "idx_coupon_usage_coupon")
+  @@map("coupon_usages")
+}
+
+model ProductBundle {
+  id        String  @id @default(uuid(7)) @db.Char(36)
+  companyId String  @map("company_id") @db.Char(36)
+  name      String  @db.VarChar(160)
+  sku       String? @db.VarChar(80)
+  bundlePrice Decimal @map("bundle_price") @db.Decimal(18, 2)
+  isActive  Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  items   ProductBundleItem[]
+
+  @@index([companyId, isActive], map: "idx_product_bundle_company")
+  @@map("product_bundles")
+}
+
+model ProductBundleItem {
+  id        String  @id @default(uuid(7)) @db.Char(36)
+  bundleId  String  @map("bundle_id") @db.Char(36)
+  itemId    String  @map("item_id") @db.Char(36)
+  quantity  Decimal @default(1) @db.Decimal(18, 3)
+
+  bundle ProductBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  item   Item          @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([bundleId], map: "idx_product_bundle_item")
+  @@map("product_bundle_items")
+}
+
+model ChannelInboundOrder {
+  id               String   @id @default(uuid(7)) @db.Char(36)
+  companyId        String   @map("company_id") @db.Char(36)
+  provider         String   @db.VarChar(40)
+  externalOrderId  String   @map("external_order_id") @db.VarChar(120)
+  saleChannel      String   @map("sale_channel") @db.VarChar(40)
+  salesInvoiceId   String?  @map("sales_invoice_id") @db.Char(36)
+  commissionAmount Decimal  @default(0) @map("commission_amount") @db.Decimal(18, 2)
+  payload          Json     @default("{}")
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, provider, externalOrderId], map: "uq_channel_inbound_order")
+  @@map("channel_inbound_orders")
+}

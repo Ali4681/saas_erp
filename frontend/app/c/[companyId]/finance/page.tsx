@@ -67,6 +67,26 @@ export default async function FinanceHubPage({
             hint: t("accountsHint"),
           },
           {
+            href: `${base}/chart-of-accounts`,
+            label: t("chartOfAccounts"),
+            hint: t("chartOfAccountsHint"),
+          },
+          {
+            href: `${base}/account-mapping`,
+            label: t("accountMapping"),
+            hint: t("accountMappingHint"),
+          },
+          {
+            href: `${base}/journals`,
+            label: t("journals"),
+            hint: t("journalsHint"),
+          },
+          {
+            href: `${base}/reports`,
+            label: t("reports"),
+            hint: t("reportsHint"),
+          },
+          {
             href: `${base}/expenses`,
             label: t("expenses"),
             hint: t("expensesHint"),
@@ -85,6 +105,11 @@ export default async function FinanceHubPage({
             href: `${base}/daily-closing`,
             label: t("dailyClosing"),
             hint: t("dailyClosingHint"),
+          },
+          {
+            href: `${base}/cashier-shifts`,
+            label: t("cashierTitle"),
+            hint: t("cashierDesc"),
           },
         ]}
       />

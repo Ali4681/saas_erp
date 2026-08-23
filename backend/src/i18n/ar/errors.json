@@ -49,7 +49,10 @@
     "useCompanyEndpoint": "استخدم مسار أدوار الشركة",
     "cannotDeleteLinked": "لا يمكن حذف الدور: مرتبط بـ {count} مستخدم. انقل المستخدمين أولاً.",
     "blockedPermissions": "صلاحيات غير مسموحة لأدوار الشركة: {codes}",
-    "unknownPermissions": "رموز صلاحيات غير معروفة: {codes}"
+    "unknownPermissions": "رموز صلاحيات غير معروفة: {codes}",
+    "invalidParent": "لا يمكن أن يكون الدور أباً لنفسه",
+    "parentNotFound": "الدور الأب غير موجود في هذه الشركة",
+    "sodConflict": "تعارض فصل سلطات: لا يمكن الجمع بين {a} و {b} ({label})"
   },
   "plans": {
     "noSubscription": "لا يوجد اشتراك نشط للشركة",

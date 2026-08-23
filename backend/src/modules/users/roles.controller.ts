@@ -11,11 +11,13 @@ import {
 } from '@nestjs/common';
 import {
   IsArray,
+  IsEnum,
   IsIn,
   IsOptional,
   IsString,
   MinLength,
 } from 'class-validator';
+import { RoleFinancialProfile } from '../../generated/prisma/client';
 import { RequirePermissions } from '../../common/auth/auth.decorators';
 import { RolesService } from './roles.service';
 
@@ -41,6 +43,18 @@ class CreateRoleBody {
   name!: string;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(RoleFinancialProfile)
+  financialProfile?: RoleFinancialProfile;
+
+  @IsOptional()
+  @IsString()
+  parentRoleId?: string;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   permissionCodes?: string[];
@@ -51,6 +65,18 @@ class UpdateRoleBody {
   @IsString()
   @MinLength(2)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsEnum(RoleFinancialProfile)
+  financialProfile?: RoleFinancialProfile;
+
+  @IsOptional()
+  @IsString()
+  parentRoleId?: string;
 
   @IsOptional()
   @IsArray()

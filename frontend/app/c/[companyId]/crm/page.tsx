@@ -34,6 +34,26 @@ export default async function CrmHubPage({
           label: t("hub.contracts"),
           hint: t("hub.contractsHint"),
         },
+        {
+          href: `${base}/tickets`,
+          label: t("hub.tickets"),
+          hint: t("hub.ticketsHint"),
+        },
+        {
+          href: `${base}/pricing`,
+          label: t("hub.pricing"),
+          hint: t("hub.pricingHint"),
+        },
+        {
+          href: `${base}/birthdays`,
+          label: t("hub.birthdays"),
+          hint: t("hub.birthdaysHint"),
+        },
+        {
+          href: `${base}/ops-settings`,
+          label: t("ops.title"),
+          hint: t("ops.title"),
+        },
       ]}
     />
   );

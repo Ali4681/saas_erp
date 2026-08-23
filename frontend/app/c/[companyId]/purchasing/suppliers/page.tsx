@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Textarea } from "@/components/ui/Textarea";
+import { Select } from "@/components/ui/Select";
 import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
@@ -64,6 +65,14 @@ export default async function SuppliersPage({
             <Input name="name" label={t("name")} required />
             <Input name="code" label={t("suppliers.code")} />
             <Input name="taxNumber" label={t("suppliers.taxNumber")} />
+            <Select
+              name="supplierType"
+              label={t("suppliers.supplierType")}
+              options={[
+                { value: "LOCAL", label: t("suppliers.typeLocal") },
+                { value: "INTERNATIONAL", label: t("suppliers.typeInternational") },
+              ]}
+            />
             <Input name="email" label={t("email")} type="email" />
             <Input name="phone" label={t("phone")} />
             <div className="md:col-span-2">

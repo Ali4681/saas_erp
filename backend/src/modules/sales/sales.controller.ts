@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import {
   IsArray,
   IsEnum,
+  IsNumber,
   IsNumberString,
   IsOptional,
   IsString,
@@ -42,6 +43,10 @@ class LineItemBody {
   @IsOptional()
   @IsString()
   itemId?: string;
+
+  @IsOptional()
+  @IsString()
+  bundleId?: string;
 }
 
 class CreateQuoteBody {
@@ -107,6 +112,31 @@ class CreateInvoiceBody {
   @IsString()
   companyBranchId?: string;
 
+  @IsOptional()
+  @IsString()
+  saleChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
+
+  @IsOptional()
+  @IsString()
+  priceListId?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  storeCreditAmount?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  extraDiscountPct?: number;
+
+  @IsOptional()
+  @IsString()
+  overrideCode?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => LineItemBody)
@@ -147,6 +177,9 @@ class CreateCreditNoteBody {
   @IsOptional()
   @IsString()
   issuedOn?: string;
+
+  @IsOptional()
+  toStoreCredit?: boolean;
 
   @IsOptional()
   @IsArray()
@@ -244,6 +277,9 @@ export class SalesController {
     return this.sales.createInvoice({
       companyId,
       createdById: user.userId,
+      discountOverrideAuthorized:
+        user.isPlatformAdmin ||
+        user.permissions.includes('sales.discount_override'),
       ...body,
     });
   }
@@ -253,8 +289,9 @@ export class SalesController {
   recordPayment(
     @Param('companyId') companyId: string,
     @Body() body: RecordPaymentBody,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.sales.recordPayment({ companyId, ...body });
+    return this.sales.recordPayment({ companyId, ...body, createdById: user.userId });
   }
 
   @Get('credit-notes')
@@ -268,8 +305,117 @@ export class SalesController {
   createCreditNote(
     @Param('companyId') companyId: string,
     @Body() body: CreateCreditNoteBody,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.sales.createCreditNote({ companyId, ...body });
+    return this.sales.createCreditNote({
+      companyId,
+      ...body,
+      createdById: user.userId,
+    });
+  }
+
+  @Get('reports/ar-aging')
+  @RequirePermissions('sales.read')
+  arAging(@Param('companyId') companyId: string) {
+    return this.sales.arAging(companyId);
+  }
+
+  @Get('reports/channels')
+  @RequirePermissions('sales.read')
+  channelReport(@Param('companyId') companyId: string) {
+    return this.sales.channelReport(companyId);
+  }
+
+  @Get('reports/track-revenue')
+  @RequirePermissions('sales.read')
+  trackRevenue(@Param('companyId') companyId: string) {
+    return this.sales.trackRevenueReport(companyId);
+  }
+
+  @Get('reports/ticket-cost')
+  @RequirePermissions('sales.read')
+  ticketCost(@Param('companyId') companyId: string) {
+    return this.sales.ticketCostReport(companyId);
+  }
+
+  @Get('reports/deferred-revenue')
+  @RequirePermissions('sales.read')
+  deferredRevenue(@Param('companyId') companyId: string) {
+    return this.sales.deferredContractRevenue(companyId);
+  }
+
+  @Get('customer-pos')
+  @RequirePermissions('sales.read')
+  listCustomerPos(@Param('companyId') companyId: string) {
+    return this.sales.listCustomerPurchaseOrders(companyId);
+  }
+
+  @Post('customer-pos')
+  @RequirePermissions('sales.write')
+  createCustomerPo(
+    @Param('companyId') companyId: string,
+    @Body()
+    body: {
+      contactId: string;
+      poNumber: string;
+      issuedOn?: string;
+      notes?: string;
+      items: Array<{
+        description: string;
+        quantity: string;
+        unitPrice: string;
+        itemId?: string;
+      }>;
+    },
+  ) {
+    return this.sales.createCustomerPurchaseOrder({ companyId, ...body });
+  }
+
+  @Post('customer-pos/:poId/convert')
+  @RequirePermissions('sales.write')
+  convertCustomerPo(
+    @Param('companyId') companyId: string,
+    @Param('poId') poId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sales.convertCustomerPurchaseOrder(companyId, poId, user.userId);
+  }
+
+  @Post('channel-orders')
+  @RequirePermissions('sales.write')
+  ingestChannelOrder(
+    @Param('companyId') companyId: string,
+    @Body()
+    body: {
+      provider: string;
+      externalOrderId: string;
+      saleChannel: string;
+      contactPhone?: string;
+      contactName?: string;
+      commissionAmount?: number;
+      items: Array<{
+        description: string;
+        quantity: string;
+        unitPrice: string;
+        itemId?: string;
+      }>;
+    },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sales.ingestChannelOrder({
+      companyId,
+      createdById: user.userId,
+      ...body,
+    });
+  }
+
+  @Get('invoices/:invoiceId/zatca')
+  @RequirePermissions('sales.read')
+  zatca(
+    @Param('companyId') companyId: string,
+    @Param('invoiceId') invoiceId: string,
+  ) {
+    return this.sales.zatcaDocument(companyId, invoiceId);
   }
 
   @Get('invoices/:invoiceId/pdf')

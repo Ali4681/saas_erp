@@ -2,16 +2,21 @@ import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import {
   IsArray,
   IsEnum,
+  IsInt,
   IsNumberString,
   IsOptional,
   IsString,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import {
   PaymentMethod,
+  PurchaseDemandSource,
   PurchaseOrderStatus,
+  PurchaseType,
+  SupplierType,
 } from '../../generated/prisma/client';
 import {
   CurrentUser,
@@ -59,6 +64,23 @@ class BillLineBody {
   itemId?: string;
 }
 
+class RequisitionLineBody {
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
+  @IsString()
+  @MinLength(1)
+  description!: string;
+
+  @IsNumberString()
+  quantity!: string;
+
+  @IsOptional()
+  @IsNumberString()
+  estimatedUnitCost?: string;
+}
+
 class CreateSupplierBody {
   @IsString()
   @MinLength(2)
@@ -83,6 +105,28 @@ class CreateSupplierBody {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsEnum(SupplierType)
+  supplierType?: SupplierType;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  paymentTermsDays?: number;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsString()
+  originCountry?: string;
 }
 
 class CreatePoBody {
@@ -104,6 +148,46 @@ class CreatePoBody {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @IsOptional()
+  @IsEnum(PurchaseType)
+  purchaseType?: PurchaseType;
+
+  @IsOptional()
+  @IsEnum(PurchaseDemandSource)
+  demandSource?: PurchaseDemandSource;
+
+  @IsOptional()
+  @IsString()
+  requisitionId?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  freightAmount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  insuranceAmount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  customsAmount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  portFeesAmount?: string;
+
+  @IsOptional()
+  @IsString()
+  customsDeclarationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  originCountry?: string;
+
+  @IsOptional()
+  @IsEnum(PurchaseOrderStatus)
+  status?: PurchaseOrderStatus;
 
   @IsArray()
   @ValidateNested({ each: true })
@@ -145,6 +229,10 @@ class CreateBillBody {
   purchaseOrderId?: string;
 
   @IsOptional()
+  @IsString()
+  goodsReceiptId?: string;
+
+  @IsOptional()
   @IsEnum({ DRAFT: 'DRAFT', ISSUED: 'ISSUED' })
   status?: 'DRAFT' | 'ISSUED';
 
@@ -175,6 +263,39 @@ class RecordPaymentBody {
   @IsOptional()
   @IsString()
   externalReference?: string;
+}
+
+class CreateRequisitionBody {
+  @IsOptional()
+  @IsEnum(PurchaseDemandSource)
+  demandSource?: PurchaseDemandSource;
+
+  @IsOptional()
+  @IsString()
+  companyBranchId?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  neededBy?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RequisitionLineBody)
+  items!: RequisitionLineBody[];
+}
+
+class CreateReorderRequisitionBody {
+  @IsOptional()
+  @IsString()
+  companyBranchId?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 @Controller('companies/:companyId/purchasing')
@@ -248,6 +369,75 @@ export class PurchasingController {
     );
   }
 
+  @Get('goods-receipts')
+  @RequirePermissions('purchasing.read')
+  listGoodsReceipts(@Param('companyId') companyId: string) {
+    return this.purchasing.listGoodsReceipts(companyId);
+  }
+
+  @Get('requisitions')
+  @RequirePermissions('purchasing.read')
+  listRequisitions(@Param('companyId') companyId: string) {
+    return this.purchasing.listRequisitions(companyId);
+  }
+
+  @Post('requisitions')
+  @RequirePermissions('purchasing.write')
+  createRequisition(
+    @Param('companyId') companyId: string,
+    @Body() body: CreateRequisitionBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.purchasing.createRequisition({
+      companyId,
+      requestedById: user.userId,
+      ...body,
+    });
+  }
+
+  @Post('requisitions/:requisitionId/submit')
+  @RequirePermissions('purchasing.write')
+  submitRequisition(
+    @Param('companyId') companyId: string,
+    @Param('requisitionId') requisitionId: string,
+  ) {
+    return this.purchasing.submitRequisition(companyId, requisitionId);
+  }
+
+  @Post('requisitions/:requisitionId/approve')
+  @RequirePermissions('purchasing.write')
+  approveRequisition(
+    @Param('companyId') companyId: string,
+    @Param('requisitionId') requisitionId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.purchasing.approveRequisition(
+      companyId,
+      requisitionId,
+      user.userId,
+    );
+  }
+
+  @Get('reorder-suggestions')
+  @RequirePermissions('purchasing.read')
+  listReorderSuggestions(@Param('companyId') companyId: string) {
+    return this.purchasing.listReorderSuggestions(companyId);
+  }
+
+  @Post('reorder-suggestions/requisition')
+  @RequirePermissions('purchasing.write')
+  createRequisitionFromReorder(
+    @Param('companyId') companyId: string,
+    @Body() body: CreateReorderRequisitionBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.purchasing.createRequisitionFromReorder({
+      companyId,
+      requestedById: user.userId,
+      ...body,
+    });
+  }
+
   @Get('bills')
   @RequirePermissions('purchasing.read')
   listBills(@Param('companyId') companyId: string) {
@@ -259,8 +449,13 @@ export class PurchasingController {
   createBill(
     @Param('companyId') companyId: string,
     @Body() body: CreateBillBody,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.purchasing.createBill({ companyId, ...body });
+    return this.purchasing.createBill({
+      companyId,
+      createdById: user.userId,
+      ...body,
+    });
   }
 
   @Post('payments')

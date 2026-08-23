@@ -19,6 +19,9 @@ const ROLE_LABELS_AR: Record<string, string> = {
   OPERATIONS_MANAGER: "مدير العمليات",
   EMPLOYEE_VIEWER: "موظف / مشاهدة",
   COMPANY_EMPLOYEE: "موظف (خدمة ذاتية)",
+  B2B_ACCOUNT_MANAGER: "مدير حسابات شركات",
+  POS_SUPERVISOR: "مشرف كاشير",
+  MARKETING_SPECIALIST: "أخصائي تسويق",
   guest: "زائر",
   user: "مستخدم",
 };
@@ -31,6 +34,9 @@ const ROLE_LABELS_EN: Record<string, string> = {
   OPERATIONS_MANAGER: "Operations manager",
   EMPLOYEE_VIEWER: "Employee / viewer",
   COMPANY_EMPLOYEE: "Employee (self-service)",
+  B2B_ACCOUNT_MANAGER: "B2B account manager",
+  POS_SUPERVISOR: "POS supervisor",
+  MARKETING_SPECIALIST: "Marketing specialist",
   guest: "Guest",
   user: "User",
 };

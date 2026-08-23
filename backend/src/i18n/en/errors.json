@@ -49,7 +49,10 @@
     "useCompanyEndpoint": "Use the company roles endpoint",
     "cannotDeleteLinked": "Cannot delete role: linked to {count} users. Reassign users first.",
     "blockedPermissions": "Permissions not allowed for company roles: {codes}",
-    "unknownPermissions": "Unknown permission codes: {codes}"
+    "unknownPermissions": "Unknown permission codes: {codes}",
+    "invalidParent": "A role cannot be its own parent",
+    "parentNotFound": "Parent role not found in this company",
+    "sodConflict": "Segregation of Duties conflict: cannot combine {a} with {b} ({label})"
   },
   "plans": {
     "noSubscription": "No active subscription for company",

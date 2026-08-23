@@ -35,6 +35,13 @@ class CreateCategoryBody {
   @IsOptional()
   @IsString()
   parentId?: string;
+
+  @IsOptional()
+  inheritedTaxRate?: number;
+
+  @IsOptional()
+  @IsString()
+  abcClass?: string;
 }
 
 class CreateUnitBody {

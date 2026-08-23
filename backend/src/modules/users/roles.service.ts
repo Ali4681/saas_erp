@@ -3,6 +3,7 @@ import {
   i18nBadRequest,
   i18nNotFound,
 } from '../../common/i18n/localized-exception';
+import { RoleFinancialProfile } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 
@@ -24,6 +25,13 @@ const RESERVED_CODES = new Set([
   'ACCOUNTANT',
   'OPERATIONS_MANAGER',
   'EMPLOYEE_VIEWER',
+  'COMPANY_EMPLOYEE',
+  'CASHIER',
+  'SHIFT_SUPERVISOR',
+  'SALES_DELIVERY_REP',
+  'WAREHOUSE_KEEPER',
+  'TREASURY_CUSTODIAN',
+  'BRANCH_MANAGER',
 ]);
 
 /** Stable short prefix so custom role codes stay unique per company. */
@@ -103,7 +111,14 @@ export class RolesService {
 
   async createCompanyRole(
     companyId: string,
-    input: { code: string; name: string; permissionCodes?: string[] },
+    input: {
+      code: string;
+      name: string;
+      description?: string;
+      financialProfile?: RoleFinancialProfile | string;
+      parentRoleId?: string;
+      permissionCodes?: string[];
+    },
   ) {
     this.tenant.setCompanyId(companyId);
     const raw = input.code.trim().toUpperCase();
@@ -121,9 +136,18 @@ export class RolesService {
       throw i18nBadRequest('errors.roles.codeTaken');
     }
 
+    if (input.parentRoleId) {
+      await this.requireVisibleParentRole(companyId, input.parentRoleId);
+    }
+
     const permissionIds = await this.resolvePermissionIds(
       input.permissionCodes ?? [],
       true,
+    );
+    await this.assertNoSodConflicts(companyId, input.permissionCodes ?? []);
+
+    const financialProfile = this.parseFinancialProfile(
+      input.financialProfile,
     );
 
     const roleId = await this.prisma.$transaction(async (tx) => {
@@ -131,8 +155,12 @@ export class RolesService {
         data: {
           code,
           name: input.name.trim(),
+          description: input.description?.trim() || null,
           scope: 'TENANT',
           isSystem: false,
+          companyId,
+          parentRoleId: input.parentRoleId || null,
+          financialProfile,
         },
       });
       if (permissionIds.length) {
@@ -152,15 +180,51 @@ export class RolesService {
   async updateCompanyRole(
     companyId: string,
     roleId: string,
-    input: { name?: string; permissionCodes?: string[] },
+    input: {
+      name?: string;
+      description?: string;
+      financialProfile?: RoleFinancialProfile | string;
+      parentRoleId?: string | null;
+      permissionCodes?: string[];
+    },
   ) {
     this.tenant.setCompanyId(companyId);
     const role = await this.requireCompanyCustomRole(companyId, roleId);
 
-    if (input.name?.trim()) {
+    if (input.parentRoleId) {
+      if (input.parentRoleId === role.id) {
+        throw i18nBadRequest('errors.roles.invalidParent');
+      }
+      await this.requireVisibleParentRole(companyId, input.parentRoleId);
+    }
+
+    if (input.permissionCodes) {
+      await this.assertNoSodConflicts(companyId, input.permissionCodes);
+    }
+
+    const data: {
+      name?: string;
+      description?: string | null;
+      financialProfile?: RoleFinancialProfile;
+      parentRoleId?: string | null;
+    } = {};
+    if (input.name?.trim()) data.name = input.name.trim();
+    if (input.description !== undefined) {
+      data.description = input.description?.trim() || null;
+    }
+    if (input.financialProfile !== undefined) {
+      data.financialProfile = this.parseFinancialProfile(
+        input.financialProfile,
+      );
+    }
+    if (input.parentRoleId !== undefined) {
+      data.parentRoleId = input.parentRoleId || null;
+    }
+
+    if (Object.keys(data).length) {
       await this.prisma.role.update({
         where: { id: role.id },
-        data: { name: input.name.trim() },
+        data,
       });
     }
 
@@ -260,8 +324,12 @@ export class RolesService {
       id: string;
       code: string;
       name: string;
+      description?: string | null;
       scope: string;
       isSystem: boolean;
+      companyId?: string | null;
+      parentRoleId?: string | null;
+      financialProfile?: string;
       permissions: Array<{
         permission: {
           id: string;
@@ -281,8 +349,12 @@ export class RolesService {
         ? stripCompanyRolePrefix(role.code, companyId)
         : role.code,
       name: role.name,
+      description: role.description ?? null,
       scope: role.scope,
       isSystem: role.isSystem,
+      companyId: role.companyId ?? null,
+      parentRoleId: role.parentRoleId ?? null,
+      financialProfile: role.financialProfile ?? 'NONE',
       memberCount: role._count?.memberships ?? 0,
       permissions: role.permissions.map((rp) => ({
         id: rp.permission.id,
@@ -291,6 +363,66 @@ export class RolesService {
         action: rp.permission.action,
       })),
     };
+  }
+
+  private parseFinancialProfile(
+    value?: RoleFinancialProfile | string,
+  ): RoleFinancialProfile {
+    const allowed = new Set(Object.values(RoleFinancialProfile));
+    if (value && allowed.has(value as RoleFinancialProfile)) {
+      return value as RoleFinancialProfile;
+    }
+    return RoleFinancialProfile.NONE;
+  }
+
+  private async requireVisibleParentRole(
+    companyId: string,
+    parentRoleId: string,
+  ) {
+    const prefix = companyRolePrefix(companyId);
+    const parent = await this.prisma.role.findFirst({
+      where: {
+        id: parentRoleId,
+        scope: 'TENANT',
+        OR: [
+          { isSystem: true },
+          { isSystem: false, code: { startsWith: prefix } },
+          { companyId },
+        ],
+      },
+    });
+    if (!parent) {
+      throw i18nNotFound('errors.roles.parentNotFound');
+    }
+    return parent;
+  }
+
+  /** Soft SoD check — blocks exact forbidden permission pairs on a role. */
+  private async assertNoSodConflicts(
+    companyId: string,
+    permissionCodes: string[],
+  ) {
+    if (permissionCodes.length < 2) return;
+    const normalized = new Set(
+      permissionCodes.map((c) => c.trim().toLowerCase()),
+    );
+    const rules = await this.prisma.sodConflictRule.findMany({
+      where: {
+        isActive: true,
+        OR: [{ companyId: null }, { companyId }],
+      },
+    });
+    for (const rule of rules) {
+      const a = rule.permissionCodeA.toLowerCase();
+      const b = rule.permissionCodeB.toLowerCase();
+      if (normalized.has(a) && normalized.has(b)) {
+        throw i18nBadRequest('errors.roles.sodConflict', {
+          a: rule.permissionCodeA,
+          b: rule.permissionCodeB,
+          label: rule.label ?? '',
+        });
+      }
+    }
   }
 
   private async resolvePermissionIds(

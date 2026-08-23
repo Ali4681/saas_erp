@@ -18,6 +18,19 @@
   "amount": "Amount",
   "invoice": "Invoice",
   "back": "Sales",
+  "channel": "Sales channel",
+  "couponCode": "Coupon code",
+  "itemId": "Item ID",
+  "bundleId": "Bundle ID",
+  "storeCreditAmount": "Store credit to apply",
+  "extraDiscountPct": "Extra discount %",
+  "overrideCode": "Discount override code",
+  "channels": {
+    "pos": "POS",
+    "ecommerce": "E-commerce",
+    "delivery": "Delivery apps",
+    "bnpl": "BNPL"
+  },
   "hub": {
     "title": "Sales",
     "description": "Quotes, invoices, payments, and credit notes",
@@ -26,7 +39,13 @@
     "invoices": "Invoices",
     "invoicesHint": "Issue and collect",
     "creditNotes": "Credit notes",
-    "creditNotesHint": "Returns and discounts"
+    "creditNotesHint": "Returns and discounts",
+    "arAging": "AR aging",
+    "arAgingHint": "Open receivables and blocked accounts",
+    "channels": "Channel sales",
+    "channelsHint": "POS, e-commerce, delivery, BNPL",
+    "opsReports": "Retail vs B2B reports",
+    "opsReportsHint": "Track revenue, ticket cost, deferred contracts"
   },
   "quotes": {
     "title": "Quotes",
@@ -64,13 +83,63 @@
     "newTitle": "New credit note",
     "add": "Add credit note",
     "reason": "Reason",
-    "empty": "No credit notes yet"
+    "empty": "No credit notes yet",
+    "toStoreCredit": "Settlement",
+    "wallet": "Add to store credit wallet",
+    "invoiceOnly": "Reduce invoice balance only"
+  },
+  "arAging": {
+    "title": "Accounts receivable aging",
+    "description": "Open B2B/B2C balances by overdue bucket",
+    "current": "Not due",
+    "d30": "1–30 days",
+    "d60": "31–60 days",
+    "d90": "61–90 days",
+    "older": "90+ days",
+    "total": "Total",
+    "days": "Days past due",
+    "blocked": "Blocked",
+    "empty": "No open receivables"
+  },
+  "channelReport": {
+    "title": "Sales by channel",
+    "description": "Unified totals for POS, e-commerce, delivery, and BNPL",
+    "count": "Invoices",
+    "paid": "Collected",
+    "empty": "No channel sales yet"
   },
   "flash": {
     "quoteCreated": "Quote created",
     "quoteConverted": "Quote converted to invoice",
     "invoiceCreated": "Invoice created",
     "paymentRecorded": "Payment recorded",
-    "creditNoteCreated": "Credit note created"
+    "creditNoteCreated": "Credit note created",
+    "customerPoCreated": "Customer PO created",
+    "customerPoConverted": "Customer PO converted to invoice",
+    "channelOrderIngested": "Channel order ingested"
+  },
+  "ingest": {
+    "title": "Ingest marketplace order",
+    "add": "Ingest order",
+    "provider": "Provider",
+    "externalOrderId": "External order ID",
+    "phone": "Customer phone",
+    "commission": "Commission"
+  },
+  "opsReports": {
+    "title": "Retail vs corporate reports",
+    "description": "B2C vs B2B revenue, ticket service cost, deferred contract revenue",
+    "retail": "Retail (B2C) revenue",
+    "corporate": "Corporate (B2B) revenue",
+    "ticketCost": "Ticket service cost",
+    "deferred": "Deferred contract revenue"
+  },
+  "customerPo": {
+    "title": "Customer purchase orders",
+    "newTitle": "New customer PO",
+    "add": "Add PO",
+    "number": "PO number",
+    "convert": "Convert to invoice",
+    "empty": "No customer POs yet"
   }
 }

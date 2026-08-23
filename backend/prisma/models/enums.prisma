@@ -277,6 +277,11 @@ enum CrmContactType {
   CUSTOMER
 }
 
+enum CustomerTrack {
+  B2C
+  B2B
+}
+
 enum OpportunityStatus {
   OPEN
   WON
@@ -436,6 +441,12 @@ enum EmployeeEwalletStatus {
 enum EmployeeIdentityType {
   RESIDENT
   CITIZEN
+}
+
+/// How the employee is engaged: casual wage worker vs formal employment contract.
+enum EmployeeEmploymentCategory {
+  WAGE_WORKER
+  EMPLOYMENT_CONTRACT
 }
 
 enum EmployeeApprovalStatus {
@@ -619,4 +630,124 @@ enum PaymentGatewayProviderType {
 enum CompanyPaymentMethodStatus {
   ACTIVE
   DISABLED
+}
+
+// ── Governance / operations (business hours, RBAC finance, Z-report) ──
+
+enum BusinessHoursMode {
+  HOURS_24
+  HOURS_12
+  DYNAMIC
+}
+
+enum TwelveHourPeriodMode {
+  FIXED
+  TWO_PERIODS
+}
+
+enum RoleFinancialProfile {
+  NONE
+  CASHIER
+  SALES_DELIVERY
+  MANAGER_SUPERVISOR
+  WAREHOUSE_KEEPER
+  ACCOUNTANT
+  TREASURY_CUSTODIAN
+  BRANCH_MANAGER
+  SYSTEM_ADMIN
+}
+
+enum CashierShiftStatus {
+  OPEN
+  CLOSED
+  PENDING_APPROVAL
+  APPROVED
+  VOID
+}
+
+enum JournalEntryType {
+  Z_REPORT
+  HANDOVER
+  DISCREPANCY
+  MANUAL
+  PERIOD_CLOSE
+  SALES
+  PURCHASE
+  INVENTORY_ADJUSTMENT
+  WALLET_PURCHASE
+  SUPPLIER_PAYMENT
+  OPENING
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+enum GlAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum GlNormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum SupplierType {
+  LOCAL
+  INTERNATIONAL
+}
+
+enum ItemSupplySource {
+  LOCAL
+  INTERNATIONAL
+  EITHER
+}
+
+enum PurchaseType {
+  LOCAL
+  INTERNATIONAL
+}
+
+enum PurchaseDemandSource {
+  REORDER_POINT
+  BRANCH_REQUISITION
+  MANAGEMENT_PLAN
+  OTHER
+}
+
+enum PurchaseRequisitionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CONVERTED
+  CANCELLED
+}
+
+enum GoodsReceiptStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+enum ApprovalThresholdAction {
+  PETTY_CASH
+  DISCOUNT
+  EXPENSE
+  SALARY_ADVANCE
+  PURCHASE_ORDER
+  CREDIT_NOTE
+  SHIFT_VARIANCE
+}
+
+enum BreakGlassStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
 }

@@ -30,7 +30,31 @@
     "bills": "Supplier bills",
     "billsHint": "Purchase payables",
     "operators": "Purchase officers & wallets",
-    "operatorsHint": "Purchase officers with in-app e-wallets"
+    "operatorsHint": "Purchase officers with in-app e-wallets",
+    "requisitions": "Requisitions",
+    "requisitionsHint": "Purchase requests and reorder suggestions"
+  },
+  "requisitions": {
+    "title": "Purchase requisitions",
+    "newTitle": "New requisition",
+    "add": "Add requisition",
+    "demandSource": "Demand source",
+    "sourceBranch": "Branch requisition",
+    "sourceReorder": "Reorder point",
+    "sourceManagement": "Management plan",
+    "sourceOther": "Other",
+    "neededBy": "Needed by",
+    "item": "Item (optional)",
+    "empty": "No requisitions yet",
+    "submit": "Submit",
+    "approve": "Approve",
+    "reorderTitle": "Reorder suggestions",
+    "reorderEmpty": "No items below minimum stock",
+    "createFromReorder": "Create from reorder suggestions",
+    "onHand": "On hand",
+    "minStock": "Min stock",
+    "shortfall": "Shortfall",
+    "lineCount": "{count} lines"
   },
   "operators": {
     "title": "Purchase officers",
@@ -51,6 +75,9 @@
     "add": "Add supplier",
     "code": "Code",
     "taxNumber": "Tax number",
+    "supplierType": "Supplier type",
+    "typeLocal": "Local",
+    "typeInternational": "International",
     "empty": "No suppliers yet"
   },
   "purchaseOrders": {
@@ -78,6 +105,10 @@
     "purchaseOrderCreated": "Purchase order created",
     "purchaseOrderReceived": "Purchase order received",
     "statusUpdated": "Status updated to {status}",
-    "billCreated": "Supplier bill created"
+    "billCreated": "Supplier bill created",
+    "requisitionCreated": "Requisition created",
+    "requisitionSubmitted": "Requisition submitted",
+    "requisitionApproved": "Requisition approved",
+    "reorderRequisitionCreated": "Requisition created from reorder suggestions"
   }
 }

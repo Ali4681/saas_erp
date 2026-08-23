@@ -18,6 +18,8 @@ type Role = {
   code: string;
   displayCode?: string;
   name: string;
+  description?: string | null;
+  financialProfile?: string | null;
   isSystem: boolean;
   memberCount: number;
   permissions: Array<{ code: string; module: string; action: string }>;
@@ -109,6 +111,12 @@ export default async function RolesPage({
                     <p className="font-mono text-xs text-[var(--muted-foreground)]">
                       {role.displayCode ?? role.code}
                     </p>
+                    {role.financialProfile &&
+                    role.financialProfile !== "NONE" ? (
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                        {role.financialProfile}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">
@@ -151,6 +159,10 @@ export default async function RolesPage({
                         initialSelected={role.permissions.map((p) => p.code)}
                         initialName={role.name}
                         initialCode={role.displayCode ?? role.code}
+                        initialDescription={role.description ?? ""}
+                        initialFinancialProfile={
+                          role.financialProfile ?? "NONE"
+                        }
                         lockCode
                         submitLabel={t("saveEdits")}
                       />

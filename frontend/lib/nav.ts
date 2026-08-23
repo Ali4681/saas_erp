@@ -89,6 +89,12 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/crm`, "/opportunities", "crmOpportunities"),
         child(`${root}/crm`, "/activities", "crmActivities"),
         child(`${root}/crm`, "/contracts", "crmContracts"),
+        child(`${root}/crm`, "/tickets", "crmTickets"),
+        child(`${root}/crm`, "/pricing/price-lists", "crmPriceLists"),
+        child(`${root}/crm`, "/pricing/coupons", "crmCoupons"),
+        child(`${root}/crm`, "/pricing/bundles", "crmBundles"),
+        child(`${root}/crm`, "/birthdays", "crmBirthdays"),
+        child(`${root}/crm`, "/ops-settings", "crmOps"),
       ],
     },
     {
@@ -99,6 +105,10 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/sales`, "/quotes", "salesQuotes"),
         child(`${root}/sales`, "/invoices", "salesInvoices"),
         child(`${root}/sales`, "/credit-notes", "salesCreditNotes"),
+        child(`${root}/sales`, "/ar-aging", "salesArAging"),
+        child(`${root}/sales`, "/channels", "salesChannels"),
+        child(`${root}/sales`, "/customer-pos", "salesCustomerPo"),
+        child(`${root}/sales`, "/ops-reports", "salesOpsReports"),
       ],
     },
     {
@@ -108,6 +118,7 @@ export function tenantNav(companyId: string): NavItem[] {
       children: [
         child(`${root}/purchasing`, "/suppliers", "purchasingSuppliers"),
         child(`${root}/purchasing`, "/purchase-orders", "purchasingOrders"),
+        child(`${root}/purchasing`, "/requisitions", "purchasingRequisitions"),
         child(`${root}/purchasing`, "/bills", "purchasingBills"),
         child(`${root}/purchasing`, "/operators", "purchasingOperators"),
       ],
@@ -123,6 +134,12 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/inventory`, "/movements", "inventoryMovements"),
         child(`${root}/inventory`, "/counts", "inventoryCounts"),
         child(`${root}/inventory`, "/balances", "inventoryBalances"),
+        child(`${root}/inventory`, "/transfers", "inventoryTransfers"),
+        child(`${root}/inventory`, "/adjustments", "inventoryAdjustments"),
+        child(`${root}/inventory`, "/alerts", "inventoryAlerts"),
+        child(`${root}/inventory`, "/barcodes", "inventoryBarcodes"),
+        child(`${root}/inventory`, "/import", "inventoryImport"),
+        child(`${root}/inventory`, "/labels", "inventoryLabels"),
       ],
     },
     {
@@ -131,10 +148,15 @@ export function tenantNav(companyId: string): NavItem[] {
       permissions: ["finance.read"],
       children: [
         child(`${root}/finance`, "/accounts", "financeAccounts"),
+        child(`${root}/finance`, "/chart-of-accounts", "financeChartOfAccounts"),
+        child(`${root}/finance`, "/account-mapping", "financeAccountMapping"),
+        child(`${root}/finance`, "/journals", "financeJournals"),
+        child(`${root}/finance`, "/reports", "financeReports"),
         child(`${root}/finance`, "/expenses", "financeExpenses"),
         child(`${root}/finance`, "/transactions", "financeTransactions"),
         child(`${root}/finance`, "/payment-methods", "financePaymentMethods"),
         child(`${root}/finance`, "/daily-closing", "financeDailyClosing"),
+        child(`${root}/finance`, "/cashier-shifts", "financeCashierShifts"),
       ],
     },
     {
@@ -241,6 +263,18 @@ export function tenantNav(companyId: string): NavItem[] {
       href: `${root}/settings`,
       labelKey: "settings",
       permissions: ["companies.read"],
+      children: [
+        child(`${root}/settings`, "", "settingsHome", ["companies.read"]),
+        child(`${root}/settings`, "/business-hours", "settingsBusinessHours", [
+          "companies.read",
+        ]),
+        child(`${root}/settings`, "/industry", "settingsIndustry", [
+          "companies.read",
+        ]),
+        child(`${root}/settings`, "/governance", "settingsGovernance", [
+          "companies.read",
+        ]),
+      ],
     },
     { href: `${root}/users`, labelKey: "users", permissions: ["users.read"] },
     {

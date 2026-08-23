@@ -64,6 +64,8 @@ export class InventoryService {
     name: string;
     code?: string;
     parentId?: string;
+    inheritedTaxRate?: number;
+    abcClass?: string;
   }) {
     this.tenant.setCompanyId(input.companyId);
     const code = input.code?.trim() || null;
@@ -74,6 +76,8 @@ export class InventoryService {
         code,
         codeKey: code ?? '',
         parentId: input.parentId,
+        inheritedTaxRate: input.inheritedTaxRate,
+        abcClass: input.abcClass,
       },
     });
   }
@@ -144,6 +148,23 @@ export class InventoryService {
       }
     }
 
+    let taxRate = input.taxRate;
+    let cost = input.cost;
+    let salePrice = input.salePrice;
+    let minStock = input.minStock;
+    let abcClass: string | null | undefined;
+    if (input.itemCategoryId) {
+      const cat = await this.prisma.itemCategory.findFirst({
+        where: { id: input.itemCategoryId, companyId: input.companyId },
+      });
+      if (cat) {
+        if (taxRate == null && cat.inheritedTaxRate != null) {
+          taxRate = Number(cat.inheritedTaxRate);
+        }
+        abcClass = cat.abcClass;
+      }
+    }
+
     const sku = input.sku?.trim() || null;
     const barcode = input.barcode?.trim() || null;
     // Empty string collides on @@unique([companyId, skuKey|barcodeKey]);
@@ -161,11 +182,11 @@ export class InventoryService {
         skuKey,
         barcode,
         barcodeKey,
-        cost: input.cost != null ? String(input.cost) : undefined,
-        salePrice:
-          input.salePrice != null ? String(input.salePrice) : undefined,
-        minStock: input.minStock != null ? String(input.minStock) : undefined,
-        taxRate: input.taxRate != null ? String(input.taxRate) : undefined,
+        cost: cost != null ? String(cost) : undefined,
+        salePrice: salePrice != null ? String(salePrice) : undefined,
+        minStock: minStock != null ? String(minStock) : undefined,
+        taxRate: taxRate != null ? String(taxRate) : undefined,
+        abcClass: abcClass ?? undefined,
       },
       include: {
         unit: true,
@@ -203,17 +224,34 @@ export class InventoryService {
 
   listBalances(companyId: string, warehouseId?: string) {
     this.tenant.setCompanyId(companyId);
-    return this.prisma.stockBalance.findMany({
-      where: {
-        warehouse: { companyId },
-        ...(warehouseId ? { warehouseId } : {}),
-      },
-      include: {
-        item: { select: { id: true, name: true, sku: true } },
-        warehouse: { select: { id: true, code: true, name: true } },
-      },
-      take: 500,
-    });
+    return this.prisma.stockBalance
+      .findMany({
+        where: {
+          warehouse: { companyId },
+          ...(warehouseId ? { warehouseId } : {}),
+        },
+        include: {
+          item: { select: { id: true, name: true, sku: true } },
+          warehouse: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              isSellable: true,
+              warehouseKind: true,
+            },
+          },
+        },
+        take: 500,
+      })
+      .then((rows) =>
+        rows.map((r) => ({
+          ...r,
+          quantityAvailable: (
+            Number(r.quantityOnHand) - Number(r.quantityReserved)
+          ).toFixed(3),
+        })),
+      );
   }
 
   listMovements(companyId: string) {

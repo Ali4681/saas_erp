@@ -141,3 +141,99 @@ export async function closeDailyClosing(
     okMessage: "Daily closing closed",
   });
 }
+
+export async function openCashierShift(companyId: string, formData: FormData) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/finance/cashier-shifts`,
+    body: {
+      employeeId: str(formData, "employeeId"),
+      openingFloat: optStr(formData, "openingFloat") ?? "0",
+      workShiftId: optStr(formData, "workShiftId"),
+      currency: "SAR",
+      notes: optStr(formData, "notes"),
+    },
+    pagePath: page(companyId, "cashier-shifts"),
+    okMessage: "Cashier shift opened",
+  });
+}
+
+export async function closeCashierShift(
+  companyId: string,
+  sessionId: string,
+  formData: FormData,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/finance/cashier-shifts/${sessionId}/close`,
+    body: {
+      countedCash: str(formData, "countedCash"),
+      cashSales: optStr(formData, "cashSales"),
+      cardSales: optStr(formData, "cardSales"),
+      transferSales: optStr(formData, "transferSales"),
+      pettyExpenses: optStr(formData, "pettyExpenses"),
+      notes: optStr(formData, "notes"),
+    },
+    pagePath: page(companyId, "cashier-shifts"),
+    okMessage: "Z-Report posted",
+  });
+}
+
+export async function approveCashierShift(
+  companyId: string,
+  sessionId: string,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/finance/cashier-shifts/${sessionId}/approve`,
+    method: "POST",
+    body: {},
+    pagePath: page(companyId, "cashier-shifts"),
+    okMessage: "Shift approved",
+  });
+}
+
+const MAPPING_CODE_FIELDS = [
+  "salesRevenueCode",
+  "salesVatPayableCode",
+  "salesCashPosCode",
+  "salesCardBankCode",
+  "inventoryGoodsCode",
+  "inventoryInTransitCode",
+  "inventoryShrinkageCode",
+  "apLocalCode",
+  "apInternationalCode",
+  "importLandingCostCode",
+  "cogsCode",
+  "corporateWalletCode",
+  "employeeAdvanceCode",
+  "pettyCashExpenseCode",
+  "mainTreasuryCode",
+] as const;
+
+export async function ensureChartOfAccounts(companyId: string) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/finance/chart-of-accounts/ensure`,
+    method: "POST",
+    body: {},
+    pagePath: page(companyId, "chart-of-accounts"),
+    okMessage: "Chart of accounts installed",
+  });
+}
+
+export async function saveAccountMapping(companyId: string, formData: FormData) {
+  const body: Record<string, string> = {};
+  for (const key of MAPPING_CODE_FIELDS) {
+    const value = optStr(formData, key);
+    if (value) body[key] = value;
+  }
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/finance/account-mapping`,
+    method: "PUT",
+    body,
+    pagePath: page(companyId, "account-mapping"),
+    okMessage: "Account mapping saved",
+  });
+}

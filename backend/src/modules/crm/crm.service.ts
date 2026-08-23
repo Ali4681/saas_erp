@@ -11,6 +11,7 @@ import {
   ContractStatus,
   CrmActivityType,
   CrmContactType,
+  CustomerTrack,
   OpportunityStatus,
 } from '../../generated/prisma/client';
 import { DocumentNumberService } from '../../common/documents/document-number.service';
@@ -68,12 +69,25 @@ export class CrmService {
     source?: string;
     ownerUserId?: string;
     notes?: string;
+    customerTrack?: CustomerTrack;
+    taxNumber?: string;
+    companyRegNumber?: string;
+    creditLimit?: string | number;
+    creditTermsDays?: string | number;
+    dateOfBirth?: string;
   }) {
     this.tenant.setCompanyId(input.companyId);
+
+    // Auto-derive B2B track when tax / commercial keys exist.
+    const derivedTrack: CustomerTrack =
+      input.customerTrack ??
+      (input.taxNumber || input.companyRegNumber ? 'B2B' : 'B2C');
+
     const contact = await this.prisma.crmContact.create({
       data: {
         companyId: input.companyId,
         contactType: input.contactType,
+        customerTrack: derivedTrack,
         name: input.name,
         companyName: input.companyName,
         email: input.email,
@@ -81,6 +95,17 @@ export class CrmService {
         source: input.source,
         ownerUserId: input.ownerUserId,
         notes: input.notes,
+        taxNumber: input.taxNumber,
+        companyRegNumber: input.companyRegNumber,
+        creditLimit:
+          input.creditLimit !== undefined
+            ? String(input.creditLimit)
+            : undefined,
+        creditTermsDays:
+          input.creditTermsDays !== undefined
+            ? Number(input.creditTermsDays)
+            : undefined,
+        dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
       },
     });
 
@@ -124,13 +149,44 @@ export class CrmService {
       notes?: string;
       contactType?: CrmContactType;
       status?: 'ACTIVE' | 'INACTIVE';
+      customerTrack?: CustomerTrack;
+      taxNumber?: string | null;
+      companyRegNumber?: string | null;
+      creditLimit?: string | number | null;
+      creditTermsDays?: string | number | null;
+      dateOfBirth?: string | null;
     },
   ) {
     this.tenant.setCompanyId(companyId);
     await this.requireContact(companyId, contactId);
+
+    const derivedTrack: CustomerTrack | undefined =
+      data.customerTrack ??
+      (data.taxNumber || data.companyRegNumber ? 'B2B' : undefined);
+
+    const { dateOfBirth, creditLimit, creditTermsDays, ...rest } = data;
     return this.prisma.crmContact.update({
       where: { id: contactId },
-      data,
+      data: {
+        ...rest,
+        customerTrack: derivedTrack,
+        taxNumber: data.taxNumber ?? undefined,
+        companyRegNumber: data.companyRegNumber ?? undefined,
+        creditLimit:
+          creditLimit === null || creditLimit === undefined
+            ? undefined
+            : String(creditLimit),
+        creditTermsDays:
+          creditTermsDays === null || creditTermsDays === undefined
+            ? undefined
+            : Number(creditTermsDays),
+        dateOfBirth:
+          dateOfBirth === undefined
+            ? undefined
+            : dateOfBirth
+              ? new Date(dateOfBirth)
+              : null,
+      },
     });
   }
 
@@ -403,6 +459,11 @@ export class CrmService {
     value?: string | number;
     currency?: string;
     notes?: string;
+    contractType?: string;
+    autoRenew?: boolean;
+    renewalAlertDays?: number;
+    priceListId?: string;
+    discountPct?: number;
   }) {
     this.tenant.setCompanyId(input.companyId);
     await this.requireContact(input.companyId, input.contactId);
@@ -425,6 +486,11 @@ export class CrmService {
           value: input.value ? String(input.value) : undefined,
           currency: input.currency ?? 'SAR',
           notes: input.notes,
+          contractType: input.contractType,
+          autoRenew: input.autoRenew ?? false,
+          renewalAlertDays: input.renewalAlertDays ?? 30,
+          priceListId: input.priceListId,
+          discountPct: input.discountPct ?? 0,
         },
       });
     });
@@ -446,6 +512,176 @@ export class CrmService {
       where: { id: contractId },
       data: { status },
     });
+  }
+
+  async renewContract(companyId: string, contractId: string) {
+    this.tenant.setCompanyId(companyId);
+    const old = await this.prisma.crmContract.findFirst({
+      where: { id: contractId, companyId },
+    });
+    if (!old) throw new NotFoundException('Contract not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      const contractNumber = await this.docNumbers.nextSequence(tx, companyId, 'contract');
+      const durationMs = old.endsOn && old.startsOn
+        ? old.endsOn.getTime() - old.startsOn.getTime()
+        : 365 * 24 * 60 * 60 * 1000;
+      const newStart = old.endsOn ?? new Date();
+      const newEnd = new Date(newStart.getTime() + durationMs);
+      const newContract = await tx.crmContract.create({
+        data: {
+          companyId: old.companyId,
+          contactId: old.contactId,
+          opportunityId: old.opportunityId,
+          contractNumber,
+          title: old.title,
+          status: ContractStatus.DRAFT,
+          startsOn: newStart,
+          endsOn: newEnd,
+          value: old.value,
+          currency: old.currency ?? 'SAR',
+          notes: old.notes,
+          contractType: (old as any).contractType,
+          autoRenew: (old as any).autoRenew,
+          renewalAlertDays: (old as any).renewalAlertDays,
+          priceListId: (old as any).priceListId,
+          discountPct: (old as any).discountPct,
+          renewedFromId: old.id,
+        },
+      });
+      await tx.crmContract.update({
+        where: { id: old.id },
+        data: { status: ContractStatus.ARCHIVED },
+      });
+      return newContract;
+    });
+  }
+
+  async listExpiringContracts(companyId: string, withinDays = 30) {
+    this.tenant.setCompanyId(companyId);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() + withinDays);
+    return this.prisma.crmContract.findMany({
+      where: {
+        companyId,
+        status: ContractStatus.ACTIVE,
+        endsOn: { lte: cutoff, gte: new Date() },
+      },
+      include: { contact: { select: { id: true, name: true } } },
+      orderBy: { endsOn: 'asc' },
+    });
+  }
+
+  async listBirthdayContacts(companyId: string) {
+    this.tenant.setCompanyId(companyId);
+    const month = new Date().getMonth() + 1;
+    const contacts = await this.prisma.crmContact.findMany({
+      where: { companyId, status: 'ACTIVE', dateOfBirth: { not: null } },
+      take: 500,
+    });
+    return contacts.filter((c) => {
+      if (!c.dateOfBirth) return false;
+      return c.dateOfBirth.getUTCMonth() + 1 === month;
+    });
+  }
+
+  async contactInsights(companyId: string, contactId: string) {
+    this.tenant.setCompanyId(companyId);
+    const contact = await this.requireContact(companyId, contactId);
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        companyId,
+        contactId,
+        status: { notIn: ['DRAFT', 'CANCELLED'] },
+      },
+      include: {
+        items: { include: { item: { select: { id: true, name: true, sku: true } } } },
+      },
+      orderBy: { issuedOn: 'desc' },
+      take: 50,
+    });
+
+    const purchased = new Map<
+      string,
+      { itemId: string; name: string; quantity: number; times: number }
+    >();
+    for (const inv of invoices) {
+      for (const line of inv.items) {
+        if (!line.itemId || !line.item) continue;
+        const cur = purchased.get(line.itemId) ?? {
+          itemId: line.itemId,
+          name: line.item.name,
+          quantity: 0,
+          times: 0,
+        };
+        cur.quantity += Number(line.quantity);
+        cur.times += 1;
+        purchased.set(line.itemId, cur);
+      }
+    }
+
+    const purchasedIds = [...purchased.keys()];
+    const companionCounts = new Map<string, { itemId: string; name: string; score: number }>();
+    if (purchasedIds.length) {
+      const related = await this.prisma.salesInvoiceItem.findMany({
+        where: {
+          itemId: { in: purchasedIds },
+          invoice: { companyId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
+        },
+        select: { salesInvoiceId: true },
+        take: 400,
+      });
+      const invoiceIds = [...new Set(related.map((r) => r.salesInvoiceId))];
+      if (invoiceIds.length) {
+        const companions = await this.prisma.salesInvoiceItem.findMany({
+          where: {
+            salesInvoiceId: { in: invoiceIds },
+            AND: [
+              { itemId: { not: null } },
+              { itemId: { notIn: purchasedIds } },
+            ],
+          },
+          include: { item: { select: { id: true, name: true } } },
+          take: 800,
+        });
+        for (const line of companions) {
+          if (!line.itemId || !line.item) continue;
+          const cur = companionCounts.get(line.itemId) ?? {
+            itemId: line.itemId,
+            name: line.item.name,
+            score: 0,
+          };
+          cur.score += 1;
+          companionCounts.set(line.itemId, cur);
+        }
+      }
+    }
+
+    const birthdayThisMonth = contact.dateOfBirth
+      ? contact.dateOfBirth.getUTCMonth() === new Date().getUTCMonth()
+      : false;
+
+    return {
+      contact: {
+        id: contact.id,
+        name: contact.name,
+        customerTrack: contact.customerTrack,
+        dateOfBirth: contact.dateOfBirth,
+        birthdayThisMonth,
+      },
+      purchaseHistory: [...purchased.values()].sort((a, b) => b.times - a.times),
+      suggestions: [...companionCounts.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8),
+      recentInvoices: invoices.slice(0, 10).map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        issuedOn: inv.issuedOn,
+        totalAmount: inv.totalAmount,
+        currency: inv.currency,
+        saleChannel: inv.saleChannel,
+      })),
+    };
   }
 
   private async requireContact(companyId: string, contactId: string) {

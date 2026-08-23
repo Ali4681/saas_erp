@@ -40,16 +40,21 @@ model UserPushDevice {
 }
 
 model AuditLog {
-  id          String   @default(uuid(7)) @db.Char(36)
-  companyId   String?  @map("company_id") @db.Char(36)
-  actorUserId String?  @map("actor_user_id") @db.Char(36)
-  action      String   @db.VarChar(80)
-  entityType  String   @map("entity_type") @db.VarChar(80)
-  entityId    String?  @map("entity_id") @db.Char(36)
-  ipAddress   String?  @map("ip_address") @db.VarChar(45)
-  userAgent   String?  @map("user_agent") @db.Text
-  metadata    Json     @default("{}")
-  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  id                  String   @default(uuid(7)) @db.Char(36)
+  companyId           String?  @map("company_id") @db.Char(36)
+  actorUserId         String?  @map("actor_user_id") @db.Char(36)
+  action              String   @db.VarChar(80)
+  entityType          String   @map("entity_type") @db.VarChar(80)
+  entityId            String?  @map("entity_id") @db.Char(36)
+  ipAddress           String?  @map("ip_address") @db.VarChar(45)
+  userAgent           String?  @map("user_agent") @db.Text
+  deviceFingerprint   String?  @map("device_fingerprint") @db.VarChar(128)
+  requestId           String?  @map("request_id") @db.VarChar(64)
+  breakGlassSessionId String?  @map("break_glass_session_id") @db.Char(36)
+  beforeData          Json?    @map("before_data")
+  afterData           Json?    @map("after_data")
+  metadata            Json     @default("{}")
+  createdAt           DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
   actor   User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)

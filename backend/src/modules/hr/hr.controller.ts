@@ -25,6 +25,7 @@ import {
   AttendanceStatus,
   EmployeeApprovalStatus,
   EmployeeContractKind,
+  EmployeeEmploymentCategory,
   EmployeeIdentityType,
   EmployeeSalesStatus,
   EmploymentStatus,
@@ -193,6 +194,14 @@ class CreateEmployeeBody {
   @IsString()
   hireDate?: string;
 
+  @IsEnum(EmployeeEmploymentCategory)
+  employmentCategory!: EmployeeEmploymentCategory;
+
+  /** Required work shift from company business-hours / shift roster */
+  @IsString()
+  @MinLength(1)
+  workShiftId!: string;
+
   @IsOptional()
   @Transform(emptyToUndefined)
   @IsNumberString()
@@ -257,6 +266,10 @@ class UpdateEmployeeBody {
   @IsOptional()
   @IsString()
   jobTitle?: string;
+
+  @IsOptional()
+  @IsEnum(EmployeeEmploymentCategory)
+  employmentCategory?: EmployeeEmploymentCategory;
 
   @IsOptional()
   @IsEnum(EmployeeApprovalStatus)

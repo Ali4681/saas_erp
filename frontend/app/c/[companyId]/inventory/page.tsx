@@ -36,6 +36,36 @@ export default async function InventoryHubPage({
           label: t("balances"),
           hint: t("balancesHint"),
         },
+        {
+          href: `${base}/transfers`,
+          label: t("transfers"),
+          hint: t("transfersHint"),
+        },
+        {
+          href: `${base}/adjustments`,
+          label: t("adjustments"),
+          hint: t("adjustmentsHint"),
+        },
+        {
+          href: `${base}/alerts`,
+          label: t("alerts"),
+          hint: t("alertsHint"),
+        },
+        {
+          href: `${base}/barcodes`,
+          label: t("barcodes"),
+          hint: t("barcodesHint"),
+        },
+        {
+          href: `${base}/import`,
+          label: t("import"),
+          hint: t("importHint"),
+        },
+        {
+          href: `${base}/labels`,
+          label: t("labels"),
+          hint: t("labelsHint"),
+        },
       ]}
     />
   );

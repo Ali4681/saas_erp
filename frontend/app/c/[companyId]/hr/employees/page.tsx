@@ -24,6 +24,7 @@ type Employee = {
   phone: string | null;
   jobTitle: string | null;
   employmentStatus: string;
+  employmentCategory?: string | null;
   basicSalary: string | null;
   salesTargetMode?: string | null;
   salesTargetAmount?: string | null;
@@ -40,6 +41,12 @@ type Employee = {
   advanceAllowancePercent?: string | null;
   attendanceBadgeId?: string | null;
   hasInsurance?: boolean;
+  workShift?: {
+    id: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+  } | null;
   currency: string;
 };
 type Attachment = {
@@ -47,6 +54,21 @@ type Attachment = {
   entityType: string;
   entityId: string;
   fileName: string;
+};
+type WorkShift = {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  sequenceIndex?: number;
+  businessHoursProfile?: {
+    mode: string;
+  } | null;
+};
+type BusinessHoursProfile = {
+  mode: string;
+  defaultStartTime: string;
+  defaultEndTime: string;
 };
 type HrSummary = {
   total: number;
@@ -78,18 +100,26 @@ export default async function EmployeesPage({
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
 
-  const [employees, attachments, summary] = await Promise.all([
-    apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
-      companyId,
-    }).catch(() => []),
-    apiServer<Attachment[]>(
-      `/companies/${companyId}/attachments?entityType=employee`,
-      { companyId },
-    ).catch(() => []),
-    apiServer<HrSummary>(`/companies/${companyId}/hr/summary`, {
-      companyId,
-    }).catch(() => null),
-  ]);
+  const [employees, attachments, summary, shifts, businessHours] =
+    await Promise.all([
+      apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
+        companyId,
+      }).catch(() => []),
+      apiServer<Attachment[]>(
+        `/companies/${companyId}/attachments?entityType=employee`,
+        { companyId },
+      ).catch(() => []),
+      apiServer<HrSummary>(`/companies/${companyId}/hr/summary`, {
+        companyId,
+      }).catch(() => null),
+      apiServer<WorkShift[]>(`/companies/${companyId}/hr/shifts`, {
+        companyId,
+      }).catch(() => []),
+      apiServer<BusinessHoursProfile>(
+        `/companies/${companyId}/business-hours`,
+        { companyId },
+      ).catch(() => null),
+    ]);
 
   const cvByEmployee = new Map<string, Attachment>();
   for (const a of attachments) {
@@ -208,130 +238,263 @@ export default async function EmployeesPage({
           description={t("newEmployeeDesc")}
           triggerLabel={t("addEmployee")}
         >
-          <form action={create} className="grid gap-3 md:grid-cols-2">
-            <Input
-              name="employeeNumber"
-              label={t("employeeNumber")}
-              required
-              defaultValue={nextEmployeeNumber}
-            />
-            <Input name="fullName" label={t("fullName")} required />
-            <Input name="email" label={t("email")} type="email" required />
-            <Input name="phone" label={t("phone")} />
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3 md:col-span-2">
-              <label className="flex cursor-pointer items-start gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  name="createAppLogin"
-                  value="on"
-                  defaultChecked
-                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)]"
+          <form action={create} className="space-y-5">
+            <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                  {t("sectionPersonal")}
+                </h3>
+                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                  {t("sectionPersonalHint")}
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input
+                  name="employeeNumber"
+                  label={t("employeeNumber")}
+                  required
+                  defaultValue={nextEmployeeNumber}
                 />
-                <span>
-                  <span className="block font-semibold text-[var(--foreground)]">
-                    {t("createAppLogin")}
+                <Input name="fullName" label={t("fullName")} required />
+                <Input name="email" label={t("email")} type="email" required />
+                <Input name="phone" label={t("phone")} />
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3 md:col-span-2">
+                  <label className="flex cursor-pointer items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      name="createAppLogin"
+                      value="on"
+                      defaultChecked
+                      className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)]"
+                    />
+                    <span>
+                      <span className="block font-semibold text-[var(--foreground)]">
+                        {t("createAppLogin")}
+                      </span>
+                      <span className="mt-1 block text-xs leading-relaxed text-[var(--muted-foreground)]">
+                        {t("createAppLoginHint")}
+                      </span>
+                    </span>
+                  </label>
+                </div>
+                <Input name="jobTitle" label={t("jobTitle")} />
+                <Select
+                  name="employmentCategory"
+                  label={t("employmentCategory")}
+                  required
+                  options={[
+                    {
+                      value: "EMPLOYMENT_CONTRACT",
+                      label: t("employmentCategoryContract"),
+                    },
+                    {
+                      value: "WAGE_WORKER",
+                      label: t("employmentCategoryWage"),
+                    },
+                  ]}
+                />
+                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+                  {t("employmentCategoryHint")}
+                </p>
+                <Input name="hireDate" label={t("hireDate")} type="date" />
+                <Select
+                  name="approvalStatus"
+                  label={t("qiwaVerifiedStatus")}
+                  defaultValue="PENDING"
+                  showPlaceholderOption={false}
+                  options={[
+                    { value: "PENDING", label: t("qiwaNotVerified") },
+                    { value: "APPROVED", label: t("qiwaVerified") },
+                  ]}
+                />
+                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+                  {t("qiwaVerifiedHint")}
+                </p>
+                <EmployeeIdentityFields />
+                <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+                  <span className="font-medium text-[var(--foreground)]">
+                    {t("insuranceCertificate")}
                   </span>
-                  <span className="mt-1 block text-xs leading-relaxed text-[var(--muted-foreground)]">
-                    {t("createAppLoginHint")}
+                  <input
+                    type="file"
+                    name="insurance"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf"
+                    className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                  />
+                </label>
+                <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+                  <span className="font-medium text-[var(--foreground)]">
+                    {t("cvLabel")}
                   </span>
-                </span>
-              </label>
-            </div>
-            <Input name="jobTitle" label={t("jobTitle")} />
-            <Input name="hireDate" label={t("hireDate")} type="date" />
-            <Input name="basicSalary" label={`${t("basicSalary")} (SAR)`} />
-            <Select
-              name="salesTargetMode"
-              label={t("salesTargetMode")}
-              defaultValue="AMOUNT"
-              showPlaceholderOption={false}
-              options={[
-                { value: "AMOUNT", label: t("salesTargetModeAmount") },
-                { value: "PERCENT", label: t("salesTargetModePercent") },
-                { value: "BOTH", label: t("salesTargetModeBoth") },
-              ]}
-            />
-            <Input
-              name="salesTargetAmount"
-              label={`${t("salesTargetAmount")} (SAR)`}
-            />
-            <Input
-              name="targetPercent"
-              label={t("salesCommissionPercent")}
-              placeholder="e.g. 5"
-            />
-            <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-              {t("salesIncentiveHint")}
-            </p>
-            <Select
-              name="approvalStatus"
-              label={t("qiwaVerifiedStatus")}
-              defaultValue="PENDING"
-              showPlaceholderOption={false}
-              options={[
-                { value: "PENDING", label: t("qiwaNotVerified") },
-                { value: "APPROVED", label: t("qiwaVerified") },
-              ]}
-            />
-            <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-              {t("qiwaVerifiedHint")}
-            </p>
-            <EmployeeIdentityFields />
+                  <input
+                    type="file"
+                    name="cv"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf"
+                    className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                  />
+                  <span className="text-xs text-[var(--muted-foreground)]">
+                    {t("cvFormats")}
+                  </span>
+                </label>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                  {t("sectionFinancial")}
+                </h3>
+                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                  {t("sectionFinancialHint")}
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input
+                  name="basicSalary"
+                  label={`${t("basicSalary")} (SAR)`}
+                />
+                <Select
+                  name="salesTargetMode"
+                  label={t("salesTargetMode")}
+                  defaultValue="AMOUNT"
+                  showPlaceholderOption={false}
+                  options={[
+                    { value: "AMOUNT", label: t("salesTargetModeAmount") },
+                    { value: "PERCENT", label: t("salesTargetModePercent") },
+                    { value: "BOTH", label: t("salesTargetModeBoth") },
+                  ]}
+                />
+                <Input
+                  name="salesTargetAmount"
+                  label={`${t("salesTargetAmount")} (SAR)`}
+                />
+                <Input
+                  name="targetPercent"
+                  label={t("salesCommissionPercent")}
+                  placeholder="e.g. 5"
+                />
+                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+                  {t("salesIncentiveHint")}
+                </p>
+                <div>
+                  <Input
+                    name="iban"
+                    label={t("iban")}
+                    placeholder="SA0380000000608010167519"
+                    autoComplete="off"
+                    spellCheck={false}
+                    pattern="SA[0-9]{22}"
+                    maxLength={34}
+                  />
+                  <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
+                    {t("ibanOptionalHint")}
+                  </p>
+                </div>
+                <Input
+                  name="advanceAllowancePercent"
+                  label={t("advanceAllowancePercent")}
+                  placeholder="e.g. 30"
+                />
+                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+                  {t("advanceAllowanceHint")}
+                </p>
+                <input type="hidden" name="currency" value="SAR" />
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                  {t("sectionShifts")}
+                </h3>
+                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                  {t("sectionShiftsHint")}
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {shifts.length > 0 ? (
+                  <>
+                    <Select
+                      name="workShiftId"
+                      label={t("workShift")}
+                      required
+                      options={shifts.map((s) => ({
+                        value: s.id,
+                        label: `${s.name} (${s.startTime}–${s.endTime})`,
+                      }))}
+                    />
+                    <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+                      {t("workShiftHint", {
+                        mode:
+                          businessHours?.mode === "HOURS_24"
+                            ? t("workShiftMode24")
+                            : businessHours?.mode === "DYNAMIC"
+                              ? t("workShiftModeDynamic")
+                              : t("workShiftMode12"),
+                      })}
+                    </p>
+                  </>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-[var(--border)] p-3 text-sm text-[var(--muted-foreground)] md:col-span-2">
+                    {t("workShiftMissing")}{" "}
+                    <a
+                      href={`/c/${companyId}/settings/business-hours`}
+                      className="font-medium text-[var(--primary)] underline-offset-2 hover:underline"
+                    >
+                      {t("workShiftConfigure")}
+                    </a>
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                  {t("sectionWorkingHours")}
+                </h3>
+                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                  {t("sectionWorkingHoursHint")}
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--secondary)]/30 p-3 md:col-span-2">
+                  <p className="text-sm font-medium text-[var(--foreground)]">
+                    {t("companyWorkingHours")}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                    {businessHours
+                      ? t("companyWorkingHoursSummary", {
+                          mode:
+                            businessHours.mode === "HOURS_24"
+                              ? t("workShiftMode24")
+                              : businessHours.mode === "DYNAMIC"
+                                ? t("workShiftModeDynamic")
+                                : t("workShiftMode12"),
+                          start: businessHours.defaultStartTime,
+                          end: businessHours.defaultEndTime,
+                        })
+                      : t("companyWorkingHoursMissing")}
+                  </p>
+                  <a
+                    href={`/c/${companyId}/settings/business-hours`}
+                    className="mt-2 inline-block text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline"
+                  >
+                    {t("workShiftConfigure")}
+                  </a>
+                </div>
+                <Input
+                  name="attendanceBadgeId"
+                  label={t("attendanceBadgeId")}
+                  placeholder={t("attendanceBadgeHint")}
+                />
+              </div>
+            </section>
+
             <div>
-              <Input
-                name="iban"
-                label={t("iban")}
-                placeholder="SA0380000000608010167519"
-                autoComplete="off"
-                spellCheck={false}
-                pattern="SA[0-9]{22}"
-                maxLength={34}
-              />
-              <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
-                {t("ibanOptionalHint")}
-              </p>
-            </div>
-            <Input
-              name="advanceAllowancePercent"
-              label={t("advanceAllowancePercent")}
-              placeholder="e.g. 30"
-            />
-            <Input
-              name="attendanceBadgeId"
-              label={t("attendanceBadgeId")}
-              placeholder={t("attendanceBadgeHint")}
-            />
-            <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-              {t("advanceAllowanceHint")}
-            </p>
-            <input type="hidden" name="currency" value="SAR" />
-            <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
-              <span className="font-medium text-[var(--foreground)]">
-                {t("insuranceCertificate")}
-              </span>
-              <input
-                type="file"
-                name="insurance"
-                accept=".pdf,.jpg,.jpeg,.png,application/pdf"
-                className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
-              />
-            </label>
-            <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
-              <span className="font-medium text-[var(--foreground)]">
-                {t("cvLabel")}
-              </span>
-              <input
-                type="file"
-                name="cv"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf"
-                className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
-              />
-              <span className="text-xs text-[var(--muted-foreground)]">
-                {t("cvFormats")}
-              </span>
-            </label>
-            <div className="md:col-span-2">
-              <Button type="submit">{t("createEmployee")}</Button>
+              <Button type="submit" disabled={shifts.length === 0}>
+                {t("createEmployee")}
+              </Button>
             </div>
           </form>
         </CreateFormDialog>
@@ -342,12 +505,16 @@ export default async function EmployeesPage({
           <EmptyState message={t("emptyEmployees")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] text-sm">
+            <table className="w-full min-w-[1160px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("number")}</th>
                   <th className="px-2 py-2 font-medium">{t("name")}</th>
                   <th className="px-2 py-2 font-medium">{t("titleCol")}</th>
+                  <th className="px-2 py-2 font-medium">
+                    {t("employmentCategory")}
+                  </th>
+                  <th className="px-2 py-2 font-medium">{t("workShift")}</th>
                   <th className="px-2 py-2 font-medium">{t("salary")}</th>
                   <th className="px-2 py-2 font-medium">
                     {t("salesTargetAmount")}
@@ -381,6 +548,18 @@ export default async function EmployeesPage({
                         </p>
                       </td>
                       <td className="px-2 py-2">{e.jobTitle ?? "—"}</td>
+                      <td className="px-2 py-2">
+                        {e.employmentCategory === "WAGE_WORKER"
+                          ? t("employmentCategoryWage")
+                          : e.employmentCategory === "EMPLOYMENT_CONTRACT"
+                            ? t("employmentCategoryContract")
+                            : "—"}
+                      </td>
+                      <td className="px-2 py-2">
+                        {e.workShift
+                          ? `${e.workShift.name} (${e.workShift.startTime}–${e.workShift.endTime})`
+                          : "—"}
+                      </td>
                       <td className="px-2 py-2">
                         {formatMoney(e.basicSalary, e.currency)}
                       </td>

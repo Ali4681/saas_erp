@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -56,10 +57,41 @@ export default async function SettingsPage({
   }
 
   const plan = company.subscriptions?.[0]?.plan;
+  const base = `/c/${companyId}/settings`;
 
   return (
     <div className="space-y-5">
       <PageHeader title={t("title")} description={t("description")} />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Link
+          href={`${base}/business-hours`}
+          className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--primary)]"
+        >
+          <p className="font-medium">{t("businessHoursTitle")}</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            {t("businessHoursDesc")}
+          </p>
+        </Link>
+        <Link
+          href={`${base}/industry`}
+          className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--primary)]"
+        >
+          <p className="font-medium">{t("industryTitle")}</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            {t("industryDesc")}
+          </p>
+        </Link>
+        <Link
+          href={`${base}/governance`}
+          className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--primary)]"
+        >
+          <p className="font-medium">{t("governanceTitle")}</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            {t("governanceDesc")}
+          </p>
+        </Link>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card title={t("companyCard")}>
@@ -87,7 +119,11 @@ export default async function SettingsPage({
             />
             <Row
               label={t("country")}
-              value={lookupLabel(locales.countries, company.countryCode, locale)}
+              value={lookupLabel(
+                locales.countries,
+                company.countryCode,
+                locale,
+              )}
             />
             <Row
               label={t("plan")}

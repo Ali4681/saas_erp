@@ -20,9 +20,75 @@ export async function createSupplier(companyId: string, formData: FormData) {
       email: optStr(formData, "email"),
       phone: optStr(formData, "phone"),
       notes: optStr(formData, "notes"),
+      supplierType: optStr(formData, "supplierType"),
     },
     pagePath: page(companyId, "suppliers"),
     okMessage: t("flash.supplierCreated"),
+  });
+}
+
+export async function createRequisition(companyId: string, formData: FormData) {
+  const t = await getTranslations("purchasing");
+  const items = [
+    {
+      itemId: optStr(formData, "itemId"),
+      description: str(formData, "description"),
+      quantity: str(formData, "quantity") || "1",
+    },
+  ];
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/purchasing/requisitions`,
+    body: {
+      notes: optStr(formData, "notes"),
+      neededBy: optStr(formData, "neededBy"),
+      demandSource: optStr(formData, "demandSource"),
+      items,
+    },
+    pagePath: page(companyId, "requisitions"),
+    okMessage: t("flash.requisitionCreated"),
+  });
+}
+
+export async function submitRequisition(
+  companyId: string,
+  requisitionId: string,
+) {
+  const t = await getTranslations("purchasing");
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/purchasing/requisitions/${requisitionId}/submit`,
+    method: "POST",
+    body: {},
+    pagePath: page(companyId, "requisitions"),
+    okMessage: t("flash.requisitionSubmitted"),
+  });
+}
+
+export async function approveRequisition(
+  companyId: string,
+  requisitionId: string,
+) {
+  const t = await getTranslations("purchasing");
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/purchasing/requisitions/${requisitionId}/approve`,
+    method: "POST",
+    body: {},
+    pagePath: page(companyId, "requisitions"),
+    okMessage: t("flash.requisitionApproved"),
+  });
+}
+
+export async function createRequisitionFromReorder(companyId: string) {
+  const t = await getTranslations("purchasing");
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/purchasing/reorder-suggestions/requisition`,
+    method: "POST",
+    body: {},
+    pagePath: page(companyId, "requisitions"),
+    okMessage: t("flash.reorderRequisitionCreated"),
   });
 }
 

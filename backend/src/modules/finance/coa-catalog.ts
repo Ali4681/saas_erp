@@ -1,0 +1,203 @@
+export type CoaAccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+export type CoaNormalBalance = 'DEBIT' | 'CREDIT';
+
+export type CoaDef = {
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  type: CoaAccountType;
+  parentCode?: string;
+  isPostable: boolean;
+  isContra?: boolean;
+  normalBalance?: CoaNormalBalance;
+};
+
+function row(
+  code: string,
+  nameAr: string,
+  nameEn: string,
+  type: CoaAccountType,
+  parentCode: string | undefined,
+  isPostable: boolean,
+  extra?: { isContra?: boolean; normalBalance?: CoaNormalBalance },
+): CoaDef {
+  const isContra = extra?.isContra ?? false;
+  const defaultNb: CoaNormalBalance =
+    type === 'ASSET' || type === 'EXPENSE' ? 'DEBIT' : 'CREDIT';
+  return {
+    code,
+    nameAr,
+    nameEn,
+    type,
+    parentCode,
+    isPostable,
+    isContra,
+    normalBalance: extra?.normalBalance ?? (isContra
+      ? (defaultNb === 'DEBIT' ? 'CREDIT' : 'DEBIT')
+      : defaultNb),
+  };
+}
+
+/** Full Chart of Accounts from the finance/purchasing شرح. */
+export const STANDARD_COA: CoaDef[] = [
+  // ── Assets ──────────────────────────────────────────────
+  row('100000', 'الأصول', 'Assets', 'ASSET', undefined, false),
+  row('110000', 'الأصول المتداولة', 'Current Assets', 'ASSET', '100000', false),
+  row('111000', 'النقدية وما يعادلها', 'Cash & Cash Equivalents', 'ASSET', '110000', false),
+  row('111100', 'الصندوق الرئيسي (الخزينة العامة)', 'Main Treasury', 'ASSET', '111000', true),
+  row('111200', 'صناديق الفروع ونقاط البيع (الكاشير)', 'Branch / POS Cash', 'ASSET', '111000', true),
+  row('111300', 'البنوك المحلية (حسابات جارية - شبكة مدى وتحويلات)', 'Local Banks (mada / transfers)', 'ASSET', '111000', true),
+  row('111400', 'البنوك الأجنبية وحسابات العملات الأخرى', 'Foreign Banks & FX Accounts', 'ASSET', '111000', true),
+  row('111500', 'محفظة المشتريات والبطاقات المؤسسية الرقمية', 'Corporate Purchase Wallet / Cards', 'ASSET', '111000', true),
+  row('111600', 'الودائع البنكية قصيرة الأجل (أقل من 3 أشهر)', 'Short-term Bank Deposits', 'ASSET', '111000', true),
+
+  row('112000', 'الذمم المدينة والعملاء', 'Accounts Receivable', 'ASSET', '110000', false),
+  row('112100', 'العملاء التجاريون (المحليون)', 'Trade Receivables — Local', 'ASSET', '112000', true),
+  row('112200', 'العملاء التجاريون (الدوليون)', 'Trade Receivables — International', 'ASSET', '112000', true),
+  row('112300', 'أوراق القبض', 'Notes Receivable', 'ASSET', '112000', true),
+  row('112400', 'مخصص الديون المشكوك في تحصيلها', 'Allowance for Doubtful Accounts', 'ASSET', '112000', true, { isContra: true }),
+  row('112500', 'ذمم مزودي التقسيط (تابي / تمارا)', 'BNPL Provider Receivables', 'ASSET', '112000', true),
+
+  row('113000', 'المخزون السلعي', 'Inventory', 'ASSET', '110000', false),
+  row('113100', 'مخزون البضائع والمنتجات التامة الصنع', 'Finished Goods Inventory', 'ASSET', '113000', true),
+  row('113200', 'مخزون مواد التغليف والتعبئة والتزيين', 'Packaging & Decoration Inventory', 'ASSET', '113000', true),
+  row('113300', 'مخزون المواد الخام ومستلزمات الإنتاج', 'Raw Materials Inventory', 'ASSET', '113000', true),
+  row('113400', 'مخزون قطع الغيار ومستلزمات الصيانة', 'Spare Parts Inventory', 'ASSET', '113000', true),
+  row('113500', 'بضاعة في الطريق', 'In-Transit Inventory', 'ASSET', '113000', true),
+  row('113600', 'مخصص هبوط قيمة المخزون', 'Inventory Write-down Allowance', 'ASSET', '113000', true, { isContra: true }),
+
+  row('114000', 'الأرصدة المدينة الأخرى والمقدمات', 'Other Current Assets', 'ASSET', '110000', false),
+  row('114100', 'العهد النقدية للموظفين ومسؤولي المشتريات', 'Employee / Buyer Advances', 'ASSET', '114000', true),
+  row('114200', 'المصروفات المدفوعة مقدماً (الإيجارات المقدمة)', 'Prepaid Expenses (Rent)', 'ASSET', '114000', true),
+  row('114300', 'التأمينات المدفوعة مقدماً لدى الغير', 'Deposits with Third Parties', 'ASSET', '114000', true),
+  row('114400', 'سلف وامتدادات رواتب الموظفين', 'Salary Advances', 'ASSET', '114000', true),
+
+  row('120000', 'الأصول غير المتداولة / الثابتة', 'Non-Current Assets', 'ASSET', '100000', false),
+  row('121000', 'الاستثمارات طويلة الأجل', 'Long-term Investments', 'ASSET', '120000', false),
+  row('121100', 'الاستثمار في الشركات التابعة أو الشقيقة', 'Investments in Affiliates', 'ASSET', '121000', true),
+
+  row('122000', 'الأصول الثابتة التشغيلية', 'Property, Plant, and Equipment', 'ASSET', '120000', false),
+  row('122100', 'الأراضي', 'Land', 'ASSET', '122000', true),
+  row('122200', 'المباني والإنشاءات والتحسينات', 'Buildings & Improvements', 'ASSET', '122000', true),
+  row('122300', 'الديكورات والتجهيزات الداخلية للمقرات والفروع', 'Interior Fit-out & Fixtures', 'ASSET', '122000', true),
+  row('122400', 'الأجهزة التقنية وأنظمة الكاشير وحواسيب العمل', 'IT / POS Hardware', 'ASSET', '122000', true),
+  row('122500', 'المعدات والثلاجات وأدوات العرض والتشغيل', 'Equipment & Display Tools', 'ASSET', '122000', true),
+  row('122600', 'وسائل النقل والمواصلات التابعة للمؤسسة', 'Vehicles', 'ASSET', '122000', true),
+  row('122700', 'الأثاث والمفروشات المكتبية', 'Office Furniture', 'ASSET', '122000', true),
+
+  row('123000', 'مجمعات الإهلاك المتراكم', 'Accumulated Depreciation', 'ASSET', '120000', false, { isContra: true }),
+  row('123100', 'مجمع الإهلاك المتراكم للمباني والإنشاءات', 'Acc. Dep. — Buildings', 'ASSET', '123000', true, { isContra: true }),
+  row('123200', 'مجمع الإهلاك المتراكم للديكورات والتجهيزات', 'Acc. Dep. — Fit-out', 'ASSET', '123000', true, { isContra: true }),
+  row('123300', 'مجمع الإهلاك المتراكم للأجهزة التقنية والكاشير', 'Acc. Dep. — IT / POS', 'ASSET', '123000', true, { isContra: true }),
+  row('123400', 'مجمع الإهلاك المتراكم للمعدات والثلاجات', 'Acc. Dep. — Equipment', 'ASSET', '123000', true, { isContra: true }),
+  row('123500', 'مجمع الإهلاك المتراكم لوسائل النقل', 'Acc. Dep. — Vehicles', 'ASSET', '123000', true, { isContra: true }),
+  row('123600', 'مجمع الإهلاك المتراكم للأثاث والمكاتب', 'Acc. Dep. — Furniture', 'ASSET', '123000', true, { isContra: true }),
+
+  row('124000', 'الأصول غير الملموسة', 'Intangible Assets', 'ASSET', '120000', false),
+  row('124100', 'برمجيات الحاسوب وتراخيص الاستخدام الرقمية', 'Software & Licenses', 'ASSET', '124000', true),
+  row('124200', 'العلامات التجارية وبراءات الاختراع', 'Trademarks & Patents', 'ASSET', '124000', true),
+  row('124300', 'شهرة المحل', 'Goodwill', 'ASSET', '124000', true),
+  row('124400', 'مجمع إطفاء الأصول غير الملموسة', 'Accumulated Amortization', 'ASSET', '124000', true, { isContra: true }),
+
+  // ── Liabilities ─────────────────────────────────────────
+  row('200000', 'الالتزامات', 'Liabilities', 'LIABILITY', undefined, false),
+  row('210000', 'الالتزامات المتداولة', 'Current Liabilities', 'LIABILITY', '200000', false),
+  row('211000', 'الذمم الدائنة والموردون', 'Accounts Payable', 'LIABILITY', '210000', false),
+  row('211100', 'الموردون المحليون (الذمم التجارية)', 'Local Suppliers', 'LIABILITY', '211000', true),
+  row('211200', 'الموردون الدوليون (شركات الاستيراد والشحن)', 'International Suppliers', 'LIABILITY', '211000', true),
+  row('211300', 'أوراق الدفع', 'Notes Payable', 'LIABILITY', '211000', true),
+
+  row('212000', 'الالتزامات الضريبية والحكومية', 'Tax & Government Liabilities', 'LIABILITY', '210000', false),
+  row('212100', 'ضريبة القيمة المضافة المستحقة', 'VAT Payable (ZATCA)', 'LIABILITY', '212000', true),
+  row('212200', 'الرسوم الحكومية والتراخيص المستحقة', 'Government Fees Accrued', 'LIABILITY', '212000', true),
+  row('212300', 'الزكاة الشرعية / الضرائب الدخل المستحقة', 'Zakat / Income Tax Payable', 'LIABILITY', '212000', true),
+
+  row('213000', 'المستحقات التشغيلية والأجور', 'Accrued Liabilities', 'LIABILITY', '210000', false),
+  row('213100', 'الرواتب والأجور المستحقة للموظفين', 'Accrued Salaries', 'LIABILITY', '213000', true),
+  row('213200', 'المصروفات التشغيلية المستحقة (كهرباء، ماء، اتصالات)', 'Accrued Utilities', 'LIABILITY', '213000', true),
+  row('213300', 'مصروف الإيجار المستحق غير المدفوع', 'Accrued Rent', 'LIABILITY', '213000', true),
+  row('213400', 'الإيرادات المؤجلة', 'Deferred Revenue', 'LIABILITY', '213000', true),
+
+  row('214000', 'ودائع العملاء والمحافظ الرقمية', 'Customer Deposits & Digital Wallets', 'LIABILITY', '210000', false),
+  row('214100', 'ودائع العملاء - رصيد المتجر', 'Customer Deposits — Store Credit', 'LIABILITY', '214000', true),
+  row('214200', 'برنامج الولاء - نقاط مستحقة', 'Loyalty Points Liability', 'LIABILITY', '214000', true),
+
+  row('220000', 'الالتزامات غير المتداولة', 'Non-Current Liabilities', 'LIABILITY', '200000', false),
+  row('221000', 'القروض والتمويل طويل الأجل', 'Long-term Loans & Financing', 'LIABILITY', '220000', false),
+  row('221100', 'قروض التسهيلات الائتمانية البنكية طويلة الأجل', 'Long-term Bank Facilities', 'LIABILITY', '221000', true),
+  row('221200', 'الصكوك أو السندات المالية المصدرة طويلة الأجل', 'Sukuk / Bonds Issued', 'LIABILITY', '221000', true),
+  row('222000', 'مخصصات نهاية الخدمة والمزايا', 'EOS & Benefit Provisions', 'LIABILITY', '220000', false),
+  row('222100', 'مخصص مكافأة نهاية خدمة الموظفين', 'End-of-Service Provision', 'LIABILITY', '222000', true),
+
+  // ── Equity ──────────────────────────────────────────────
+  row('300000', 'حقوق الملكية', 'Equity', 'EQUITY', undefined, false),
+  row('310000', 'رأس المال', 'Capital', 'EQUITY', '300000', false),
+  row('311000', 'رأس المال المصدر والمدفوع', 'Issued & Paid-in Capital', 'EQUITY', '310000', true),
+  row('312000', 'الشركاء / مساهمون حسابات جارية', 'Partners Current Accounts', 'EQUITY', '310000', true),
+  row('320000', 'الأرباح والاحتياطيات', 'Reserves & Retained Earnings', 'EQUITY', '300000', false),
+  row('321000', 'الاحتياطي النظامي / القانوني', 'Statutory Reserve', 'EQUITY', '320000', true),
+  row('322000', 'الاحتياطي الاختياري / العام', 'Optional / General Reserve', 'EQUITY', '320000', true),
+  row('323000', 'الأرباح المبقاة', 'Retained Earnings', 'EQUITY', '320000', true),
+  row('324000', 'أرباح / خسائر السنة المالية الحالية', 'Current Year P&L', 'EQUITY', '320000', true),
+  row('330000', 'مسحوبات المالك', 'Owner Drawings', 'EQUITY', '300000', false),
+  row('331000', 'مسحوبات المالك / الشركاء الشخصية', 'Owner / Partner Drawings', 'EQUITY', '330000', true, { isContra: true }),
+
+  // ── Revenue ─────────────────────────────────────────────
+  row('400000', 'الإيرادات', 'Revenues', 'REVENUE', undefined, false),
+  row('410000', 'إيرادات النشاط الرئيسي', 'Operating Revenues', 'REVENUE', '400000', false),
+  row('411000', 'إيرادات المبيعات النقدية والإلكترونية المباشرة (POS)', 'POS Cash & Electronic Sales', 'REVENUE', '410000', true),
+  row('412000', 'إيرادات عقود المشاريع، الحفلات، والمناسبات الخاصة', 'Projects / Events Revenue', 'REVENUE', '410000', true),
+  row('413000', 'إيرادات خدمات التوصيل والشحن للعملاء', 'Delivery & Shipping Revenue', 'REVENUE', '410000', true),
+  row('414000', 'مردودات ومسموحات المبيعات', 'Sales Returns & Allowances', 'REVENUE', '410000', true, { isContra: true }),
+  row('415000', 'خصم المبيعات المكتسب / الممنوح', 'Sales Discounts', 'REVENUE', '410000', true, { isContra: true }),
+  row('420000', 'إيرادات متنوعة وغير تشغيلية', 'Non-Operating Revenues', 'REVENUE', '400000', false),
+  row('421000', 'الإيرادات التمويلية وفوائد الودائع البنكية', 'Finance Income / Deposit Interest', 'REVENUE', '420000', true),
+  row('422000', 'أرباح بيع الأصول الثابتة', 'Gain on Disposal of Assets', 'REVENUE', '420000', true),
+  row('423000', 'فروق العملات الأجنبية (دائنة)', 'FX Gains', 'REVENUE', '420000', true),
+  row('424000', 'الإيرادات المتنوعة الأخرى', 'Other Miscellaneous Income', 'REVENUE', '420000', true),
+
+  // ── Costs & Expenses ────────────────────────────────────
+  row('500000', 'التكاليف والمصروفات', 'Costs & Expenses', 'EXPENSE', undefined, false),
+  row('510000', 'تكلفة الإيرادات / تكلفة المبيعات', 'Cost of Goods Sold', 'EXPENSE', '500000', false),
+  row('511000', 'تكلفة البضائع المباعة', 'Cost of Goods Sold', 'EXPENSE', '510000', true),
+  row('512000', 'تكاليف الاستيراد، الشحن الدولي، والرسوم الجمركية', 'Import / Landing Costs', 'EXPENSE', '510000', true),
+  row('513000', 'مصاريف النقل والشحن المحلي للمشتريات', 'Local Freight on Purchases', 'EXPENSE', '510000', true),
+  row('514000', 'تلف وهالك المخزون', 'Inventory Shrinkage / Spoilage', 'EXPENSE', '510000', true),
+
+  row('520000', 'المصروفات التشغيلية والإدارية', 'Operating & Administrative Expenses', 'EXPENSE', '500000', false),
+  row('521000', 'الرواتب والمزايا الوظيفية', 'Payroll & Benefits', 'EXPENSE', '520000', false),
+  row('521100', 'الرواتب والأجور الأساسية', 'Base Salaries & Wages', 'EXPENSE', '521000', true),
+  row('521200', 'البدلات والمكافآت والحوافز الوظيفية', 'Allowances & Incentives', 'EXPENSE', '521000', true),
+  row('521300', 'اشتراكات التأمينات الاجتماعية (حصة المؤسسة)', 'GOSI — Employer Share', 'EXPENSE', '521000', true),
+  row('521400', 'تذاكر السفر وتأمين الطاقم والموظفين', 'Staff Travel & Insurance', 'EXPENSE', '521000', true),
+
+  row('522000', 'المصاريف العمومية والخدمية', 'General & Facility Expenses', 'EXPENSE', '520000', false),
+  row('522100', 'إيجار المقرات، المعارض، والفروع', 'Rent — Premises & Branches', 'EXPENSE', '522000', true),
+  row('522200', 'فواتير الخدمات العامة (الكهرباء، المياه، الإنترنت، الاتصالات)', 'Utilities', 'EXPENSE', '522000', true),
+  row('522300', 'مصاريف الصيانة والنظافة والتشغيل العام', 'Maintenance & Cleaning', 'EXPENSE', '522000', true),
+  row('522400', 'مصاريف الضيافة والنثرية والمكتبية', 'Petty / Hospitality / Office', 'EXPENSE', '522000', true),
+
+  row('523000', 'المصاريف المهنية والمالية والتقنية', 'Professional, Financial & IT Expenses', 'EXPENSE', '520000', false),
+  row('523100', 'عمولات البنوك وبطاقات الدفع الإلكتروني', 'Bank / Card Network Fees', 'EXPENSE', '523000', true),
+  row('523200', 'الاستشارات المهنية، الرسوم القانونية والمحاسبية', 'Professional & Legal Fees', 'EXPENSE', '523000', true),
+  row('523300', 'الرسوم الحكومية، التراخيص، والزكاة النظامية', 'Gov. Fees, Licenses & Zakat Expense', 'EXPENSE', '523000', true),
+  row('523400', 'اشتراكات الأنظمة السحابية وبرامج التقنية', 'Cloud / SaaS Subscriptions', 'EXPENSE', '523000', true),
+  row('523500', 'خسائر فروق العملات الأجنبية (مدينة)', 'FX Losses', 'EXPENSE', '523000', true),
+
+  row('524000', 'مصاريف البيع والتسويق والدعاية', 'Selling & Marketing Expenses', 'EXPENSE', '520000', false),
+  row('524100', 'مصاريف الحملات الإعلانية والتسويق الرقمي', 'Advertising & Digital Marketing', 'EXPENSE', '524000', true),
+  row('524200', 'مصاريف التغليف والتوزيع والإرسال للعملاء', 'Packing & Outbound Distribution', 'EXPENSE', '524000', true),
+  row('524300', 'عمولات منصات التوصيل والمتاجر الإلكترونية', 'Delivery / Marketplace Commissions', 'EXPENSE', '524000', true),
+
+  row('525000', 'مصاريف الإهلاك والإطفاء', 'Depreciation & Amortization', 'EXPENSE', '520000', false),
+  row('525100', 'مصروف إهلاك الأصول الثابتة', 'Depreciation Expense', 'EXPENSE', '525000', true),
+  row('525200', 'مصروف إطفاء الأصول غير الملموسة والبرمجيات', 'Amortization Expense', 'EXPENSE', '525000', true),
+];
+
+export function coaLevel(code: string): number {
+  const n = Number(code);
+  if (n % 100000 === 0) return 1;
+  if (n % 10000 === 0) return 2;
+  if (n % 1000 === 0) return 3;
+  return 4;
+}

@@ -65,6 +65,12 @@ model SalesInvoice {
   taxAmount       Decimal       @default(0) @map("tax_amount") @db.Decimal(18, 2)
   totalAmount     Decimal       @map("total_amount") @db.Decimal(18, 2)
   balanceDue      Decimal       @map("balance_due") @db.Decimal(18, 2)
+  saleChannel     String        @default("POS") @map("sale_channel") @db.VarChar(40)
+  couponCode      String?       @map("coupon_code") @db.VarChar(80)
+  priceListId     String?       @map("price_list_id") @db.Char(36)
+  storeCreditApplied Decimal    @default(0) @map("store_credit_applied") @db.Decimal(18, 2)
+  zatcaQr            String?    @map("zatca_qr") @db.Text
+  extraDiscountPct   Decimal    @default(0) @map("extra_discount_pct") @db.Decimal(5, 2)
   createdAt       DateTime      @default(now()) @map("created_at") @db.DateTime(3)
 
   company     Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
@@ -72,6 +78,7 @@ model SalesInvoice {
   quote       SalesQuote?            @relation(fields: [salesQuoteId], references: [id], onDelete: SetNull)
   branch      CompanyBranch?         @relation(fields: [companyBranchId], references: [id], onDelete: SetNull)
   createdBy   User?                  @relation("SalesInvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  priceList   PriceList?             @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   items       SalesInvoiceItem[]
   payments    SalesPayment[]
   creditNotes SalesCreditNote[]
@@ -82,6 +89,7 @@ model SalesInvoice {
   @@index([companyId, status, dueOn], map: "idx_sales_invoice_status_due")
   @@index([companyId, companyBranchId, issuedOn], map: "idx_sales_invoice_branch_issued")
   @@index([companyId, createdById, issuedOn], map: "idx_sales_invoice_creator_issued")
+  @@index([companyId, saleChannel, issuedOn], map: "idx_sales_invoice_channel_issued")
   @@map("sales_invoices")
 }
 

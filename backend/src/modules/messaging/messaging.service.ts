@@ -50,6 +50,47 @@ export class MessagingService {
     });
   }
 
+  async sendDirect(input: {
+    companyId: string;
+    recipient: string;
+    subject: string;
+    body: string;
+    preferSms?: boolean;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const channels = await this.prisma.messagingChannel.findMany({
+      where: { companyId: input.companyId, status: 'ACTIVE' },
+    });
+    const preferred = input.preferSms
+      ? channels.find((c) => c.provider === 'SMS' || c.provider === 'WHATSAPP')
+      : channels.find((c) => c.provider === 'SMTP' || c.provider === 'WHATSAPP');
+    const channel = preferred ?? channels[0];
+    if (!channel) {
+      return { ok: false as const, errorMessage: 'No messaging channel configured' };
+    }
+    const result = await this.dispatchToBrevo({
+      provider: channel.provider,
+      recipient: input.recipient,
+      subject: input.subject,
+      body: input.body,
+      config: this.readConfig(channel.config),
+    });
+    await this.prisma.messageDelivery.create({
+      data: {
+        companyId: input.companyId,
+        messagingChannelId: channel.id,
+        recipient: input.recipient,
+        subject: input.subject,
+        body: input.body,
+        status: result.ok ? 'SENT' : 'FAILED',
+        providerMessageId: result.providerMessageId,
+        errorMessage: result.errorMessage,
+        sentAt: result.ok ? new Date() : null,
+      },
+    });
+    return result;
+  }
+
   listTemplates(companyId: string) {
     this.tenant.setCompanyId(companyId);
     return this.prisma.messageTemplate.findMany({
@@ -181,7 +222,7 @@ export class MessagingService {
       });
     }
 
-    if (input.provider === 'SMS') {
+    if (input.provider === 'SMS' || input.provider === 'WHATSAPP') {
       return this.brevo.sendSms({
         to: input.recipient,
         content: input.body,

@@ -93,6 +93,31 @@ export default async function InvoicesPage({
               />
               <Input name="dueOn" label={t("invoices.dueOn")} type="date" />
               <Select
+                name="saleChannel"
+                label={t("channel")}
+                defaultValue="POS"
+                options={[
+                  { value: "POS", label: t("channels.pos") },
+                  { value: "ECOMMERCE", label: t("channels.ecommerce") },
+                  { value: "DELIVERY", label: t("channels.delivery") },
+                  { value: "BNPL", label: t("channels.bnpl") },
+                ]}
+              />
+              <Input name="couponCode" label={t("couponCode")} />
+              <Input name="itemId" label={t("itemId")} />
+              <Input name="bundleId" label={t("bundleId")} />
+              <Input
+                name="storeCreditAmount"
+                label={t("storeCreditAmount")}
+                type="number"
+              />
+              <Input
+                name="extraDiscountPct"
+                label={t("extraDiscountPct")}
+                type="number"
+              />
+              <Input name="overrideCode" label={t("overrideCode")} />
+              <Select
                 name="status"
                 label={t("status")}
                 options={[
@@ -214,6 +239,14 @@ export default async function InvoicesPage({
                         rel="noreferrer"
                       >
                         {t("invoices.download")}
+                      </a>
+                      <a
+                        href={`/api/sales/invoices/${inv.id}/zatca?companyId=${companyId}`}
+                        className="ms-2 text-xs text-[var(--color-accent)] underline"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        ZATCA
                       </a>
                     </td>
                   </tr>

@@ -112,6 +112,11 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   const { prisma, companyId, adminUserId } = ctx;
   const summary: Record<string, number> = {};
 
+  // ── Chart of Accounts ────────────────────────────────────────────
+  const { seedCompanyChartOfAccounts } = await import('./seed-coa');
+  const coa = await seedCompanyChartOfAccounts(prisma, companyId);
+  summary.glAccounts = coa.accountCount;
+
   // ── Users + memberships ──────────────────────────────────────────
   const passwordHash = (
     await prisma.user.findUniqueOrThrow({ where: { id: adminUserId } })
@@ -202,6 +207,11 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     users.push({ id: user.id, email: spec.email, companyUserId: membership.id });
   }
   summary.users = users.length;
+
+  // ── Business hours + standard shifts (صباحية / مسائية / ليلية) ──
+  const { seedStandardWorkShifts } = await import('./seed-standard-shifts');
+  const shiftSeed = await seedStandardWorkShifts(prisma, companyId);
+  summary.workShifts = shiftSeed.shiftCount;
 
   const ownerUserId = users[0]!.id;
   const opsUserId = users[3]!.id;
@@ -1381,6 +1391,18 @@ export async function seedDemoCompanyData(ctx: Ctx) {
         }),
     );
   }
+
+  // ── Procure-to-pay + GL postings ─────────────────────────────────
+  const { seedProcurementDemoData } = await import('./seed-procurement');
+  const procurement = await seedProcurementDemoData(prisma, {
+    companyId,
+    requesterId: opsUserId,
+    approverId: adminUserId,
+  });
+  summary.purchaseRequisitions = procurement.requisitions;
+  summary.goodsReceipts = procurement.goodsReceipts;
+  summary.threeWayMatchedBills = procurement.billsMatched;
+  summary.journalEntries = procurement.journalEntries;
 
   // ── Expenses + finance ledger ────────────────────────────────────
   for (let i = 0; i < 10; i++) {
