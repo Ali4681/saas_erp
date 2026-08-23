@@ -158,26 +158,26 @@ export default async function ContactsPage({
                     </td>
                     <td className="px-2 py-2">{formatDate(c.createdAt)}</td>
                     <td className="px-2 py-2">
-                      {canWrite ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            href={`/c/${companyId}/crm/contacts/${c.id}/insights`}
-                            variant="outline"
-                          >
-                            {t("insights.short")}
-                          </Button>
-                          <Button
-                            href={`/c/${companyId}/crm/contacts/${c.id}/loyalty`}
-                            variant="outline"
-                          >
-                            {t("loyalty.title")}
-                          </Button>
-                          <Button
-                            href={`/c/${companyId}/crm/contacts/${c.id}/store-credit`}
-                            variant="outline"
-                          >
-                            {t("storeCredit.title")}
-                          </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          href={`/c/${companyId}/crm/contacts/${c.id}/insights`}
+                          variant="outline"
+                        >
+                          {t("insights.short")}
+                        </Button>
+                        <Button
+                          href={`/c/${companyId}/crm/contacts/${c.id}/loyalty`}
+                          variant="outline"
+                        >
+                          {t("loyalty.title")}
+                        </Button>
+                        <Button
+                          href={`/c/${companyId}/crm/contacts/${c.id}/store-credit`}
+                          variant="outline"
+                        >
+                          {t("storeCredit.title")}
+                        </Button>
+                        {canWrite ? (
                         <CreateFormDialog
                           title={t("contacts.editTitle")}
                           triggerLabel={t("contacts.edit")}
@@ -284,15 +284,8 @@ export default async function ContactsPage({
                             </div>
                           </form>
                         </CreateFormDialog>
-                        </div>
-                      ) : (
-                        <Button
-                          href={`/c/${companyId}/crm/contacts/${c.id}/insights`}
-                          variant="outline"
-                        >
-                          {t("insights.short")}
-                        </Button>
-                      )}
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

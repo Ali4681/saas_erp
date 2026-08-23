@@ -20,6 +20,7 @@ type Adj = {
   adjustmentNumber: string;
   reasonCode: string;
   status: string;
+  requestedById?: string;
   warehouse?: Wh | null;
 };
 
@@ -110,11 +111,19 @@ export default async function AdjustmentsPage({
                   <td className="px-2 py-2">{row.reasonCode}</td>
                   <td className="px-2 py-2">{row.status}</td>
                   <td className="px-2 py-2">
-                    {canApprove && row.status === "PENDING" ? (
+                    {canApprove &&
+                    row.status === "PENDING" &&
+                    row.requestedById !== session?.user?.id ? (
                       <ActionForm
                         action={approveAdjustment.bind(null, companyId, row.id)}
                         label={t("approve")}
                       />
+                    ) : canApprove &&
+                      row.status === "PENDING" &&
+                      row.requestedById === session?.user?.id ? (
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {t("sodCannotSelfApprove")}
+                      </span>
                     ) : null}
                   </td>
                 </tr>

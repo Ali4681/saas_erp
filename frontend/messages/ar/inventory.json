@@ -105,6 +105,7 @@
   "reasonWriteDown": "تخفيض قيمة",
   "quantityDelta": "فرق الكمية (+/-)",
   "approve": "اعتماد",
+  "sodCannotSelfApprove": "لا يمكن اعتماد طلبك بنفسك (فصل سلطات)",
   "alerts": "التنبيهات",
   "alertsHint": "إعادة طلب وانتهاء صلاحية وراكد",
   "alertsTitle": "ذكاء المخزون",

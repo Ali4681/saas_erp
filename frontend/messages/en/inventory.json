@@ -105,6 +105,7 @@
   "reasonWriteDown": "Write-down",
   "quantityDelta": "Qty delta (+/-)",
   "approve": "Approve",
+  "sodCannotSelfApprove": "You cannot approve your own request (SoD)",
   "alerts": "Alerts",
   "alertsHint": "Reorder, expiry, slow movers",
   "alertsTitle": "Inventory intelligence",

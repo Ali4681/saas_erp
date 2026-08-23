@@ -218,7 +218,7 @@ export async function seedEnterpriseOpsDemoData(
             warehouseId: mainWh.id,
             adjustmentNumber: pendingNo,
             reasonCode: 'DAMAGE',
-            status: 'DRAFT',
+            status: 'PENDING',
             notes: 'Seed pending adjustment',
             requestedById: opsUserId,
             items: {

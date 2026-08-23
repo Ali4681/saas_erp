@@ -703,7 +703,9 @@ export class InventoryOpsService {
       throw new BadRequestException(`Cannot approve ${adj.status}`);
     }
     if (adj.requestedById === approverId) {
-      throw new BadRequestException('Requester cannot approve (SoD)');
+      throw new BadRequestException(
+        'لا يمكن لمقدّم طلب التسوية اعتمادها (فصل سلطات SoD). سجّل دخول بحساب آخر يملك صلاحية الاعتماد.',
+      );
     }
 
     for (const line of adj.items) {
