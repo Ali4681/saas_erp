@@ -150,44 +150,12 @@ CREATE INDEX `idx_notification_user_read` ON `notifications`(`user_id`, `read_at
 -- CreateIndex
 CREATE INDEX `idx_webhook_delivery_created` ON `webhook_deliveries`(`company_webhook_id`, `created_at` DESC);
 
--- AddForeignKey
+-- AddForeignKey (only re-add FKs dropped at the top of this migration)
 ALTER TABLE `notifications` ADD CONSTRAINT `notifications_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_company_id_fkey` FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE `purchase_requisitions` ADD CONSTRAINT `purchase_requisitions_company_branch_id_fkey` FOREIGN KEY (`company_branch_id`) REFERENCES `company_branches`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `purchase_requisition_items` ADD CONSTRAINT `purchase_requisition_items_requisition_id_fkey` FOREIGN KEY (`requisition_id`) REFERENCES `purchase_requisitions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `goods_receipt_items` ADD CONSTRAINT `goods_receipt_items_purchase_order_item_id_fkey` FOREIGN KEY (`purchase_order_item_id`) REFERENCES `purchase_order_items`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `employee_contracts` ADD CONSTRAINT `employee_contracts_company_id_fkey` FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `work_shifts` ADD CONSTRAINT `work_shifts_business_hours_profile_id_fkey` FOREIGN KEY (`business_hours_profile_id`) REFERENCES `company_business_hours_profiles`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `employee_qiwa_contracts` ADD CONSTRAINT `employee_qiwa_contracts_last_updated_by_user_id_fkey` FOREIGN KEY (`last_updated_by_user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `company_users` ADD CONSTRAINT `company_users_role_id_fkey` FOREIGN KEY (`role_id`) REFERENCES `roles`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `company_users` ADD CONSTRAINT `company_users_branch_id_fkey` FOREIGN KEY (`branch_id`) REFERENCES `company_branches`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `integration_jobs` ADD CONSTRAINT `integration_jobs_connected_project_id_fkey` FOREIGN KEY (`connected_project_id`) REFERENCES `connected_projects`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `external_categories` ADD CONSTRAINT `external_categories_project_location_id_fkey` FOREIGN KEY (`project_location_id`) REFERENCES `project_locations`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `external_inventory_levels` ADD CONSTRAINT `external_inventory_levels_external_product_variant_id_fkey` FOREIGN KEY (`external_product_variant_id`) REFERENCES `external_product_variants`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `company_branches` ADD CONSTRAINT `company_branches_company_id_fkey` FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+-- NOTE: Do not re-add FKs already created by earlier migrations
+-- (purchase_requisitions, goods_receipt_items, work_shifts, company_users, etc.).
+-- Prisma drift dumps caused errno 121 "Duplicate key on write or update".
