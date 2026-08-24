@@ -132,5 +132,3 @@ export function CreateFormDialog({
     </>
   );
 }
-
-export { CreateFormDialog as CreateFormDialog };
