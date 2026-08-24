@@ -302,7 +302,17 @@ export class InventoryOpsService {
     this.tenant.setCompanyId(companyId);
     return this.prisma.itemBarcode.findMany({
       where: { companyId },
-      include: { item: { select: { id: true, name: true } } },
+      include: {
+        item: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            barcode: true,
+            salePrice: true,
+          },
+        },
+      },
       orderBy: { barcode: 'asc' },
       take: 200,
     });
@@ -314,47 +324,201 @@ export class InventoryOpsService {
     barcodeType?: string;
     unitId?: string;
     serialBased?: boolean;
+    uniquePerUnit?: boolean;
     quantity?: number;
     payload?: Record<string, unknown>;
   }) {
     this.tenant.setCompanyId(input.companyId);
     const item = await this.requireItem(input.companyId, input.itemId);
-    const qty = Math.max(1, input.quantity ?? 1);
-    const rows: Array<{ id: string; barcode: string }> = [];
-    for (let i = 0; i < qty; i++) {
-      const barcode = input.serialBased
-        ? `SN${Date.now().toString(36).toUpperCase()}${randomInt(1000, 9999)}`
-        : this.ean13FromSku(item.sku ?? item.id, i);
-      const row = await this.prisma.itemBarcode.create({
-        data: {
+    const barcodeType =
+      input.barcodeType ?? (input.serialBased ? 'SERIAL' : 'RETAIL');
+    const serialBased =
+      Boolean(input.serialBased) || barcodeType === 'SERIAL';
+
+    if (!serialBased) {
+      const existing = await this.prisma.itemBarcode.findFirst({
+        where: {
           companyId: input.companyId,
           itemId: input.itemId,
-          barcode,
-          barcodeType: input.barcodeType ?? (input.serialBased ? 'SERIAL' : 'RETAIL'),
-          unitId: input.unitId,
-          isPrimary: i === 0 && !input.serialBased,
-          payloadJson: input.payload as object | undefined,
+          barcodeType,
         },
+        orderBy: { isPrimary: 'desc' },
       });
-      rows.push({ id: row.id, barcode: row.barcode });
-      if (!item.barcode && i === 0 && !input.serialBased) {
-        await this.prisma.item.update({
-          where: { id: item.id },
-          data: { barcode, barcodeKey: barcode },
-        });
+      if (existing) {
+        await this.syncItemPrimaryBarcode(item.id, existing.barcode);
+        return [{ id: existing.id, barcode: existing.barcode, reused: true }];
       }
-      if (input.serialBased) {
-        await this.prisma.itemSerial.create({
+      if (item.barcode) {
+        const row = await this.prisma.itemBarcode.create({
           data: {
             companyId: input.companyId,
             itemId: input.itemId,
-            serialNumber: barcode,
-            status: 'IN_STOCK',
+            barcode: item.barcode,
+            barcodeType,
+            unitId: input.unitId,
+            isPrimary: true,
+            payloadJson: input.payload as object | undefined,
           },
         });
+        return [{ id: row.id, barcode: row.barcode, reused: true }];
       }
+      return [
+        await this.createUniqueRetailBarcode({
+          companyId: input.companyId,
+          itemId: item.id,
+          seed: item.sku ?? item.id,
+          barcodeType,
+          unitId: input.unitId,
+          payload: input.payload,
+        }),
+      ];
+    }
+
+    const uniquePerUnit = input.uniquePerUnit !== false;
+    const qty = Math.min(50, Math.max(1, input.quantity ?? 1));
+
+    if (!uniquePerUnit) {
+      const existing = await this.prisma.itemBarcode.findFirst({
+        where: {
+          companyId: input.companyId,
+          itemId: input.itemId,
+          barcodeType,
+        },
+        orderBy: { isPrimary: 'desc' },
+      });
+      if (existing) {
+        await this.syncItemPrimaryBarcode(item.id, existing.barcode);
+        return [
+          {
+            id: existing.id,
+            barcode: existing.barcode,
+            reused: true,
+            copies: qty,
+          },
+        ];
+      }
+      const created = await this.createUniqueSerialBarcode({
+        companyId: input.companyId,
+        itemId: item.id,
+        barcodeType,
+        unitId: input.unitId,
+        payload: { ...(input.payload ?? {}), copies: qty, shared: true },
+        isPrimary: true,
+        createSerialRecord: false,
+      });
+      return [{ ...created, copies: qty }];
+    }
+
+    const rows: Array<{ id: string; barcode: string; reused?: boolean }> = [];
+    for (let i = 0; i < qty; i++) {
+      rows.push(
+        await this.createUniqueSerialBarcode({
+          companyId: input.companyId,
+          itemId: item.id,
+          barcodeType,
+          unitId: input.unitId,
+          payload: input.payload,
+        }),
+      );
     }
     return rows;
+  }
+
+  private async syncItemPrimaryBarcode(itemId: string, barcode: string) {
+    const item = await this.prisma.item.findUnique({ where: { id: itemId } });
+    if (!item?.barcode) {
+      await this.prisma.item.update({
+        where: { id: itemId },
+        data: { barcode, barcodeKey: barcode },
+      });
+    }
+  }
+
+  private async createUniqueRetailBarcode(input: {
+    companyId: string;
+    itemId: string;
+    seed: string;
+    barcodeType: string;
+    unitId?: string;
+    payload?: Record<string, unknown>;
+  }) {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const barcode = this.ean13FromSku(
+        input.seed,
+        randomInt(0, 1_000_000_000) + attempt * 7919,
+      );
+      try {
+        const row = await this.prisma.itemBarcode.create({
+          data: {
+            companyId: input.companyId,
+            itemId: input.itemId,
+            barcode,
+            barcodeType: input.barcodeType,
+            unitId: input.unitId,
+            isPrimary: true,
+            payloadJson: input.payload as object | undefined,
+          },
+        });
+        await this.syncItemPrimaryBarcode(input.itemId, barcode);
+        return { id: row.id, barcode: row.barcode };
+      } catch (error) {
+        if (!this.isUniqueConflict(error)) throw error;
+      }
+    }
+    throw new BadRequestException('Could not allocate a unique barcode');
+  }
+
+  private async createUniqueSerialBarcode(input: {
+    companyId: string;
+    itemId: string;
+    barcodeType: string;
+    unitId?: string;
+    payload?: Record<string, unknown>;
+    isPrimary?: boolean;
+    createSerialRecord?: boolean;
+  }) {
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const barcode = `SN${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
+      try {
+        const row = await this.prisma.itemBarcode.create({
+          data: {
+            companyId: input.companyId,
+            itemId: input.itemId,
+            barcode,
+            barcodeType: input.barcodeType,
+            unitId: input.unitId,
+            isPrimary: input.isPrimary ?? false,
+            payloadJson: input.payload as object | undefined,
+          },
+        });
+        if (input.createSerialRecord !== false) {
+          await this.prisma.itemSerial.create({
+            data: {
+              companyId: input.companyId,
+              itemId: input.itemId,
+              serialNumber: barcode,
+              status: 'IN_STOCK',
+            },
+          });
+        }
+        if (input.isPrimary) {
+          await this.syncItemPrimaryBarcode(input.itemId, barcode);
+        }
+        return { id: row.id, barcode: row.barcode };
+      } catch (error) {
+        if (!this.isUniqueConflict(error)) throw error;
+      }
+    }
+    throw new BadRequestException('Could not allocate a unique serial barcode');
+  }
+
+  private isUniqueConflict(error: unknown) {
+    return Boolean(
+      error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: string }).code === 'P2002',
+    );
   }
 
   async lookupBarcode(companyId: string, barcode: string) {

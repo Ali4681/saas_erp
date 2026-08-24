@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, type ReactNode } from "react";
+import { useRef, useTransition, type ReactNode } from "react";
 
 /**
  * Client form that invokes a Server Action via startTransition.
@@ -16,6 +16,7 @@ export function ServerActionForm({
   className?: string;
 }) {
   const [pending, startTransition] = useTransition();
+  const locked = useRef(false);
 
   return (
     <form
@@ -23,15 +24,18 @@ export function ServerActionForm({
       action={action}
       onSubmit={(e) => {
         e.preventDefault();
-        if (pending) return;
+        if (pending || locked.current) return;
         const form = e.currentTarget;
         if (!form.checkValidity()) {
           form.reportValidity();
           return;
         }
+        locked.current = true;
         const formData = new FormData(form);
         startTransition(() => {
-          void Promise.resolve(action(formData));
+          void Promise.resolve(action(formData)).finally(() => {
+            locked.current = false;
+          });
         });
       }}
     >

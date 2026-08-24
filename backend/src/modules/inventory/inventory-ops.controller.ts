@@ -178,6 +178,7 @@ export class InventoryOpsController {
       barcodeType?: string;
       unitId?: string;
       serialBased?: boolean;
+      uniquePerUnit?: boolean;
       quantity?: number;
       payload?: Record<string, unknown>;
     },

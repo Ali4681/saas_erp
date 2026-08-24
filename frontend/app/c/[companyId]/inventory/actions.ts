@@ -191,16 +191,20 @@ export async function approveAdjustment(companyId: string, adjustmentId: string)
 }
 
 export async function generateBarcode(companyId: string, formData: FormData) {
+  const barcodeType = optStr(formData, "barcodeType") ?? "RETAIL";
+  const serialBased =
+    formData.get("serialBased") === "on" || barcodeType === "SERIAL";
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/inventory/items/${str(formData, "itemId")}/barcodes`,
     body: {
-      barcodeType: optStr(formData, "barcodeType") ?? "RETAIL",
-      serialBased: formData.get("serialBased") === "on",
-      quantity: Number(str(formData, "quantity") || "1"),
+      barcodeType,
+      serialBased,
+      uniquePerUnit: formData.get("serialMode") !== "shared",
+      quantity: serialBased ? Number(str(formData, "quantity") || "1") : 1,
     },
     pagePath: page(companyId, "barcodes"),
-    okMessage: "Barcode generated",
+    okMessage: "تم توليد الباركود",
   });
 }
 

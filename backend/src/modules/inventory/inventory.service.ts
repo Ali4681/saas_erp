@@ -187,6 +187,16 @@ export class InventoryService {
         minStock: minStock != null ? String(minStock) : undefined,
         taxRate: taxRate != null ? String(taxRate) : undefined,
         abcClass: abcClass ?? undefined,
+        barcodes: barcode
+          ? {
+              create: {
+                companyId: input.companyId,
+                barcode,
+                barcodeType: 'RETAIL',
+                isPrimary: true,
+              },
+            }
+          : undefined,
       },
       include: {
         unit: true,

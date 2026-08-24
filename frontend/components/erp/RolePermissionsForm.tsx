@@ -144,69 +144,71 @@ export function RolePermissionsForm({
   }
 
   return (
-    <form action={action} className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2">
-        <Input
-          name="name"
-          label={t("formName")}
-          required
-          defaultValue={initialName}
-          placeholder={t("formNamePh")}
-        />
-        <Input
-          name="code"
-          label={t("formCode")}
-          required={!lockCode}
-          defaultValue={initialCode}
-          readOnly={lockCode}
-          placeholder="SALES_REP"
-          pattern="[A-Za-z][A-Za-z0-9_]{1,39}"
-          title="UPPER_SNAKE_CASE"
-        />
-        <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
-          <span className="font-medium text-[var(--foreground)]">
-            {t("formDescription")}
-          </span>
-          <textarea
-            name="description"
-            defaultValue={initialDescription}
-            rows={2}
-            placeholder={t("formDescriptionPh")}
-            className="rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 py-2 text-[var(--foreground)] shadow-sm outline-none focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20"
+    <form action={action} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 space-y-3 border-b border-[var(--border)] px-5 py-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Input
+            name="name"
+            label={t("formName")}
+            required
+            defaultValue={initialName}
+            placeholder={t("formNamePh")}
           />
-        </label>
-        <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
-          <span className="font-medium text-[var(--foreground)]">
-            {t("formFinancialProfile")}
-          </span>
-          <select
-            name="financialProfile"
-            defaultValue={initialFinancialProfile}
-            className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-[var(--foreground)] shadow-sm outline-none focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20"
-          >
-            <option value="NONE">{t("profileNone")}</option>
-            <option value="CASHIER">{t("profileCashier")}</option>
-            <option value="SALES_DELIVERY">{t("profileSalesDelivery")}</option>
-            <option value="MANAGER_SUPERVISOR">
-              {t("profileManagerSupervisor")}
-            </option>
-            <option value="WAREHOUSE_KEEPER">{t("profileWarehouse")}</option>
-            <option value="ACCOUNTANT">{t("profileAccountant")}</option>
-            <option value="TREASURY_CUSTODIAN">{t("profileTreasury")}</option>
-            <option value="BRANCH_MANAGER">{t("profileBranchManager")}</option>
-            <option value="SYSTEM_ADMIN">{t("profileSystemAdmin")}</option>
-          </select>
-          <span className="text-xs text-[var(--muted-foreground)]">
-            {t("formFinancialProfileHint")}
-          </span>
-        </label>
+          <Input
+            name="code"
+            label={t("formCode")}
+            required={!lockCode}
+            defaultValue={initialCode}
+            readOnly={lockCode}
+            placeholder="SALES_REP"
+            pattern="[A-Za-z][A-Za-z0-9_]{1,39}"
+            title="UPPER_SNAKE_CASE"
+          />
+          <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+            <span className="font-medium text-[var(--foreground)]">
+              {t("formDescription")}
+            </span>
+            <textarea
+              name="description"
+              defaultValue={initialDescription}
+              rows={2}
+              placeholder={t("formDescriptionPh")}
+              className="rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 py-2 text-[var(--foreground)] shadow-sm outline-none focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+            <span className="font-medium text-[var(--foreground)]">
+              {t("formFinancialProfile")}
+            </span>
+            <select
+              name="financialProfile"
+              defaultValue={initialFinancialProfile}
+              className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-[var(--foreground)] shadow-sm outline-none focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20"
+            >
+              <option value="NONE">{t("profileNone")}</option>
+              <option value="CASHIER">{t("profileCashier")}</option>
+              <option value="SALES_DELIVERY">{t("profileSalesDelivery")}</option>
+              <option value="MANAGER_SUPERVISOR">
+                {t("profileManagerSupervisor")}
+              </option>
+              <option value="WAREHOUSE_KEEPER">{t("profileWarehouse")}</option>
+              <option value="ACCOUNTANT">{t("profileAccountant")}</option>
+              <option value="TREASURY_CUSTODIAN">{t("profileTreasury")}</option>
+              <option value="BRANCH_MANAGER">{t("profileBranchManager")}</option>
+              <option value="SYSTEM_ADMIN">{t("profileSystemAdmin")}</option>
+            </select>
+            <span className="text-xs text-[var(--muted-foreground)]">
+              {t("formFinancialProfileHint")}
+            </span>
+          </label>
+        </div>
       </div>
 
       {[...selected].map((code) => (
         <input key={code} type="hidden" name="permissionCodes" value={code} />
       ))}
 
-      <div className="space-y-3">
+      <div className="min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">{t("permsHeading")}</h3>
           <div className="flex items-center gap-3">
@@ -239,7 +241,7 @@ export function RolePermissionsForm({
             {t("noPerms")}
           </p>
         ) : (
-          <div className="max-h-[min(52vh,480px)] space-y-3 overflow-y-auto rounded-xl border border-[var(--border)] p-3">
+          <div className="space-y-3 rounded-xl border border-[var(--border)] p-3">
             {byModule.map(([module, perms]) => {
               const codes = perms.map((p) => p.code);
               const allOn = codes.every((c) => selected.has(c));
@@ -287,9 +289,14 @@ export function RolePermissionsForm({
         )}
       </div>
 
-      <Button type="submit" disabled={loading || visiblePermissions.length === 0}>
-        {resolvedSubmit}
-      </Button>
+      <div className="flex shrink-0 justify-end border-t border-[var(--border)] px-5 py-3">
+        <Button
+          type="submit"
+          disabled={loading || visiblePermissions.length === 0}
+        >
+          {resolvedSubmit}
+        </Button>
+      </div>
     </form>
   );
 }

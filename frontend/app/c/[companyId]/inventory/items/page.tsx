@@ -20,6 +20,7 @@ type Item = {
   id: string;
   name: string;
   sku: string | null;
+  barcode?: string | null;
   status: string;
   cost: string | null;
   salePrice: string | null;
@@ -99,6 +100,7 @@ export default async function ItemsPage({
               }))}
             />
             <Input name="sku" label={t("sku")} />
+            <Input name="barcode" label={t("barcode")} />
             <Input name="cost" label={t("cost")} />
             <Input name="salePrice" label={t("salePrice")} />
             <Input name="minStock" label={t("minStock")} defaultValue="0" />
@@ -120,6 +122,7 @@ export default async function ItemsPage({
                 <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("name")}</th>
                   <th className="px-2 py-2 font-medium">SKU</th>
+                  <th className="px-2 py-2 font-medium">{t("barcode")}</th>
                   <th className="px-2 py-2 font-medium">Parent</th>
                   <th className="px-2 py-2 font-medium">{t("unit")}</th>
                   <th className="px-2 py-2 font-medium">{t("cost")}</th>
@@ -136,6 +139,9 @@ export default async function ItemsPage({
                     <td className="px-2 py-2 font-medium">{item.name}</td>
                     <td className="px-2 py-2 font-mono text-xs">
                       {item.sku ?? "—"}
+                    </td>
+                    <td className="px-2 py-2 font-mono text-xs">
+                      {item.barcode ?? "—"}
                     </td>
                     <td className="px-2 py-2">
                       {item.parentItem?.name ?? "—"}
