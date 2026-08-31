@@ -13,8 +13,16 @@ model Employee {
   jobTitle             String?          @map("job_title") @db.VarChar(120)
   hireDate             DateTime?        @map("hire_date") @db.Date
   employmentStatus     EmploymentStatus @default(ACTIVE) @map("employment_status")
-  /// أجير vs مسجل بعقد عمل — chosen by HR at hire
+  /// أجير / عقد عمل / فترة تجريبية
   employmentCategory   EmployeeEmploymentCategory @default(EMPLOYMENT_CONTRACT) @map("employment_category")
+  trialStartsOn        DateTime?        @map("trial_starts_on") @db.Date
+  trialEndsOn          DateTime?        @map("trial_ends_on") @db.Date
+  /// ONE_SHIFT | TWO_SHIFTS | FLEXIBLE — windows in shiftWindowsJson
+  shiftPatternMode     String?          @map("shift_pattern_mode") @db.VarChar(20)
+  shiftWindowsJson     Json?            @map("shift_windows_json")
+  /// Fixed reward when salesTargetMode is TARGET_FIXED / AMOUNT
+  salesRewardAmount    Decimal?         @map("sales_reward_amount") @db.Decimal(18, 2)
+  identityAttachmentId String?          @map("identity_attachment_id") @db.Char(36)
   basicSalary          Decimal?         @map("basic_salary") @db.Decimal(18, 2)
   /// Sales/ops target percent of salary (0–100) when employee has targets
   targetPercent        Decimal?         @map("target_percent") @db.Decimal(5, 2)
@@ -68,6 +76,8 @@ model Employee {
   salesSubmissions EmployeeSalesSubmission[]
   qiwaContracts    EmployeeQiwaContract[]
   cashierShiftSessions CashierShiftSession[]
+  posCashiers          PosCashier[]
+  allowances       EmployeeAllowance[]
 
   @@unique([companyId, employeeNumber], map: "uq_employee_number")
   @@index([companyId, userId], map: "idx_employee_company_user")
@@ -75,6 +85,7 @@ model Employee {
   @@index([companyId, approvalStatus], map: "idx_employee_approval")
   @@index([companyId, identityExpiresOn], map: "idx_employee_identity_expiry")
   @@index([companyId, attendanceBadgeId], map: "idx_employee_badge")
+  @@index([companyId, trialEndsOn], map: "idx_employee_trial_end")
   @@map("employees")
 }
 
@@ -368,4 +379,41 @@ model EmployeeQiwaContract {
   @@index([companyId, employeeId, updatedAt], map: "idx_employee_qiwa_employee")
   @@index([companyId, status], map: "idx_employee_qiwa_status")
   @@map("employee_qiwa_contracts")
+}
+
+/// Catalog of allowance types per company (housing, transport, …) — HR can add/remove.
+model CompanyAllowanceType {
+  id        String   @id @default(uuid(7)) @db.Char(36)
+  companyId String   @map("company_id") @db.Char(36)
+  code      String   @db.VarChar(40)
+  nameAr    String   @map("name_ar") @db.VarChar(120)
+  nameEn    String   @map("name_en") @db.VarChar(120)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  allowances EmployeeAllowance[]
+
+  @@unique([companyId, code], map: "uq_company_allowance_type_code")
+  @@index([companyId, isActive], map: "idx_company_allowance_type_active")
+  @@map("company_allowance_types")
+}
+
+model EmployeeAllowance {
+  id              String   @id @default(uuid(7)) @db.Char(36)
+  companyId       String   @map("company_id") @db.Char(36)
+  employeeId      String   @map("employee_id") @db.Char(36)
+  allowanceTypeId String   @map("allowance_type_id") @db.Char(36)
+  amount          Decimal  @db.Decimal(18, 2)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee      Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  allowanceType CompanyAllowanceType @relation(fields: [allowanceTypeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId], map: "idx_employee_allowance_employee")
+  @@index([companyId, employeeId], map: "idx_employee_allowance_company")
+  @@map("employee_allowances")
 }

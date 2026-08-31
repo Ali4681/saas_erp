@@ -257,6 +257,7 @@ model CashierShiftSession {
   employeeId      String             @map("employee_id") @db.Char(36)
   userId          String             @map("user_id") @db.Char(36)
   workShiftId     String?            @map("work_shift_id") @db.Char(36)
+  pointOfSaleId   String?            @map("point_of_sale_id") @db.Char(36)
   status          CashierShiftStatus @default(OPEN)
   openedAt        DateTime           @default(now()) @map("opened_at") @db.DateTime(3)
   closedAt        DateTime?          @map("closed_at") @db.DateTime(3)
@@ -278,6 +279,7 @@ model CashierShiftSession {
 
   company    Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   branch     CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  pointOfSale PointOfSale?  @relation(fields: [pointOfSaleId], references: [id], onDelete: SetNull)
   employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   user       User           @relation("CashierShiftUser", fields: [userId], references: [id], onDelete: Restrict)
   workShift  WorkShift?     @relation(fields: [workShiftId], references: [id], onDelete: SetNull)

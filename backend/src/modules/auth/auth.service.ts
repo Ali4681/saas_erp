@@ -344,7 +344,7 @@ export class AuthService {
       },
       {
         secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        expiresIn: this.config.get('JWT_ACCESS_TTL') ?? '15m',
+        expiresIn: this.config.get('JWT_ACCESS_TTL') ?? '10m',
       },
     );
 
@@ -364,7 +364,9 @@ export class AuthService {
     });
 
     const accessExp = new Date();
-    accessExp.setMinutes(accessExp.getMinutes() + 15);
+    accessExp.setMinutes(
+      accessExp.getMinutes() + parseAccessTtlMinutes(this.config.get('JWT_ACCESS_TTL')),
+    );
 
     return {
       accessToken,
@@ -372,6 +374,20 @@ export class AuthService {
       expiresAt: accessExp.toISOString(),
     };
   }
+}
+
+/** Default session access window: 10 minutes. */
+function parseAccessTtlMinutes(raw: string | undefined): number {
+  const value = String(raw ?? '10m').trim();
+  const minutes = /^(\d+)\s*m$/i.exec(value);
+  if (minutes) return Math.max(1, Number(minutes[1]));
+  const seconds = /^(\d+)\s*s$/i.exec(value);
+  if (seconds) return Math.max(1, Math.ceil(Number(seconds[1]) / 60));
+  const hours = /^(\d+)\s*h$/i.exec(value);
+  if (hours) return Math.max(1, Number(hours[1]) * 60);
+  const asNumber = Number(value);
+  if (Number.isFinite(asNumber) && asNumber > 0) return Math.floor(asNumber);
+  return 10;
 }
 
 function hashToken(token: string) {

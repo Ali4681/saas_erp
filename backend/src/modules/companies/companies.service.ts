@@ -79,6 +79,20 @@ export class CompaniesService {
     });
   }
 
+  async updateLogo(companyId: string, input: { logoFileName: string; logoMimeType: string; logoSizeBytes: string; logoContentBase64: string }, uploadedById: string) {
+    const company = await this.requireCompany(companyId);
+    const logo = this.parseOptionalLogo(input);
+    if (!logo) throw new BadRequestException('Logo content is required');
+    const storageKey = `${this.storage.companyFolderKey(company.slug)}/company/${randomUUID()}-${logo.fileName}`;
+    await this.storage.putObject({ storageKey, body: logo.buffer, contentType: logo.mimeType });
+    const attachment = await this.prisma.attachment.create({ data: {
+      companyId, uploadedById, entityType: 'company', entityId: companyId, fileName: logo.fileName,
+      mimeType: logo.mimeType, sizeBytes: BigInt(logo.buffer.length), storageKey,
+      checksumSha256: createHash('sha256').update(logo.buffer).digest('hex'),
+    } });
+    return this.prisma.company.update({ where: { id: companyId }, data: { logoAttachmentId: attachment.id }, include: { settings: true } });
+  }
+
   async softDelete(id: string) {
     await this.requireCompany(id);
     this.tenant.setBypass(true);

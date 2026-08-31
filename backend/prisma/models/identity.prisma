@@ -72,6 +72,7 @@ model User {
   cashierShifts     CashierShiftSession[]         @relation("CashierShiftUser")
   cashierShiftsApproved CashierShiftSession[]     @relation("CashierShiftApprover")
   handoversCreated  CashierShiftHandover[]        @relation("HandoverCreator")
+  posCashiers       PosCashier[]
   assignedTickets   SupportTicket[]               @relation("TicketAssignee")
   createdTickets    SupportTicket[]               @relation("TicketCreator")
   ticketComments    TicketComment[]               @relation("TicketCommentCreator")

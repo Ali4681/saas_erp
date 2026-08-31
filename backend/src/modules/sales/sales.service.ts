@@ -11,7 +11,9 @@ import {
   SalesDocumentStatus,
 } from '../../generated/prisma/client';
 import { DocumentNumberService } from '../../common/documents/document-number.service';
-import { buildSimplePdf } from '../../common/documents/simple-pdf';
+import { buildSalesDocumentPdf, type DocumentTheme, type InvoiceFormat } from '../../common/documents/sales-document-pdf';
+import { signInvoiceShareToken } from '../../common/documents/invoice-share-token';
+import { StorageService } from '../../common/storage/storage.service';
 import {
   computeLines,
   type LineInput,
@@ -24,6 +26,7 @@ import { LoyaltyService } from '../crm/loyalty.service';
 import { PricingService } from '../crm/pricing.service';
 import { CrmOpsService } from '../crm/crm-ops.service';
 import { ZatcaService } from './zatca.service';
+import { PosService } from './pos.service';
 
 @Injectable()
 export class SalesService {
@@ -33,6 +36,7 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContextService,
     private readonly docNumbers: DocumentNumberService,
+    private readonly storage: StorageService,
     @Inject(forwardRef(() => AutomationEngine))
     private readonly automation: AutomationEngine,
     private readonly gl: GlService,
@@ -40,6 +44,7 @@ export class SalesService {
     private readonly pricing: PricingService,
     private readonly ops: CrmOpsService,
     private readonly zatca: ZatcaService,
+    private readonly pos: PosService,
   ) {}
 
   private emit(
@@ -205,6 +210,113 @@ export class SalesService {
     return updated;
   }
 
+  async updateQuote(
+    companyId: string,
+    quoteId: string,
+    input: {
+      contactId?: string;
+      issuedOn?: string;
+      expiresOn?: string | null;
+      currency?: string;
+      items?: LineInput[];
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const quote = await this.prisma.salesQuote.findFirst({
+      where: { id: quoteId, companyId },
+      include: { items: true },
+    });
+    if (!quote) throw new NotFoundException('Quote not found');
+    if (['CANCELLED', 'CLOSED', 'REJECTED'].includes(quote.status)) {
+      throw new BadRequestException('Cannot edit a cancelled or closed quote');
+    }
+    if (input.contactId) {
+      await this.requireContact(companyId, input.contactId);
+    }
+
+    let computed:
+      | ReturnType<typeof computeLines>
+      | undefined;
+    if (input.items?.length) {
+      try {
+        computed = computeLines(input.items);
+      } catch (error) {
+        throw new BadRequestException(
+          error instanceof Error ? error.message : 'Invalid line items',
+        );
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (computed) {
+        await tx.salesQuoteItem.deleteMany({ where: { salesQuoteId: quoteId } });
+        await tx.salesQuoteItem.createMany({
+          data: computed.lines.map((line) => ({
+            salesQuoteId: quoteId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            discountAmount: line.discountAmount,
+            taxAmount: line.taxAmount,
+            totalAmount: line.totalAmount,
+            position: line.position,
+            itemId: line.itemId,
+          })),
+        });
+      }
+
+      return tx.salesQuote.update({
+        where: { id: quoteId },
+        data: {
+          ...(input.contactId ? { contactId: input.contactId } : {}),
+          ...(input.issuedOn ? { issuedOn: new Date(input.issuedOn) } : {}),
+          ...(input.expiresOn !== undefined
+            ? {
+                expiresOn: input.expiresOn
+                  ? new Date(input.expiresOn)
+                  : null,
+              }
+            : {}),
+          ...(input.currency ? { currency: input.currency } : {}),
+          ...(computed
+            ? {
+                subtotal: computed.subtotal,
+                discountAmount: computed.discountAmount,
+                taxAmount: computed.taxAmount,
+                totalAmount: computed.totalAmount,
+              }
+            : {}),
+        },
+        include: { items: true, contact: true },
+      });
+    });
+  }
+
+  async quotePdf(companyId: string, quoteId: string, theme: DocumentTheme = 'MODERN') {
+    this.tenant.setCompanyId(companyId);
+    const quote = await this.prisma.salesQuote.findFirst({
+      where: { id: quoteId, companyId },
+      include: {
+        contact: true,
+        items: { orderBy: { position: 'asc' } },
+        company: { include: { settings: true } },
+      },
+    });
+    if (!quote) throw new NotFoundException('Quote not found');
+
+    const pdf = await buildSalesDocumentPdf(
+      await this.pdfData('QUOTE', quote),
+      theme,
+      'A4',
+    );
+    return {
+      fileName: `${quote.quoteNumber}.pdf`,
+      mimeType: 'application/pdf',
+      contentBase64: pdf.toString('base64'),
+      byteLength: pdf.length,
+    };
+  }
+
   async convertQuoteToInvoice(
     companyId: string,
     quoteId: string,
@@ -344,17 +456,175 @@ export class SalesService {
     return invoice;
   }
 
-  listInvoices(companyId: string) {
+  async listInvoices(companyId: string) {
     this.tenant.setCompanyId(companyId);
-    return this.prisma.salesInvoice.findMany({
+    const invoices = await this.prisma.salesInvoice.findMany({
       include: {
         contact: { select: { id: true, name: true } },
         items: { orderBy: { position: 'asc' } },
         payments: true,
+        pointOfSale: { select: { id: true, code: true, name: true } },
+        posCashier: {
+          select: {
+            id: true,
+            displayName: true,
+            employee: { select: { id: true, fullName: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+
+    const quoteIds = [
+      ...new Set(
+        invoices
+          .map((inv) => inv.salesQuoteId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const quotes = quoteIds.length
+      ? await this.prisma.salesQuote.findMany({
+          where: { companyId, id: { in: quoteIds } },
+          select: { id: true, quoteNumber: true },
+        })
+      : [];
+    const quoteById = new Map(quotes.map((q) => [q.id, q]));
+
+    return invoices.map((inv) => {
+      const quote = inv.salesQuoteId
+        ? quoteById.get(inv.salesQuoteId) ?? null
+        : null;
+      return {
+        ...inv,
+        quote: quote
+          ? { id: quote.id, quoteNumber: quote.quoteNumber }
+          : null,
+        quoteNumber: quote?.quoteNumber ?? null,
+      };
+    });
+  }
+
+  private normalizePaymentSplits(
+    tender: string,
+    splits:
+      | Array<{ method: string; amount: string | number }>
+      | undefined,
+    totalAmount: number,
+  ): Array<{ method: PaymentMethod; amount: string }> | null {
+    if (tender !== 'MIXED') return null;
+    if (!splits || splits.length !== 2) {
+      throw new BadRequestException(
+        'Mixed payment requires exactly two tenders',
+      );
+    }
+    const allowed = new Set<string>([
+      PaymentMethod.CASH,
+      PaymentMethod.CARD,
+      PaymentMethod.BANK_TRANSFER,
+      PaymentMethod.PAYMENT_GATEWAY,
+      PaymentMethod.OTHER,
+    ]);
+    const normalized = splits.map((s) => {
+      const method = String(s.method ?? '').toUpperCase();
+      if (!allowed.has(method)) {
+        throw new BadRequestException(`Invalid split method: ${method}`);
+      }
+      const amount = Number(s.amount);
+      if (!(amount > 0)) {
+        throw new BadRequestException('Each split amount must be > 0');
+      }
+      return {
+        method: method as PaymentMethod,
+        amount: amount.toFixed(2),
+      };
+    });
+    const sum = normalized.reduce((acc, row) => acc + Number(row.amount), 0);
+    if (Math.abs(sum - totalAmount) > 0.01) {
+      throw new BadRequestException('Split amounts must equal invoice total');
+    }
+    return normalized;
+  }
+
+  private async createTenderPayments(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tx: any,
+    input: {
+      companyId: string;
+      invoiceId: string;
+      invoiceNumber: string;
+      currency: string;
+      splits: Array<{ method: PaymentMethod; amount: string }>;
+      paidAt?: Date;
+    },
+  ) {
+    for (const split of input.splits) {
+      const receiptNumber = await this.docNumbers.nextSequence(
+        tx,
+        input.companyId,
+        'receipt',
+      );
+      const paidAt = input.paidAt ?? new Date();
+      await tx.salesPayment.create({
+        data: {
+          companyId: input.companyId,
+          salesInvoiceId: input.invoiceId,
+          receiptNumber,
+          method: split.method,
+          amount: split.amount,
+          currency: input.currency,
+          paidAt,
+        },
+      });
+      await tx.financialTransaction.create({
+        data: {
+          companyId: input.companyId,
+          transactionType: 'RECEIPT',
+          direction: 'INFLOW',
+          amount: split.amount,
+          currency: input.currency,
+          occurredAt: paidAt,
+          salesInvoiceId: input.invoiceId,
+          description: `Receipt ${receiptNumber} for invoice ${input.invoiceNumber}`,
+        },
+      });
+    }
+  }
+
+  private resolvePaymentKind(input: {
+    tender: string;
+    saleChannel: string;
+    isCreditSale: boolean;
+    paymentKind?: 'CASH' | 'CARD' | 'MIXED' | 'CREDIT' | 'BNPL';
+  }): 'CASH' | 'CARD' | 'MIXED' | 'CREDIT' | 'BNPL' {
+    const { tender, saleChannel, isCreditSale } = input;
+    if (isCreditSale) return 'CREDIT';
+    if (tender === 'BNPL' || saleChannel === 'BNPL') return 'BNPL';
+    if (
+      tender === 'CARD' ||
+      tender === 'PAYMENT_GATEWAY' ||
+      tender === 'BANK_TRANSFER'
+    ) {
+      return 'CARD';
+    }
+    if (tender === 'MIXED' || tender === 'OTHER') return 'MIXED';
+    if (input.paymentKind) return input.paymentKind;
+    return 'CASH';
+  }
+
+  private resolveStoredPaymentMethod(input: {
+    tender: string;
+    paymentKind: 'CASH' | 'CARD' | 'MIXED' | 'CREDIT' | 'BNPL';
+    isCreditSale: boolean;
+  }): string {
+    const { tender, paymentKind, isCreditSale } = input;
+    if (isCreditSale) return 'CREDIT';
+    if (tender === 'MIXED') return 'MIXED';
+    if (tender) return tender;
+    if (paymentKind === 'BNPL') return 'BNPL';
+    if (paymentKind === 'CARD') return 'CARD';
+    if (paymentKind === 'MIXED') return 'MIXED';
+    return 'CASH';
   }
 
   async createInvoice(input: {
@@ -364,7 +634,7 @@ export class SalesService {
     dueOn?: string;
     currency?: string;
     items: Array<LineInput & { bundleId?: string }>;
-    status?: 'DRAFT' | 'ISSUED';
+    status?: 'DRAFT' | 'ISSUED' | 'ON_HOLD';
     createdById?: string;
     companyBranchId?: string;
     saleChannel?: string;
@@ -375,6 +645,10 @@ export class SalesService {
     overrideCode?: string;
     discountOverrideAuthorized?: boolean;
     paymentKind?: 'CASH' | 'CARD' | 'MIXED' | 'CREDIT' | 'BNPL';
+    paymentMethod?: string;
+    paymentSplits?: Array<{ method: string; amount: string | number }>;
+    pointOfSaleId?: string;
+    posCashierId?: string;
   }) {
     this.tenant.setCompanyId(input.companyId);
     const contact = await this.requireContact(
@@ -418,8 +692,13 @@ export class SalesService {
       const extraDiscount = Number(couponResult.discountAmount);
       computed = {
         ...computed,
-        discountAmount: (Number(computed.discountAmount) + extraDiscount).toFixed(2),
-        totalAmount: Math.max(0, Number(computed.totalAmount) - extraDiscount).toFixed(2),
+        discountAmount: (
+          Number(computed.discountAmount) + extraDiscount
+        ).toFixed(2),
+        totalAmount: Math.max(
+          0,
+          Number(computed.totalAmount) - extraDiscount,
+        ).toFixed(2),
       };
     }
 
@@ -433,15 +712,26 @@ export class SalesService {
           );
         }
       }
-      const extra = (Number(computed.totalAmount) * input.extraDiscountPct) / 100;
+      const extra =
+        (Number(computed.totalAmount) * input.extraDiscountPct) / 100;
       computed = {
         ...computed,
         discountAmount: (Number(computed.discountAmount) + extra).toFixed(2),
-        totalAmount: Math.max(0, Number(computed.totalAmount) - extra).toFixed(2),
+        totalAmount: Math.max(0, Number(computed.totalAmount) - extra).toFixed(
+          2,
+        ),
       };
     }
 
     let companyBranchId = input.companyBranchId;
+    const attribution = await this.pos.resolveSaleAttribution(
+      input.companyId,
+      input.pointOfSaleId,
+      input.posCashierId,
+    );
+    if (!companyBranchId && attribution.companyBranchId) {
+      companyBranchId = attribution.companyBranchId;
+    }
     if (!companyBranchId && input.createdById) {
       const membership = await this.prisma.companyUser.findFirst({
         where: { companyId: input.companyId, userId: input.createdById },
@@ -451,18 +741,42 @@ export class SalesService {
     }
 
     const status = input.status ?? 'DRAFT';
+    if (!['DRAFT', 'ISSUED', 'ON_HOLD'].includes(status)) {
+      throw new BadRequestException('Invalid invoice status');
+    }
 
+    const tender = (
+      input.paymentMethod ??
+      input.paymentKind ??
+      ''
+    ).toUpperCase();
     const isCreditSale =
-      status === 'ISSUED' && !!input.dueOn && contact.customerTrack === 'B2B';
-    const paymentKind: 'CASH' | 'CARD' | 'MIXED' | 'CREDIT' | 'BNPL' = isCreditSale
-      ? 'CREDIT'
-      : input.paymentKind
-        ? input.paymentKind
-        : saleChannel === 'BNPL'
-          ? 'BNPL'
-          : 'CASH';
+      tender === 'CREDIT' ||
+      (status === 'ISSUED' &&
+        !!input.dueOn &&
+        contact.customerTrack === 'B2B' &&
+        !tender);
+    const paymentKind = this.resolvePaymentKind({
+      tender,
+      saleChannel,
+      isCreditSale,
+      paymentKind: input.paymentKind,
+    });
+    const storedPaymentMethod = this.resolveStoredPaymentMethod({
+      tender,
+      paymentKind,
+      isCreditSale,
+    });
+    const splits =
+      status === 'ISSUED'
+        ? this.normalizePaymentSplits(
+            storedPaymentMethod === 'MIXED' ? 'MIXED' : tender,
+            input.paymentSplits,
+            Number(computed.totalAmount),
+          )
+        : null;
 
-    if (isCreditSale) {
+    if (isCreditSale && status === 'ISSUED') {
       const creditLimit = Number(contact.creditLimit ?? 0);
       if (creditLimit <= 0) {
         throw new BadRequestException('Credit is not allowed for this customer');
@@ -471,10 +785,17 @@ export class SalesService {
       const dueDate = input.dueOn ? new Date(input.dueOn) : null;
       const days =
         dueDate && issuedDate
-          ? Math.ceil((dueDate.getTime() - issuedDate.getTime()) / 86400000)
+          ? Math.ceil(
+              (dueDate.getTime() - issuedDate.getTime()) / 86400000,
+            )
           : 0;
-      if (contact.creditTermsDays > 0 && days > Number(contact.creditTermsDays)) {
-        throw new BadRequestException('Invoice credit terms exceed customer allowed terms');
+      if (
+        contact.creditTermsDays > 0 &&
+        days > Number(contact.creditTermsDays)
+      ) {
+        throw new BadRequestException(
+          'Invoice credit terms exceed customer allowed terms',
+        );
       }
 
       const outstandingAgg = await this.prisma.salesInvoice.aggregate({
@@ -493,19 +814,26 @@ export class SalesService {
       }
     }
 
+    const paidAtIssue =
+      status === 'ISSUED' &&
+      paymentKind !== 'CREDIT' &&
+      paymentKind !== 'BNPL';
+
     const invoice = await this.prisma.$transaction(async (tx) => {
       const invoiceNumber = await this.docNumbers.nextInvoiceNumber(
         tx,
         input.companyId,
       );
-      return tx.salesInvoice.create({
+      const created = await tx.salesInvoice.create({
         data: {
           companyId: input.companyId,
           contactId: input.contactId,
           companyBranchId,
           createdById: input.createdById,
+          pointOfSaleId: attribution.pointOfSaleId ?? null,
+          posCashierId: attribution.posCashierId ?? null,
           invoiceNumber,
-          status,
+          status: paidAtIssue ? 'PAID' : status,
           issuedOn: new Date(input.issuedOn),
           dueOn: input.dueOn ? new Date(input.dueOn) : undefined,
           currency: input.currency ?? 'SAR',
@@ -513,8 +841,9 @@ export class SalesService {
           discountAmount: computed.discountAmount,
           taxAmount: computed.taxAmount,
           totalAmount: computed.totalAmount,
-          balanceDue: computed.totalAmount,
+          balanceDue: paidAtIssue ? '0' : computed.totalAmount,
           saleChannel,
+          paymentMethod: storedPaymentMethod,
           couponCode: input.couponCode?.trim() || null,
           priceListId,
           extraDiscountPct: input.extraDiscountPct ?? 0,
@@ -533,6 +862,19 @@ export class SalesService {
         },
         include: { items: true, contact: true },
       });
+
+      if (paidAtIssue && splits?.length) {
+        await this.createTenderPayments(tx, {
+          companyId: input.companyId,
+          invoiceId: created.id,
+          invoiceNumber: created.invoiceNumber,
+          currency: created.currency,
+          splits,
+          paidAt: new Date(input.issuedOn),
+        });
+      }
+
+      return created;
     });
 
     if (status === 'ISSUED') {
@@ -573,11 +915,132 @@ export class SalesService {
       );
       return this.prisma.salesInvoice.findFirstOrThrow({
         where: { id: invoice.id },
-        include: { items: true, contact: true },
+        include: { items: true, contact: true, payments: true },
       });
     }
 
     return invoice;
+  }
+
+  async issueHeldInvoice(input: {
+    companyId: string;
+    invoiceId: string;
+    createdById?: string;
+    paymentMethod?: string;
+    paymentSplits?: Array<{ method: string; amount: string | number }>;
+    dueOn?: string;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const invoice = await this.prisma.salesInvoice.findFirst({
+      where: { id: input.invoiceId, companyId: input.companyId },
+      include: { contact: true, payments: true, items: true },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status !== 'ON_HOLD' && invoice.status !== 'DRAFT') {
+      throw new BadRequestException(
+        'Only held or draft invoices can be issued this way',
+      );
+    }
+    if (invoice.payments.length > 0) {
+      throw new BadRequestException('Invoice already has payments');
+    }
+
+    const contact = invoice.contact;
+    const tender = (
+      input.paymentMethod ??
+      invoice.paymentMethod ??
+      'CASH'
+    ).toUpperCase();
+    const dueOn =
+      input.dueOn ??
+      (invoice.dueOn ? invoice.dueOn.toISOString().slice(0, 10) : undefined);
+    const paymentKind = this.resolvePaymentKind({
+      tender,
+      saleChannel: invoice.saleChannel,
+      isCreditSale: tender === 'CREDIT',
+    });
+    const storedPaymentMethod = this.resolveStoredPaymentMethod({
+      tender,
+      paymentKind,
+      isCreditSale: tender === 'CREDIT',
+    });
+    const splits = this.normalizePaymentSplits(
+      storedPaymentMethod === 'MIXED' ? 'MIXED' : tender,
+      input.paymentSplits,
+      Number(invoice.totalAmount),
+    );
+
+    if (tender === 'CREDIT') {
+      const creditLimit = Number(contact.creditLimit ?? 0);
+      if (creditLimit <= 0) {
+        throw new BadRequestException('Credit is not allowed for this customer');
+      }
+      const outstandingAgg = await this.prisma.salesInvoice.aggregate({
+        where: {
+          companyId: input.companyId,
+          contactId: invoice.contactId,
+          status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
+          balanceDue: { gt: 0 },
+        },
+        _sum: { balanceDue: true },
+      });
+      const outstanding = Number(outstandingAgg._sum.balanceDue ?? 0);
+      if (outstanding + Number(invoice.totalAmount) > creditLimit + 0.01) {
+        throw new BadRequestException('Credit limit exceeded');
+      }
+    }
+
+    const paidAtIssue =
+      paymentKind !== 'CREDIT' && paymentKind !== 'BNPL';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.salesInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: paidAtIssue ? 'PAID' : 'ISSUED',
+          balanceDue: paidAtIssue ? '0' : invoice.totalAmount,
+          paymentMethod: storedPaymentMethod,
+          ...(dueOn ? { dueOn: new Date(dueOn) } : {}),
+        },
+        include: { items: true, contact: true },
+      });
+
+      if (paidAtIssue && splits?.length) {
+        await this.createTenderPayments(tx, {
+          companyId: input.companyId,
+          invoiceId: next.id,
+          invoiceNumber: next.invoiceNumber,
+          currency: next.currency,
+          splits,
+          paidAt: new Date(),
+        });
+      }
+
+      return next;
+    });
+
+    await this.postIssuedInvoiceGl(
+      input.companyId,
+      input.createdById,
+      updated,
+      paymentKind,
+    );
+    await this.fulfillIssuedInvoice(
+      input.companyId,
+      updated.id,
+      updated.contactId,
+      Number(updated.totalAmount),
+      contact.customerTrack,
+      contact.dateOfBirth,
+      updated.issuedOn.toISOString().slice(0, 10),
+      input.createdById,
+      0,
+    );
+
+    return this.prisma.salesInvoice.findFirstOrThrow({
+      where: { id: updated.id },
+      include: { items: true, contact: true, payments: true },
+    });
   }
 
   async recordPayment(input: {
@@ -604,9 +1067,9 @@ export class SalesService {
         if (!invoice) {
           throw new NotFoundException('Invoice not found');
         }
-        if (['CANCELLED', 'DRAFT'].includes(invoice.status)) {
+        if (['CANCELLED', 'DRAFT', 'ON_HOLD'].includes(invoice.status)) {
           throw new BadRequestException(
-            'Cannot pay a draft or cancelled invoice',
+            'Cannot pay a draft, held, or cancelled invoice',
           );
         }
 
@@ -743,11 +1206,230 @@ export class SalesService {
     return this.prisma.salesCreditNote.findMany({
       include: {
         items: true,
-        invoice: { select: { id: true, invoiceNumber: true } },
+        invoice: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            balanceDue: true,
+            totalAmount: true,
+            status: true,
+            contact: { select: { id: true, name: true, taxNumber: true } },
+          },
+        },
       },
       orderBy: { issuedOn: 'desc' },
       take: 100,
     });
+  }
+
+  async listCustomerStatements(companyId: string) {
+    this.tenant.setCompanyId(companyId);
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        companyId,
+        status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
+        balanceDue: { gt: 0 },
+      },
+      include: {
+        contact: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            taxNumber: true,
+            customerTrack: true,
+          },
+        },
+      },
+      orderBy: [{ contactId: 'asc' }, { dueOn: 'asc' }],
+    });
+
+    const byContact = new Map<
+      string,
+      {
+        contact: {
+          id: string;
+          name: string;
+          phone: string | null;
+          taxNumber: string | null;
+          customerTrack: string;
+        };
+        currency: string;
+        outstandingTotal: number;
+        invoices: Array<{
+          id: string;
+          invoiceNumber: string;
+          issuedOn: Date;
+          dueOn: Date | null;
+          totalAmount: unknown;
+          balanceDue: unknown;
+          currency: string;
+          status: string;
+        }>;
+      }
+    >();
+
+    for (const inv of invoices) {
+      const row = byContact.get(inv.contactId) ?? {
+        contact: inv.contact,
+        currency: inv.currency,
+        outstandingTotal: 0,
+        invoices: [],
+      };
+      row.outstandingTotal += Number(inv.balanceDue);
+      row.invoices.push({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        issuedOn: inv.issuedOn,
+        dueOn: inv.dueOn,
+        totalAmount: inv.totalAmount,
+        balanceDue: inv.balanceDue,
+        currency: inv.currency,
+        status: inv.status,
+      });
+      byContact.set(inv.contactId, row);
+    }
+
+    return [...byContact.values()]
+      .map((row) => ({
+        contactId: row.contact.id,
+        contact: row.contact,
+        currency: row.currency,
+        outstandingTotal: row.outstandingTotal.toFixed(2),
+        invoiceCount: row.invoices.length,
+        invoices: row.invoices,
+      }))
+      .sort((a, b) => a.contact.name.localeCompare(b.contact.name));
+  }
+
+  async getCustomerStatement(companyId: string, contactId: string) {
+    this.tenant.setCompanyId(companyId);
+    const contact = await this.prisma.crmContact.findFirst({
+      where: { id: contactId, companyId },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        email: true,
+        taxNumber: true,
+        customerTrack: true,
+        creditLimit: true,
+        creditTermsDays: true,
+      },
+    });
+    if (!contact) throw new NotFoundException('Customer not found');
+
+    const invoices = await this.prisma.salesInvoice.findMany({
+      where: {
+        companyId,
+        contactId,
+        status: { in: ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'] },
+        balanceDue: { gt: 0 },
+      },
+      orderBy: { dueOn: 'asc' },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        issuedOn: true,
+        dueOn: true,
+        totalAmount: true,
+        balanceDue: true,
+        currency: true,
+        status: true,
+      },
+    });
+
+    const outstandingTotal = invoices.reduce(
+      (sum, inv) => sum + Number(inv.balanceDue),
+      0,
+    );
+    const currency = invoices[0]?.currency ?? 'SAR';
+
+    return {
+      contact,
+      currency,
+      outstandingTotal: outstandingTotal.toFixed(2),
+      invoiceCount: invoices.length,
+      invoices,
+      asOf: new Date().toISOString().slice(0, 10),
+    };
+  }
+
+  async customerStatementPdf(
+    companyId: string,
+    contactId: string,
+    theme: DocumentTheme = 'MODERN',
+  ) {
+    const statement = await this.getCustomerStatement(companyId, contactId);
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId },
+      include: { settings: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+
+    let logo: Buffer | null = null;
+    if (company.logoAttachmentId) {
+      const attachment = await this.prisma.attachment.findFirst({
+        where: { id: company.logoAttachmentId },
+        select: { storageKey: true },
+      });
+      if (attachment) {
+        try {
+          logo = await this.storage.getObject(attachment.storageKey);
+        } catch {
+          logo = null;
+        }
+      }
+    }
+
+    const asOf = new Date(statement.asOf);
+    const pdf = await buildSalesDocumentPdf(
+      {
+        kind: 'STATEMENT',
+        number: `STMT-${statement.contact.name.slice(0, 12)}-${statement.asOf}`,
+        status: 'OPEN',
+        issuedOn: asOf,
+        currency: statement.currency,
+        customer: statement.contact.name,
+        customerTaxNumber: statement.contact.taxNumber,
+        subtotal: statement.outstandingTotal,
+        discountAmount: '0.00',
+        taxAmount: '0.00',
+        totalAmount: statement.outstandingTotal,
+        balanceDue: statement.outstandingTotal,
+        reason: `Outstanding receivables as of ${statement.asOf}`,
+        companyName: company.displayName,
+        companyTaxNumber: company.settings?.taxNumber,
+        lines:
+          statement.invoices.length > 0
+            ? statement.invoices.map((inv) => ({
+                description: `${inv.invoiceNumber}${inv.dueOn ? ` · due ${inv.dueOn.toISOString().slice(0, 10)}` : ''}`,
+                quantity: '1',
+                unitPrice: Number(inv.balanceDue).toFixed(2),
+                taxAmount: '0.00',
+                totalAmount: Number(inv.balanceDue).toFixed(2),
+              }))
+            : [
+                {
+                  description: 'No outstanding invoices',
+                  quantity: '0',
+                  unitPrice: '0.00',
+                  taxAmount: '0.00',
+                  totalAmount: '0.00',
+                },
+              ],
+        logo,
+      },
+      theme,
+      'A4',
+    );
+
+    return {
+      fileName: `statement-${statement.contact.id.slice(0, 8)}.pdf`,
+      mimeType: 'application/pdf',
+      contentBase64: pdf.toString('base64'),
+      byteLength: pdf.length,
+    };
   }
 
   async createCreditNote(input: {
@@ -770,7 +1452,7 @@ export class SalesService {
       include: { items: { orderBy: { position: 'asc' } }, contact: true },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    if (['DRAFT', 'CANCELLED'].includes(invoice.status)) {
+        if (['DRAFT', 'ON_HOLD', 'CANCELLED'].includes(invoice.status)) {
       throw new BadRequestException(
         'Cannot credit a draft or cancelled invoice',
       );
@@ -860,7 +1542,318 @@ export class SalesService {
     return note;
   }
 
-  async invoicePdf(companyId: string, invoiceId: string) {
+  async updateCreditNote(
+    companyId: string,
+    creditNoteId: string,
+    input: {
+      reason?: string;
+      issuedOn?: string;
+      items?: Array<{
+        description: string;
+        quantity: string | number;
+        amount: string | number;
+      }>;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const note = await this.prisma.salesCreditNote.findFirst({
+      where: { id: creditNoteId, companyId },
+      include: { items: true, invoice: true },
+    });
+    if (!note) throw new NotFoundException('Credit note not found');
+    if (note.status === 'CANCELLED') {
+      throw new BadRequestException('Cannot edit a cancelled credit note');
+    }
+
+    const nextTotal = input.items?.length
+      ? input.items.reduce((sum, line) => sum + Number(line.amount), 0)
+      : Number(note.totalAmount);
+    if (!(nextTotal > 0)) {
+      throw new BadRequestException('Credit note total must be > 0');
+    }
+
+    const delta = nextTotal - Number(note.totalAmount);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (input.items?.length) {
+        await tx.salesCreditNoteItem.deleteMany({
+          where: { salesCreditNoteId: note.id },
+        });
+        await tx.salesCreditNoteItem.createMany({
+          data: input.items.map((line) => ({
+            salesCreditNoteId: note.id,
+            description: line.description,
+            quantity: Number(line.quantity).toFixed(3),
+            amount: Number(line.amount).toFixed(2),
+          })),
+        });
+      }
+
+      if (delta !== 0) {
+        const newBalance = Number(
+          (Number(note.invoice.balanceDue) - delta).toFixed(2),
+        );
+        await tx.salesInvoice.update({
+          where: { id: note.salesInvoiceId },
+          data: {
+            balanceDue: Math.max(0, newBalance).toFixed(2),
+            status:
+              newBalance <= 0
+                ? 'PAID'
+                : newBalance < Number(note.invoice.totalAmount)
+                  ? 'PARTIALLY_PAID'
+                  : note.invoice.status === 'PAID'
+                    ? 'PARTIALLY_PAID'
+                    : note.invoice.status,
+          },
+        });
+      }
+
+      return tx.salesCreditNote.update({
+        where: { id: note.id },
+        data: {
+          reason: input.reason ?? note.reason,
+          issuedOn: input.issuedOn ? new Date(input.issuedOn) : note.issuedOn,
+          totalAmount: nextTotal.toFixed(2),
+        },
+        include: {
+          items: true,
+          invoice: {
+            select: {
+              id: true,
+              invoiceNumber: true,
+              balanceDue: true,
+              contact: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+    });
+  }
+
+  async cancelCreditNote(companyId: string, creditNoteId: string) {
+    this.tenant.setCompanyId(companyId);
+    const note = await this.prisma.salesCreditNote.findFirst({
+      where: { id: creditNoteId, companyId },
+      include: { invoice: true },
+    });
+    if (!note) throw new NotFoundException('Credit note not found');
+    if (note.status === 'CANCELLED') {
+      throw new BadRequestException('Credit note already cancelled');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const restored = Number(
+        (Number(note.invoice.balanceDue) + Number(note.totalAmount)).toFixed(2),
+      );
+      await tx.salesInvoice.update({
+        where: { id: note.salesInvoiceId },
+        data: {
+          balanceDue: restored.toFixed(2),
+          status:
+            restored >= Number(note.invoice.totalAmount)
+              ? 'ISSUED'
+              : 'PARTIALLY_PAID',
+        },
+      });
+      return tx.salesCreditNote.update({
+        where: { id: note.id },
+        data: { status: 'CANCELLED' },
+        include: {
+          items: true,
+          invoice: {
+            select: {
+              id: true,
+              invoiceNumber: true,
+              contact: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+    });
+  }
+
+  async creditNotePdf(
+    companyId: string,
+    creditNoteId: string,
+    theme: DocumentTheme = 'MODERN',
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const note = await this.prisma.salesCreditNote.findFirst({
+      where: { id: creditNoteId, companyId },
+      include: {
+        items: true,
+        invoice: {
+          include: {
+            contact: true,
+            company: { include: { settings: true } },
+          },
+        },
+      },
+    });
+    if (!note) throw new NotFoundException('Credit note not found');
+
+    let logo: Buffer | null = null;
+    if (note.invoice.company.logoAttachmentId) {
+      const attachment = await this.prisma.attachment.findFirst({
+        where: { id: note.invoice.company.logoAttachmentId },
+        select: { storageKey: true },
+      });
+      if (attachment) {
+        try {
+          logo = await this.storage.getObject(attachment.storageKey);
+        } catch {
+          logo = null;
+        }
+      }
+    }
+
+    const pdf = await buildSalesDocumentPdf(
+      {
+        kind: 'CREDIT_NOTE',
+        number: note.creditNoteNumber,
+        status: note.status,
+        issuedOn: note.issuedOn,
+        currency: note.currency,
+        customer: note.invoice.contact.name,
+        customerTaxNumber: note.invoice.contact.taxNumber,
+        subtotal: note.totalAmount.toString(),
+        discountAmount: '0.00',
+        taxAmount: '0.00',
+        totalAmount: note.totalAmount.toString(),
+        reason: note.reason,
+        relatedInvoiceNumber: note.invoice.invoiceNumber,
+        companyName: note.invoice.company.displayName,
+        companyTaxNumber: note.invoice.company.settings?.taxNumber,
+        lines: note.items.map((item) => ({
+          description: item.description,
+          quantity: item.quantity.toString(),
+          unitPrice: item.amount.toString(),
+          taxAmount: '0.00',
+          totalAmount: item.amount.toString(),
+        })),
+        logo,
+      },
+      theme,
+      'A4',
+    );
+
+    return {
+      fileName: `${note.creditNoteNumber}.pdf`,
+      mimeType: 'application/pdf',
+      contentBase64: pdf.toString('base64'),
+      byteLength: pdf.length,
+    };
+  }
+
+  async updateInvoice(
+    companyId: string,
+    invoiceId: string,
+    input: {
+      contactId?: string;
+      issuedOn?: string;
+      dueOn?: string | null;
+      currency?: string;
+      saleChannel?: string;
+      items?: Array<LineInput & { bundleId?: string }>;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const invoice = await this.prisma.salesInvoice.findFirst({
+      where: { id: invoiceId, companyId },
+      include: { payments: true },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status === 'CANCELLED') {
+      throw new BadRequestException('Cannot edit a cancelled invoice');
+    }
+    if (invoice.payments.length > 0) {
+      throw new BadRequestException(
+        'Cannot edit an invoice that already has payments',
+      );
+    }
+    if (input.contactId) {
+      await this.requireContact(companyId, input.contactId);
+    }
+
+    let computed: ReturnType<typeof computeLines> | undefined;
+    if (input.items?.length) {
+      const expanded = await this.expandBundleLines(companyId, input.items);
+      try {
+        computed = computeLines(expanded);
+      } catch (error) {
+        throw new BadRequestException(
+          error instanceof Error ? error.message : 'Invalid line items',
+        );
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (computed) {
+        await tx.salesInvoiceItem.deleteMany({
+          where: { salesInvoiceId: invoiceId },
+        });
+        await tx.salesInvoiceItem.createMany({
+          data: computed.lines.map((line) => ({
+            salesInvoiceId: invoiceId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            discountAmount: line.discountAmount,
+            taxAmount: line.taxAmount,
+            totalAmount: line.totalAmount,
+            position: line.position,
+            itemId: line.itemId,
+          })),
+        });
+      }
+
+      return tx.salesInvoice.update({
+        where: { id: invoiceId },
+        data: {
+          ...(input.contactId ? { contactId: input.contactId } : {}),
+          ...(input.issuedOn ? { issuedOn: new Date(input.issuedOn) } : {}),
+          ...(input.dueOn !== undefined
+            ? { dueOn: input.dueOn ? new Date(input.dueOn) : null }
+            : {}),
+          ...(input.currency ? { currency: input.currency } : {}),
+          ...(input.saleChannel ? { saleChannel: input.saleChannel } : {}),
+          ...(computed
+            ? {
+                subtotal: computed.subtotal,
+                discountAmount: computed.discountAmount,
+                taxAmount: computed.taxAmount,
+                totalAmount: computed.totalAmount,
+                balanceDue: computed.totalAmount,
+              }
+            : {}),
+        },
+        include: { items: true, contact: true },
+      });
+    });
+  }
+
+  async cancelInvoice(companyId: string, invoiceId: string) {
+    this.tenant.setCompanyId(companyId);
+    const invoice = await this.prisma.salesInvoice.findFirst({
+      where: { id: invoiceId, companyId },
+      include: { payments: true },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status === 'CANCELLED') return invoice;
+    if (invoice.payments.length > 0) {
+      throw new BadRequestException(
+        'Cannot cancel an invoice that already has payments',
+      );
+    }
+    return this.prisma.salesInvoice.update({
+      where: { id: invoiceId },
+      data: { status: 'CANCELLED', balanceDue: 0 },
+      include: { items: true, contact: true },
+    });
+  }
+
+  async invoicePdf(companyId: string, invoiceId: string, options: { theme?: DocumentTheme; format?: InvoiceFormat; includeQr?: boolean; qrUrl?: string } = {}) {
     this.tenant.setCompanyId(companyId);
     const invoice = await this.prisma.salesInvoice.findFirst({
       where: { id: invoiceId, companyId },
@@ -872,34 +1865,58 @@ export class SalesService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    const lines = [
-      `Company: ${invoice.company.displayName}`,
-      `VAT: ${invoice.company.settings?.taxNumber ?? ''}`,
-      `Invoice: ${invoice.invoiceNumber}`,
-      `Status: ${invoice.status}`,
-      `Customer: ${invoice.contact.name}`,
-      `Tax #: ${invoice.contact.taxNumber ?? ''}`,
-      `Issued: ${invoice.issuedOn.toISOString().slice(0, 10)} ${invoice.issuedOn.toISOString().slice(11, 19)}`,
-      `Currency: ${invoice.currency}`,
-      `Channel: ${invoice.saleChannel ?? 'POS'}`,
-      `Subtotal: ${invoice.subtotal.toString()}`,
-      `Tax (VAT): ${invoice.taxAmount.toString()}`,
-      `Total: ${invoice.totalAmount.toString()}`,
-      `Balance due: ${invoice.balanceDue.toString()}`,
-      invoice.zatcaQr ? `ZATCA QR: ${invoice.zatcaQr.slice(0, 48)}…` : 'ZATCA QR: (generate via /zatca)',
-      '--- Lines ---',
-      ...invoice.items.map(
-        (item) =>
-          `${item.position}. ${item.description} x${item.quantity.toString()} @ ${item.unitPrice.toString()} = ${item.totalAmount.toString()}`,
-      ),
-      '--- Templates: THERMAL | A4 | SQUARE (select in print settings) ---',
-    ];
-    const pdf = buildSimplePdf(`Invoice ${invoice.invoiceNumber}`, lines);
+    const theme = options.theme ?? 'MODERN';
+    const format = options.format ?? 'A4';
+    const includeQr = options.includeQr !== false;
+    let qrUrl = options.qrUrl ?? null;
+    if (includeQr && !qrUrl) {
+      const token = signInvoiceShareToken({
+        companyId,
+        invoiceId,
+        theme,
+        format,
+        exp: Date.now() + 90 * 24 * 60 * 60 * 1000,
+      });
+      const base = (
+        process.env.PUBLIC_API_URL ||
+        process.env.APP_URL ||
+        'http://127.0.0.1:3000'
+      ).replace(/\/$/, '');
+      qrUrl = `${base}/api/public/sales/invoice-pdf?token=${encodeURIComponent(token)}`;
+    }
+
+    const pdf = await buildSalesDocumentPdf(
+      {
+        ...(await this.pdfData('INVOICE', invoice)),
+        balanceDue: invoice.balanceDue.toString(),
+        customerTaxNumber: invoice.contact.taxNumber,
+        qrUrl: includeQr ? qrUrl : null,
+      },
+      theme,
+      format,
+    );
     return {
       fileName: `${invoice.invoiceNumber}.pdf`,
       mimeType: 'application/pdf',
       contentBase64: pdf.toString('base64'),
       byteLength: pdf.length,
+    };
+  }
+
+  private async pdfData(kind: 'QUOTE' | 'INVOICE', doc: any) {
+    let logo: Buffer | null = null;
+    if (doc.company.logoAttachmentId) {
+      const attachment = await this.prisma.attachment.findFirst({ where: { id: doc.company.logoAttachmentId }, select: { storageKey: true } });
+      if (attachment) { try { logo = await this.storage.getObject(attachment.storageKey); } catch { logo = null; } }
+    }
+    return {
+      kind, number: kind === 'QUOTE' ? doc.quoteNumber : doc.invoiceNumber, status: doc.status,
+      issuedOn: doc.issuedOn, secondaryDate: kind === 'QUOTE' ? doc.expiresOn : doc.dueOn,
+      currency: doc.currency, customer: doc.contact.name, subtotal: doc.subtotal.toString(),
+      discountAmount: doc.discountAmount.toString(), taxAmount: doc.taxAmount.toString(), totalAmount: doc.totalAmount.toString(),
+      paymentMethod: kind === 'INVOICE' ? doc.paymentMethod ?? null : null,
+      companyName: doc.company.displayName, companyTaxNumber: doc.company.settings?.taxNumber,
+      lines: doc.items.map((i: any) => ({ description: i.description, quantity: i.quantity.toString(), unitPrice: i.unitPrice.toString(), taxAmount: i.taxAmount.toString(), totalAmount: i.totalAmount.toString() })), logo,
     };
   }
 
@@ -983,7 +2000,7 @@ export class SalesService {
   async channelReport(companyId: string) {
     this.tenant.setCompanyId(companyId);
     const invoices = await this.prisma.salesInvoice.findMany({
-      where: { companyId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
+      where: { companyId, status: { notIn: ['DRAFT', 'ON_HOLD', 'CANCELLED'] } },
       select: {
         saleChannel: true,
         totalAmount: true,
@@ -1377,7 +2394,7 @@ export class SalesService {
   async trackRevenueReport(companyId: string) {
     this.tenant.setCompanyId(companyId);
     const invoices = await this.prisma.salesInvoice.findMany({
-      where: { companyId, status: { notIn: ['DRAFT', 'CANCELLED'] } },
+      where: { companyId, status: { notIn: ['DRAFT', 'ON_HOLD', 'CANCELLED'] } },
       include: { contact: { select: { customerTrack: true } } },
     });
     const acc = { B2C: { total: 0, count: 0 }, B2B: { total: 0, count: 0 } };

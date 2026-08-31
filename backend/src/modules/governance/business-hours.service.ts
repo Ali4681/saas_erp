@@ -43,6 +43,32 @@ export class BusinessHoursService {
       include: this.profileInclude(),
     });
     if (profile) {
+      if (profile.mode === 'DYNAMIC') {
+        await this.prisma.companyBusinessHoursProfile.update({
+          where: { id: profile.id },
+          data: { mode: 'HOURS_12' },
+        });
+        await this.prisma.workShift.updateMany({
+          where: {
+            companyId,
+            businessHoursProfileId: profile.id,
+            isActive: true,
+          },
+          data: { isActive: false },
+        });
+        await this.ensureTwelveHourShifts(companyId, {
+          id: profile.id,
+          defaultStartTime: profile.defaultStartTime,
+          defaultEndTime: profile.defaultEndTime,
+          twelveHourMode: profile.twelveHourMode,
+          period2StartTime: profile.period2StartTime,
+          period2EndTime: profile.period2EndTime,
+        });
+        return this.prisma.companyBusinessHoursProfile.findUniqueOrThrow({
+          where: { id: profile.id },
+          include: this.profileInclude(),
+        });
+      }
       if (profile.shifts.length === 0) {
         if (profile.mode === 'HOURS_12') {
           await this.ensureTwelveHourShifts(companyId, profile);
@@ -95,8 +121,10 @@ export class BusinessHoursService {
   ) {
     this.tenant.setCompanyId(companyId);
     const mode = (input.mode as BusinessHoursMode) ?? 'HOURS_12';
-    if (!['HOURS_24', 'HOURS_12', 'DYNAMIC'].includes(mode)) {
-      throw new BadRequestException('Invalid business hours mode');
+    if (!['HOURS_24', 'HOURS_12'].includes(mode)) {
+      throw new BadRequestException(
+        'Invalid business hours mode — use HOURS_24 or HOURS_12',
+      );
     }
     const profile = await this.prisma.companyBusinessHoursProfile.upsert({
       where: { companyId },
@@ -212,8 +240,7 @@ export class BusinessHoursService {
   }
 
   /**
-   * Install the full standard roster from the شرح (all three mode types):
-   * 24h sequential + 12h fixed + 12h two periods + dynamic templates.
+   * Install the standard roster: 24h sequential + 12h fixed + 12h two periods.
    */
   async installStandardShifts(companyId: string) {
     this.tenant.setCompanyId(companyId);
@@ -232,19 +259,18 @@ export class BusinessHoursService {
           twelveHourMode: 'TWO_PERIODS',
           period2StartTime: '20:00',
           period2EndTime: '08:00',
-          notes:
-            'كتالوج الشرح كامل: دوام 24 + دوام 12 (ثابت/فترتين) + دوام مرن',
+          notes: 'كتالوج الورديات: دوام 24 + دوام 12 (ثابت/فترتين)',
         },
       });
     } else {
       profile = await this.prisma.companyBusinessHoursProfile.update({
         where: { id: profile.id },
         data: {
+          mode: profile.mode === 'DYNAMIC' ? 'HOURS_12' : profile.mode,
           twelveHourMode: 'TWO_PERIODS',
           period2StartTime: profile.period2StartTime ?? '20:00',
           period2EndTime: profile.period2EndTime ?? '08:00',
-          notes:
-            'كتالوج الشرح كامل: دوام 24 + دوام 12 (ثابت/فترتين) + دوام مرن',
+          notes: 'كتالوج الورديات: دوام 24 + دوام 12 (ثابت/فترتين)',
         },
       });
     }
@@ -256,7 +282,7 @@ export class BusinessHoursService {
     );
     return {
       profileId: profile.id,
-      modePacks: ['HOURS_24', 'HOURS_12_FIXED', 'HOURS_12_TWO', 'DYNAMIC'],
+      modePacks: ['HOURS_24', 'HOURS_12_FIXED', 'HOURS_12_TWO'],
       shifts: created,
     };
   }

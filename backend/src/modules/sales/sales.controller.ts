@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   IsArray,
   IsEnum,
@@ -75,6 +75,30 @@ class UpdateQuoteStatusBody {
   status!: SalesDocumentStatus;
 }
 
+class UpdateQuoteBody {
+  @IsOptional()
+  @IsString()
+  contactId?: string;
+
+  @IsOptional()
+  @IsString()
+  issuedOn?: string;
+
+  @IsOptional()
+  @IsString()
+  expiresOn?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LineItemBody)
+  items?: LineItemBody[];
+}
+
 class ConvertQuoteBody {
   @IsOptional()
   @IsString()
@@ -87,6 +111,14 @@ class ConvertQuoteBody {
   @IsOptional()
   @IsString()
   companyBranchId?: string;
+}
+
+class PaymentSplitBody {
+  @IsEnum(PaymentMethod)
+  method!: PaymentMethod;
+
+  @IsNumberString()
+  amount!: string;
 }
 
 class CreateInvoiceBody {
@@ -105,8 +137,8 @@ class CreateInvoiceBody {
   currency?: string;
 
   @IsOptional()
-  @IsEnum({ DRAFT: 'DRAFT', ISSUED: 'ISSUED' })
-  status?: 'DRAFT' | 'ISSUED';
+  @IsEnum({ DRAFT: 'DRAFT', ISSUED: 'ISSUED', ON_HOLD: 'ON_HOLD' })
+  status?: 'DRAFT' | 'ISSUED' | 'ON_HOLD';
 
   @IsOptional()
   @IsString()
@@ -115,6 +147,24 @@ class CreateInvoiceBody {
   @IsOptional()
   @IsString()
   saleChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentSplitBody)
+  paymentSplits?: PaymentSplitBody[];
+
+  @IsOptional()
+  @IsString()
+  pointOfSaleId?: string;
+
+  @IsOptional()
+  @IsString()
+  posCashierId?: string;
 
   @IsOptional()
   @IsString()
@@ -141,6 +191,22 @@ class CreateInvoiceBody {
   @ValidateNested({ each: true })
   @Type(() => LineItemBody)
   items!: LineItemBody[];
+}
+
+class IssueInvoiceBody {
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentSplitBody)
+  paymentSplits?: PaymentSplitBody[];
+
+  @IsOptional()
+  @IsString()
+  dueOn?: string;
 }
 
 class RecordPaymentBody {
@@ -261,6 +327,26 @@ export class SalesController {
     );
   }
 
+  @Patch('quotes/:quoteId')
+  @RequirePermissions('sales.write')
+  updateQuote(
+    @Param('companyId') companyId: string,
+    @Param('quoteId') quoteId: string,
+    @Body() body: UpdateQuoteBody,
+  ) {
+    return this.sales.updateQuote(companyId, quoteId, body);
+  }
+
+  @Get('quotes/:quoteId/pdf')
+  @RequirePermissions('sales.read')
+  quotePdf(
+    @Param('companyId') companyId: string,
+    @Param('quoteId') quoteId: string,
+    @Query('theme') theme?: 'CLASSIC' | 'MODERN' | 'MINIMAL',
+  ) {
+    return this.sales.quotePdf(companyId, quoteId, theme);
+  }
+
   @Get('invoices')
   @RequirePermissions('sales.read')
   listInvoices(@Param('companyId') companyId: string) {
@@ -284,6 +370,51 @@ export class SalesController {
     });
   }
 
+  @Patch('invoices/:invoiceId')
+  @RequirePermissions('sales.write')
+  updateInvoice(
+    @Param('companyId') companyId: string,
+    @Param('invoiceId') invoiceId: string,
+    @Body()
+    body: {
+      contactId?: string;
+      issuedOn?: string;
+      dueOn?: string | null;
+      currency?: string;
+      saleChannel?: string;
+      items?: LineItemBody[];
+    },
+  ) {
+    return this.sales.updateInvoice(companyId, invoiceId, body);
+  }
+
+  @Post('invoices/:invoiceId/cancel')
+  @RequirePermissions('sales.write')
+  cancelInvoice(
+    @Param('companyId') companyId: string,
+    @Param('invoiceId') invoiceId: string,
+  ) {
+    return this.sales.cancelInvoice(companyId, invoiceId);
+  }
+
+  @Post('invoices/:invoiceId/issue')
+  @RequirePermissions('sales.write')
+  issueInvoice(
+    @Param('companyId') companyId: string,
+    @Param('invoiceId') invoiceId: string,
+    @Body() body: IssueInvoiceBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.sales.issueHeldInvoice({
+      companyId,
+      invoiceId,
+      createdById: user.userId,
+      paymentMethod: body.paymentMethod,
+      paymentSplits: body.paymentSplits,
+      dueOn: body.dueOn,
+    });
+  }
+
   @Post('payments')
   @RequirePermissions('sales.write')
   recordPayment(
@@ -292,6 +423,31 @@ export class SalesController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.sales.recordPayment({ companyId, ...body, createdById: user.userId });
+  }
+
+  @Get('customer-statements')
+  @RequirePermissions('sales.read')
+  listCustomerStatements(@Param('companyId') companyId: string) {
+    return this.sales.listCustomerStatements(companyId);
+  }
+
+  @Get('contacts/:contactId/statement')
+  @RequirePermissions('sales.read')
+  getCustomerStatement(
+    @Param('companyId') companyId: string,
+    @Param('contactId') contactId: string,
+  ) {
+    return this.sales.getCustomerStatement(companyId, contactId);
+  }
+
+  @Get('contacts/:contactId/statement/pdf')
+  @RequirePermissions('sales.read')
+  customerStatementPdf(
+    @Param('companyId') companyId: string,
+    @Param('contactId') contactId: string,
+    @Query('theme') theme?: 'CLASSIC' | 'MODERN' | 'MINIMAL',
+  ) {
+    return this.sales.customerStatementPdf(companyId, contactId, theme);
   }
 
   @Get('credit-notes')
@@ -312,6 +468,44 @@ export class SalesController {
       ...body,
       createdById: user.userId,
     });
+  }
+
+  @Patch('credit-notes/:creditNoteId')
+  @RequirePermissions('sales.write')
+  updateCreditNote(
+    @Param('companyId') companyId: string,
+    @Param('creditNoteId') creditNoteId: string,
+    @Body()
+    body: {
+      reason?: string;
+      issuedOn?: string;
+      items?: Array<{
+        description: string;
+        quantity: string;
+        amount: string;
+      }>;
+    },
+  ) {
+    return this.sales.updateCreditNote(companyId, creditNoteId, body);
+  }
+
+  @Post('credit-notes/:creditNoteId/cancel')
+  @RequirePermissions('sales.write')
+  cancelCreditNote(
+    @Param('companyId') companyId: string,
+    @Param('creditNoteId') creditNoteId: string,
+  ) {
+    return this.sales.cancelCreditNote(companyId, creditNoteId);
+  }
+
+  @Get('credit-notes/:creditNoteId/pdf')
+  @RequirePermissions('sales.read')
+  creditNotePdf(
+    @Param('companyId') companyId: string,
+    @Param('creditNoteId') creditNoteId: string,
+    @Query('theme') theme?: 'CLASSIC' | 'MODERN' | 'MINIMAL',
+  ) {
+    return this.sales.creditNotePdf(companyId, creditNoteId, theme);
   }
 
   @Get('reports/ar-aging')
@@ -423,7 +617,8 @@ export class SalesController {
   invoicePdf(
     @Param('companyId') companyId: string,
     @Param('invoiceId') invoiceId: string,
+    @Query() query?: { theme?: 'CLASSIC' | 'MODERN' | 'MINIMAL'; format?: 'A4' | 'A12' | 'THERMAL'; noQr?: string; qrUrl?: string },
   ) {
-    return this.sales.invoicePdf(companyId, invoiceId);
+    return this.sales.invoicePdf(companyId, invoiceId, { theme: query?.theme, format: query?.format, includeQr: query?.noQr !== '1', qrUrl: query?.qrUrl });
   }
 }

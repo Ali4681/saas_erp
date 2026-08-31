@@ -1,20 +1,18 @@
 import { getTranslations } from "next-intl/server";
 import { FlashFromSearch } from "@/components/erp/Flash";
 import { CreateFormDialog } from "@/components/erp/CreateFormDialog";
-import { ActionForm } from "@/components/erp/ActionForm";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/Select";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Textarea } from "@/components/ui/Textarea";
 import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
-import { createAdvance, decideAdvance } from "../actions";
+import { createAdvance } from "../actions";
+import { AdvancesTable } from "./AdvancesTable";
 
 type Employee = { id: string; fullName: string; employeeNumber: string };
 type Advance = {
@@ -57,6 +55,15 @@ export default async function AdvancesPage({
   ]);
 
   const create = createAdvance.bind(null, companyId);
+  const rows = advances.map((a) => ({
+    id: a.id,
+    employeeName: a.employee?.fullName ?? "",
+    employeeUserId: a.employee?.userId ?? null,
+    amountLabel: formatMoney(a.amount, a.currency),
+    dateLabel: formatDate(a.requestedAt),
+    reason: a.reason ?? "—",
+    status: a.status,
+  }));
 
   return (
     <div className="space-y-5">
@@ -96,105 +103,35 @@ export default async function AdvancesPage({
       ) : null}
 
       <Card>
-        {advances.length === 0 ? (
-          <EmptyState message={t("emptyAdvances")} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[880px] text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
-                  <th className="px-2 py-2 font-medium">{t("employee")}</th>
-                  <th className="px-2 py-2 font-medium">{t("amount")}</th>
-                  <th className="px-2 py-2 font-medium">{t("date")}</th>
-                  <th className="px-2 py-2 font-medium">{t("reason")}</th>
-                  <th className="px-2 py-2 font-medium">{t("status")}</th>
-                  <th className="px-2 py-2 font-medium">{t("action")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {advances.map((a) => {
-                  const isOwnAdvance =
-                    !!currentUserId &&
-                    !!a.employee?.userId &&
-                    a.employee.userId === currentUserId;
-                  const canDecide = canWrite && !isOwnAdvance;
-                  return (
-                  <tr
-                    key={a.id}
-                    className="border-b border-[var(--border)] last:border-0"
-                  >
-                    <td className="px-2 py-2">
-                      {a.employee?.fullName ?? "—"}
-                    </td>
-                    <td className="px-2 py-2">
-                      {formatMoney(a.amount, a.currency)}
-                    </td>
-                    <td className="px-2 py-2">{formatDate(a.requestedAt)}</td>
-                    <td className="px-2 py-2">{a.reason ?? "—"}</td>
-                    <td className="px-2 py-2">
-                      <StatusBadge status={a.status} />
-                    </td>
-                    <td className="px-2 py-2">
-                      {isOwnAdvance &&
-                      (a.status === "PENDING" || a.status === "APPROVED") ? (
-                        <span className="text-xs text-[var(--muted-foreground)]">
-                          {t("advanceCannotSelfApprove")}
-                        </span>
-                      ) : canDecide && a.status === "PENDING" ? (
-                        <div className="flex flex-wrap gap-1">
-                          <ActionForm
-                            label={t("approve")}
-                            variant="primary"
-                            action={decideAdvance.bind(
-                              null,
-                              companyId,
-                              a.id,
-                              "APPROVED",
-                            )}
-                          />
-                          <ActionForm
-                            label={t("reject")}
-                            variant="danger"
-                            action={decideAdvance.bind(
-                              null,
-                              companyId,
-                              a.id,
-                              "REJECTED",
-                            )}
-                          />
-                        </div>
-                      ) : canDecide && a.status === "APPROVED" ? (
-                        <div className="flex flex-wrap gap-1">
-                          <ActionForm
-                            label={t("markPaid")}
-                            variant="primary"
-                            action={decideAdvance.bind(
-                              null,
-                              companyId,
-                              a.id,
-                              "PAID",
-                            )}
-                          />
-                          <ActionForm
-                            label={t("cancelAdvance")}
-                            variant="danger"
-                            action={decideAdvance.bind(
-                              null,
-                              companyId,
-                              a.id,
-                              "CANCELLED",
-                            )}
-                          />
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <AdvancesTable
+          companyId={companyId}
+          rows={rows}
+          canWrite={canWrite}
+          currentUserId={currentUserId}
+          labels={{
+            employee: t("employee"),
+            amount: t("amount"),
+            date: t("date"),
+            reason: t("reason"),
+            status: t("status"),
+            action: t("action"),
+            approve: t("approve"),
+            reject: t("reject"),
+            markPaid: t("markPaid"),
+            cancelAdvance: t("cancelAdvance"),
+            advanceCannotSelfApprove: t("advanceCannotSelfApprove"),
+            search: t("searchEmployee"),
+            searchPlaceholder: t("searchEmployeePlaceholder"),
+            allStatuses: t("allStatuses"),
+            emptyAll: t("emptyAdvances"),
+            emptyFiltered: t("emptyFiltered"),
+            statusPending: t("statusPending"),
+            statusApproved: t("statusApproved"),
+            statusRejected: t("statusRejected"),
+            statusPaid: t("statusPaid"),
+            statusCancelled: t("statusCancelled"),
+          }}
+        />
       </Card>
     </div>
   );

@@ -17,20 +17,22 @@ export async function saveBusinessHours(
   companyId: string,
   formData: FormData,
 ) {
+  const mode = str(formData, "mode");
+  const is24 = mode === "HOURS_24";
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/business-hours`,
     method: "PUT",
     body: {
-      mode: str(formData, "mode"),
-      defaultStartTime: str(formData, "defaultStartTime"),
-      defaultEndTime: str(formData, "defaultEndTime"),
-      autoSplitShifts: formData.get("autoSplitShifts") === "on",
-      autoShiftHours: Number(optStr(formData, "autoShiftHours") ?? "8"),
-      twelveHourMode: optStr(formData, "twelveHourMode") ?? "FIXED",
-      period2StartTime: optStr(formData, "period2StartTime"),
-      period2EndTime: optStr(formData, "period2EndTime"),
-      notes: optStr(formData, "notes"),
+      mode,
+      // Sensible defaults kept server-side; UI is mode-only.
+      defaultStartTime: is24 ? "06:00" : "09:00",
+      defaultEndTime: is24 ? "06:00" : "21:00",
+      autoSplitShifts: is24,
+      autoShiftHours: 8,
+      twelveHourMode: "FIXED",
+      period2StartTime: is24 ? undefined : "20:00",
+      period2EndTime: is24 ? undefined : "08:00",
     },
     pagePath: bhPage(companyId),
     okMessage: "Business hours saved",
@@ -144,5 +146,25 @@ export async function revokeBreakGlass(
     body: {},
     pagePath: govPage(companyId),
     okMessage: "Break-glass revoked",
+  });
+}
+
+export async function saveCompanyTaxSettings(
+  companyId: string,
+  formData: FormData,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/settings`,
+    method: "PATCH",
+    body: {
+      taxNumber: optStr(formData, "taxNumber"),
+      invoicePrefix: optStr(formData, "invoicePrefix") ?? "INV",
+      defaultTaxRate: str(formData, "defaultTaxRate") || "15",
+      emailFromName: optStr(formData, "emailFromName"),
+      emailFromAddress: optStr(formData, "emailFromAddress"),
+    },
+    pagePath: `/c/${companyId}/settings`,
+    okMessage: "Tax settings saved",
   });
 }

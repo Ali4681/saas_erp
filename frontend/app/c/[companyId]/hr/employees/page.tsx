@@ -1,19 +1,27 @@
-import { getTranslations } from "next-intl/server";
-import { FileText } from "lucide-react";
+import { getLocale, getTranslations } from "next-intl/server";
 import { FlashFromSearch } from "@/components/erp/Flash";
 import { CreateFormDialog } from "@/components/erp/CreateFormDialog";
+import { AllowanceTypesManager } from "@/components/erp/AllowanceTypesManager";
+import { EmployeeAllowancesFields } from "@/components/erp/EmployeeAllowancesFields";
+import { EmployeeCommissionFields } from "@/components/erp/EmployeeCommissionFields";
+import { EmployeeQiwaContractFields } from "@/components/erp/EmployeeQiwaContractFields";
+import { EmployeeShiftPatternFields } from "@/components/erp/EmployeeShiftPatternFields";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
-import { createEmployee, updateEmployeeCompensation } from "../actions";
+import {
+  createAllowanceType,
+  createEmployee,
+  deleteAllowanceType,
+  updateEmployeeCompensation,
+} from "../actions";
 import { EmployeeIdentityFields } from "./EmployeeIdentityFields";
 
 type Employee = {
@@ -23,13 +31,18 @@ type Employee = {
   email: string | null;
   phone: string | null;
   jobTitle: string | null;
+  hireDate?: string | null;
   employmentStatus: string;
   employmentCategory?: string | null;
+  trialStartsOn?: string | null;
+  trialEndsOn?: string | null;
   basicSalary: string | null;
   salesTargetMode?: string | null;
   salesTargetAmount?: string | null;
+  salesRewardAmount?: string | null;
   targetPercent: string | null;
   lateDiscountAmount?: string | null;
+  identityType?: string | null;
   identityNumber?: string | null;
   identityExpiresOn?: string | null;
   approvalStatus?: string | null;
@@ -41,6 +54,20 @@ type Employee = {
   advanceAllowancePercent?: string | null;
   attendanceBadgeId?: string | null;
   hasInsurance?: boolean;
+  ibanMasked?: string | null;
+  shiftPatternMode?: string | null;
+  shiftWindows?: Array<{ start: string; end: string }>;
+  allowances?: Array<{
+    id: string;
+    amount: string;
+    allowanceTypeId: string;
+    allowanceType?: {
+      id: string;
+      code: string;
+      nameAr: string;
+      nameEn: string;
+    };
+  }>;
   workShift?: {
     id: string;
     name: string;
@@ -49,26 +76,11 @@ type Employee = {
   } | null;
   currency: string;
 };
-type Attachment = {
+type AllowanceType = {
   id: string;
-  entityType: string;
-  entityId: string;
-  fileName: string;
-};
-type WorkShift = {
-  id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  sequenceIndex?: number;
-  businessHoursProfile?: {
-    mode: string;
-  } | null;
-};
-type BusinessHoursProfile = {
-  mode: string;
-  defaultStartTime: string;
-  defaultEndTime: string;
+  code: string;
+  nameAr: string;
+  nameEn: string;
 };
 type HrSummary = {
   total: number;
@@ -76,14 +88,6 @@ type HrSummary = {
   onLeave: number;
   suspended: number;
   terminated: number;
-  qiwa?: {
-    NOT_STARTED: number;
-    IN_PROGRESS: number;
-    AWAITING_EMPLOYEE: number;
-    PENDING_APPROVAL: number;
-    DOCUMENTED: number;
-    REJECTED_OR_MODIFICATION: number;
-  };
 };
 
 export default async function EmployeesPage({
@@ -96,40 +100,42 @@ export default async function EmployeesPage({
   const { companyId } = await params;
   const flash = await searchParams;
   const t = await getTranslations("hr");
+  const locale = (await getLocale()) === "en" ? "en" : "ar";
   const { formatMoney } = await getFormatters();
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
+  const qiwaUrl =
+    process.env.NEXT_PUBLIC_QIWA_URL?.trim() || "https://www.qiwa.sa/";
 
-  const [employees, attachments, summary, shifts, businessHours] =
-    await Promise.all([
-      apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
-        companyId,
-      }).catch(() => []),
-      apiServer<Attachment[]>(
-        `/companies/${companyId}/attachments?entityType=employee`,
-        { companyId },
-      ).catch(() => []),
-      apiServer<HrSummary>(`/companies/${companyId}/hr/summary`, {
-        companyId,
-      }).catch(() => null),
-      apiServer<WorkShift[]>(`/companies/${companyId}/hr/shifts`, {
-        companyId,
-      }).catch(() => []),
-      apiServer<BusinessHoursProfile>(
-        `/companies/${companyId}/business-hours`,
-        { companyId },
-      ).catch(() => null),
-    ]);
-
-  const cvByEmployee = new Map<string, Attachment>();
-  for (const a of attachments) {
-    if (!cvByEmployee.has(a.entityId)) {
-      cvByEmployee.set(a.entityId, a);
-    }
-  }
+  const [employees, summary, allowanceTypes] = await Promise.all([
+    apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
+      companyId,
+    }).catch(() => []),
+    apiServer<HrSummary>(`/companies/${companyId}/hr/summary`, {
+      companyId,
+    }).catch(() => null),
+    apiServer<AllowanceType[]>(
+      `/companies/${companyId}/hr/allowance-types`,
+      { companyId },
+    ).catch(() => []),
+  ]);
 
   const nextEmployeeNumber = suggestNextEmployeeNumber(employees);
   const create = createEmployee.bind(null, companyId);
+  const addAllowanceType = createAllowanceType.bind(null, companyId);
+  const removeAllowanceType = deleteAllowanceType.bind(null, companyId);
+
+  const now = new Date();
+  const trialAlerts = employees.filter((e) => {
+    const ends = (e as { trialEndsOn?: string | null }).trialEndsOn;
+    if (!ends || e.employmentCategory !== "TRIAL_PERIOD") return false;
+    const end = new Date(ends);
+    if (Number.isNaN(end.getTime())) return false;
+    const days = Math.ceil(
+      (end.getTime() - now.getTime()) / 86_400_000,
+    );
+    return days <= 14;
+  });
 
   return (
     <div className="space-y-5">
@@ -143,6 +149,39 @@ export default async function EmployeesPage({
         }
       />
       <FlashFromSearch searchParams={flash} />
+
+      {trialAlerts.length > 0 ? (
+        <Card className="border-[var(--warning, #b45309)]/40 bg-[var(--secondary)]/50 p-4">
+          <p className="text-sm font-semibold">{t("trialEndingTitle")}</p>
+          <ul className="mt-2 space-y-1 text-sm text-[var(--muted-foreground)]">
+            {trialAlerts.map((e) => (
+              <li key={e.id}>
+                <a
+                  href={`/c/${companyId}/hr/employees/${e.id}`}
+                  className="font-medium text-[var(--primary)] underline-offset-2 hover:underline"
+                >
+                  {e.fullName}
+                </a>
+                {" — "}
+                {t("trialEndingItem", {
+                  date: e.trialEndsOn?.slice(0, 10) ?? "—",
+                })}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+            {t("trialEndingHint")}{" "}
+            <a
+              href={qiwaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-[var(--primary)] underline-offset-2 hover:underline"
+            >
+              {t("goToQiwa")}
+            </a>
+          </p>
+        </Card>
+      ) : null}
 
       {summary ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -179,83 +218,48 @@ export default async function EmployeesPage({
         </div>
       ) : null}
 
-      {summary?.qiwa ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <Card>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {t("qiwaStatusNotStarted")}
-            </p>
-            <p className="mt-1 text-lg font-semibold">
-              {summary.qiwa.NOT_STARTED}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {t("qiwaStatusInProgress")}
-            </p>
-            <p className="mt-1 text-lg font-semibold">
-              {summary.qiwa.IN_PROGRESS}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {t("qiwaStatusAwaitingEmployee")}
-            </p>
-            <p className="mt-1 text-lg font-semibold">
-              {summary.qiwa.AWAITING_EMPLOYEE}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {t("qiwaStatusPendingApproval")}
-            </p>
-            <p className="mt-1 text-lg font-semibold">
-              {summary.qiwa.PENDING_APPROVAL}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {t("qiwaStatusDocumented")}
-            </p>
-            <p className="mt-1 text-lg font-semibold">
-              {summary.qiwa.DOCUMENTED}
-            </p>
-          </Card>
-          <Card>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {t("qiwaStatusRejected")}
-            </p>
-            <p className="mt-1 text-lg font-semibold">
-              {summary.qiwa.REJECTED_OR_MODIFICATION}
-            </p>
-          </Card>
-        </div>
-      ) : null}
-
       {canWrite ? (
-        <CreateFormDialog
-          title={t("newEmployee")}
-          description={t("newEmployeeDesc")}
-          triggerLabel={t("addEmployee")}
-        >
-          <form action={create} className="space-y-5">
-            <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">
-                  {t("sectionPersonal")}
-                </h3>
-                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                  {t("sectionPersonalHint")}
-                </p>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input
-                  name="employeeNumber"
-                  label={t("employeeNumber")}
-                  required
-                  defaultValue={nextEmployeeNumber}
-                />
-                <Input name="fullName" label={t("fullName")} required />
+        <>
+          <Card className="p-4">
+            <AllowanceTypesManager
+              types={allowanceTypes}
+              createAction={addAllowanceType}
+              deleteAction={removeAllowanceType}
+              locale={locale}
+              labels={{
+                heading: t("allowanceTypesHeading"),
+                hint: t("allowanceTypesHint"),
+                code: t("allowanceTypeCode"),
+                nameAr: t("allowanceTypeNameAr"),
+                nameEn: t("allowanceTypeNameEn"),
+                add: t("allowanceTypeAdd"),
+                remove: t("allowanceRemove"),
+              }}
+            />
+          </Card>
+          <CreateFormDialog
+            title={t("newEmployee")}
+            description={t("newEmployeeDesc")}
+            triggerLabel={t("addEmployee")}
+          >
+            <form action={create} className="space-y-5">
+              <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                    {t("sectionPersonal")}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                    {t("sectionPersonalHint")}
+                  </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input
+                    name="employeeNumber"
+                    label={t("employeeNumber")}
+                    required
+                    defaultValue={nextEmployeeNumber}
+                  />
+                  <Input name="fullName" label={t("fullName")} required />
                 <Input name="email" label={t("email")} type="email" required />
                 <Input name="phone" label={t("phone")} />
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3 md:col-span-2">
@@ -278,39 +282,40 @@ export default async function EmployeesPage({
                   </label>
                 </div>
                 <Input name="jobTitle" label={t("jobTitle")} />
-                <Select
-                  name="employmentCategory"
-                  label={t("employmentCategory")}
-                  required
-                  options={[
-                    {
-                      value: "EMPLOYMENT_CONTRACT",
-                      label: t("employmentCategoryContract"),
-                    },
-                    {
-                      value: "WAGE_WORKER",
-                      label: t("employmentCategoryWage"),
-                    },
-                  ]}
-                />
-                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-                  {t("employmentCategoryHint")}
-                </p>
                 <Input name="hireDate" label={t("hireDate")} type="date" />
-                <Select
-                  name="approvalStatus"
-                  label={t("qiwaVerifiedStatus")}
-                  defaultValue="PENDING"
-                  showPlaceholderOption={false}
-                  options={[
-                    { value: "PENDING", label: t("qiwaNotVerified") },
-                    { value: "APPROVED", label: t("qiwaVerified") },
-                  ]}
+                <EmployeeQiwaContractFields
+                  qiwaUrl={qiwaUrl}
+                  labels={{
+                    qiwaRegistered: t("qiwaRegistered"),
+                    qiwaYes: t("qiwaRegisteredYes"),
+                    qiwaNo: t("qiwaRegisteredNo"),
+                    qiwaFile: t("qiwaProofFile"),
+                    qiwaFileHint: t("qiwaProofFileHint"),
+                    goQiwa: t("goToQiwa"),
+                    contractType: t("employmentCategory"),
+                    employment: t("employmentCategoryContract"),
+                    ajeer: t("employmentCategoryWage"),
+                    trial: t("employmentCategoryTrial"),
+                    trialStart: t("trialStartsOn"),
+                    trialEnd: t("trialEndsOn"),
+                    trialHint: t("trialPeriodHint"),
+                  }}
                 />
-                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-                  {t("qiwaVerifiedHint")}
-                </p>
                 <EmployeeIdentityFields />
+                <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+                  <span className="font-medium text-[var(--foreground)]">
+                    {t("identityPhoto")}
+                  </span>
+                  <input
+                    type="file"
+                    name="identityPhoto"
+                    accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                    className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                  />
+                  <span className="text-xs text-[var(--muted-foreground)]">
+                    {t("identityPhotoHint")}
+                  </span>
+                </label>
                 <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
                   <span className="font-medium text-[var(--foreground)]">
                     {t("insuranceCertificate")}
@@ -321,20 +326,6 @@ export default async function EmployeesPage({
                     accept=".pdf,.jpg,.jpeg,.png,application/pdf"
                     className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
                   />
-                </label>
-                <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
-                  <span className="font-medium text-[var(--foreground)]">
-                    {t("cvLabel")}
-                  </span>
-                  <input
-                    type="file"
-                    name="cv"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf"
-                    className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
-                  />
-                  <span className="text-xs text-[var(--muted-foreground)]">
-                    {t("cvFormats")}
-                  </span>
                 </label>
               </div>
             </section>
@@ -353,29 +344,34 @@ export default async function EmployeesPage({
                   name="basicSalary"
                   label={`${t("basicSalary")} (SAR)`}
                 />
-                <Select
-                  name="salesTargetMode"
-                  label={t("salesTargetMode")}
-                  defaultValue="AMOUNT"
-                  showPlaceholderOption={false}
-                  options={[
-                    { value: "AMOUNT", label: t("salesTargetModeAmount") },
-                    { value: "PERCENT", label: t("salesTargetModePercent") },
-                    { value: "BOTH", label: t("salesTargetModeBoth") },
-                  ]}
+                <EmployeeCommissionFields
+                  labels={{
+                    plan: t("commissionPlan"),
+                    withTarget: t("commissionWithTarget"),
+                    noTarget: t("commissionNoTarget"),
+                    targetAmount: `${t("salesTargetAmount")} (SAR)`,
+                    rewardType: t("commissionRewardType"),
+                    rewardFixed: t("commissionRewardFixed"),
+                    rewardPercent: t("commissionRewardPercent"),
+                    rewardAmount: `${t("salesRewardAmount")} (SAR)`,
+                    commissionPercent: t("salesCommissionPercent"),
+                    hintTarget: t("commissionHintTarget"),
+                    hintNoTarget: t("commissionHintNoTarget"),
+                  }}
                 />
-                <Input
-                  name="salesTargetAmount"
-                  label={`${t("salesTargetAmount")} (SAR)`}
+                <EmployeeAllowancesFields
+                  allowanceTypes={allowanceTypes}
+                  locale={locale}
+                  labels={{
+                    heading: t("allowancesHeading"),
+                    hint: t("allowancesHint"),
+                    select: t("allowanceSelect"),
+                    amount: `${t("allowanceAmount")} (SAR)`,
+                    add: t("allowanceAdd"),
+                    remove: t("allowanceRemove"),
+                    empty: t("allowancesEmpty"),
+                  }}
                 />
-                <Input
-                  name="targetPercent"
-                  label={t("salesCommissionPercent")}
-                  placeholder="e.g. 5"
-                />
-                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-                  {t("salesIncentiveHint")}
-                </p>
                 <div>
                   <Input
                     name="iban"
@@ -412,77 +408,20 @@ export default async function EmployeesPage({
                 </p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                {shifts.length > 0 ? (
-                  <>
-                    <Select
-                      name="workShiftId"
-                      label={t("workShift")}
-                      required
-                      options={shifts.map((s) => ({
-                        value: s.id,
-                        label: `${s.name} (${s.startTime}–${s.endTime})`,
-                      }))}
-                    />
-                    <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-                      {t("workShiftHint", {
-                        mode:
-                          businessHours?.mode === "HOURS_24"
-                            ? t("workShiftMode24")
-                            : businessHours?.mode === "DYNAMIC"
-                              ? t("workShiftModeDynamic")
-                              : t("workShiftMode12"),
-                      })}
-                    </p>
-                  </>
-                ) : (
-                  <p className="rounded-lg border border-dashed border-[var(--border)] p-3 text-sm text-[var(--muted-foreground)] md:col-span-2">
-                    {t("workShiftMissing")}{" "}
-                    <a
-                      href={`/c/${companyId}/settings/business-hours`}
-                      className="font-medium text-[var(--primary)] underline-offset-2 hover:underline"
-                    >
-                      {t("workShiftConfigure")}
-                    </a>
-                  </p>
-                )}
-              </div>
-            </section>
-
-            <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">
-                  {t("sectionWorkingHours")}
-                </h3>
-                <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
-                  {t("sectionWorkingHoursHint")}
-                </p>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--secondary)]/30 p-3 md:col-span-2">
-                  <p className="text-sm font-medium text-[var(--foreground)]">
-                    {t("companyWorkingHours")}
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                    {businessHours
-                      ? t("companyWorkingHoursSummary", {
-                          mode:
-                            businessHours.mode === "HOURS_24"
-                              ? t("workShiftMode24")
-                              : businessHours.mode === "DYNAMIC"
-                                ? t("workShiftModeDynamic")
-                                : t("workShiftMode12"),
-                          start: businessHours.defaultStartTime,
-                          end: businessHours.defaultEndTime,
-                        })
-                      : t("companyWorkingHoursMissing")}
-                  </p>
-                  <a
-                    href={`/c/${companyId}/settings/business-hours`}
-                    className="mt-2 inline-block text-xs font-medium text-[var(--primary)] underline-offset-2 hover:underline"
-                  >
-                    {t("workShiftConfigure")}
-                  </a>
-                </div>
+                <EmployeeShiftPatternFields
+                  labels={{
+                    pattern: t("shiftPattern"),
+                    one: t("shiftPatternOne"),
+                    two: t("shiftPatternTwo"),
+                    flexible: t("shiftPatternFlexible"),
+                    hint: t("shiftPatternHint"),
+                    start: t("shiftStart"),
+                    end: t("shiftEnd"),
+                    addShift: t("shiftAdd"),
+                    remove: t("allowanceRemove"),
+                    shiftN: t("shiftLabel"),
+                  }}
+                />
                 <Input
                   name="attendanceBadgeId"
                   label={t("attendanceBadgeId")}
@@ -492,12 +431,11 @@ export default async function EmployeesPage({
             </section>
 
             <div>
-              <Button type="submit" disabled={shifts.length === 0}>
-                {t("createEmployee")}
-              </Button>
+              <Button type="submit">{t("createEmployee")}</Button>
             </div>
           </form>
         </CreateFormDialog>
+        </>
       ) : null}
 
       <Card>
@@ -523,16 +461,14 @@ export default async function EmployeesPage({
                     {t("identityNumber")}
                   </th>
                   <th className="px-2 py-2 font-medium">
-                    {t("qiwaEmploymentContract")}
+                    {t("qiwaRegisteredColumn")}
                   </th>
                   <th className="px-2 py-2 font-medium">{t("status")}</th>
-                  <th className="px-2 py-2 font-medium">{t("cv")}</th>
                   <th className="px-2 py-2 font-medium">{t("action")}</th>
                 </tr>
               </thead>
               <tbody>
                 {employees.map((e) => {
-                  const cv = cvByEmployee.get(e.id);
                   return (
                     <tr
                       key={e.id}
@@ -551,14 +487,14 @@ export default async function EmployeesPage({
                       <td className="px-2 py-2">
                         {e.employmentCategory === "WAGE_WORKER"
                           ? t("employmentCategoryWage")
-                          : e.employmentCategory === "EMPLOYMENT_CONTRACT"
-                            ? t("employmentCategoryContract")
-                            : "—"}
+                          : e.employmentCategory === "TRIAL_PERIOD"
+                            ? t("employmentCategoryTrial")
+                            : e.employmentCategory === "EMPLOYMENT_CONTRACT"
+                              ? t("employmentCategoryContract")
+                              : "—"}
                       </td>
                       <td className="px-2 py-2">
-                        {e.workShift
-                          ? `${e.workShift.name} (${e.workShift.startTime}–${e.workShift.endTime})`
-                          : "—"}
+                        {formatEmployeeShiftHours(e)}
                       </td>
                       <td className="px-2 py-2">
                         {formatMoney(e.basicSalary, e.currency)}
@@ -571,39 +507,20 @@ export default async function EmployeesPage({
                       </td>
                       <td className="px-2 py-2">
                         <StatusBadge
-                          status={e.qiwaStatus ?? "NOT_STARTED"}
+                          status={
+                            e.approvalStatus === "APPROVED"
+                              ? "APPROVED"
+                              : "PENDING"
+                          }
                           label={
-                            e.qiwaStatus === "IN_PROGRESS"
-                              ? t("qiwaStatusInProgress")
-                              : e.qiwaStatus === "AWAITING_EMPLOYEE"
-                                ? t("qiwaStatusAwaitingEmployee")
-                                : e.qiwaStatus === "PENDING_APPROVAL"
-                                  ? t("qiwaStatusPendingApproval")
-                                  : e.qiwaStatus === "DOCUMENTED"
-                                    ? t("qiwaStatusDocumented")
-                                    : e.qiwaStatus === "REJECTED_OR_MODIFICATION"
-                                      ? t("qiwaStatusRejected")
-                                      : t("qiwaStatusNotStarted")
+                            e.approvalStatus === "APPROVED"
+                              ? t("qiwaRegisteredYesShort")
+                              : t("qiwaRegisteredNoShort")
                           }
                         />
                       </td>
                       <td className="px-2 py-2">
                         <StatusBadge status={e.employmentStatus} />
-                      </td>
-                      <td className="px-2 py-2">
-                        {cv ? (
-                          <a
-                            href={`/api/attachments/${cv.id}?companyId=${companyId}`}
-                            className="inline-flex items-center gap-1 text-[var(--primary)] underline-offset-2 hover:underline"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            {cv.fileName}
-                          </a>
-                        ) : (
-                          <span className="text-[var(--muted-foreground)]">
-                            —
-                          </span>
-                        )}
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex flex-wrap items-center gap-1">
@@ -616,7 +533,10 @@ export default async function EmployeesPage({
                           </Button>
                           {canWrite ? (
                             <CreateFormDialog
-                              title={t("compensationTitle", { name: e.fullName })}
+                              title={t("editEmployeeTitle", {
+                                name: e.fullName,
+                              })}
+                              description={t("editEmployeeDesc")}
                               triggerLabel={t("edit")}
                               triggerVariant="outline"
                               showPlus={false}
@@ -628,115 +548,287 @@ export default async function EmployeesPage({
                                   companyId,
                                   e.id,
                                 )}
-                                className="grid gap-3 md:grid-cols-2"
+                                className="space-y-5"
                               >
-                                <Input
-                                  name="basicSalary"
-                                  label={`${t("basicSalary")} (SAR)`}
-                                  defaultValue={e.basicSalary ?? ""}
+                                <input
+                                  type="hidden"
+                                  name="previousApprovalStatus"
+                                  value={e.approvalStatus ?? "PENDING"}
                                 />
-                                <Select
-                                  name="salesTargetMode"
-                                  label={t("salesTargetMode")}
-                                  defaultValue={e.salesTargetMode ?? "AMOUNT"}
-                                  options={[
-                                    {
-                                      value: "AMOUNT",
-                                      label: t("salesTargetModeAmount"),
-                                    },
-                                    {
-                                      value: "PERCENT",
-                                      label: t("salesTargetModePercent"),
-                                    },
-                                    {
-                                      value: "BOTH",
-                                      label: t("salesTargetModeBoth"),
-                                    },
-                                  ]}
-                                />
-                                <Input
-                                  name="salesTargetAmount"
-                                  label={`${t("salesTargetAmount")} (SAR)`}
-                                  defaultValue={e.salesTargetAmount ?? ""}
-                                />
-                                <Input
-                                  name="targetPercent"
-                                  label={t("salesCommissionPercent")}
-                                  defaultValue={e.targetPercent ?? ""}
-                                />
-                                <Input
-                                  name="lateDiscountAmount"
-                                  label={`${t("lateDiscountAmount")} (SAR)`}
-                                  defaultValue={
-                                    e.lateDiscountAmount ??
-                                    (e.basicSalary
-                                      ? (Number(e.basicSalary) / 30).toFixed(2)
-                                      : "")
-                                  }
-                                />
-                                <Select
-                                  name="approvalStatus"
-                                  label={t("qiwaVerifiedStatus")}
-                                  defaultValue={e.approvalStatus ?? "PENDING"}
-                                  options={[
-                                    {
-                                      value: "PENDING",
-                                      label: t("qiwaNotVerified"),
-                                    },
-                                    {
-                                      value: "APPROVED",
-                                      label: t("qiwaVerified"),
-                                    },
-                                  ]}
-                                />
-                                <Input
-                                  name="identityNumber"
-                                  label={t("identityNumber")}
-                                  defaultValue={e.identityNumber ?? ""}
-                                />
-                                <Input
-                                  name="identityExpiresOn"
-                                  label={t("identityExpiresOn")}
-                                  type="date"
-                                  defaultValue={e.identityExpiresOn ?? ""}
-                                />
-                                <Input
-                                  name="advanceAllowancePercent"
-                                  label={t("advanceAllowancePercent")}
-                                  defaultValue={
-                                    e.advanceAllowancePercent ?? ""
-                                  }
-                                />
-                                <Input
-                                  name="attendanceBadgeId"
-                                  label={t("attendanceBadgeId")}
-                                  defaultValue={e.attendanceBadgeId ?? ""}
-                                />
-                                <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
-                                  {t("advanceAllowanceHint")}
-                                </p>
-                                <Input
-                                  name="phone"
-                                  label={t("phone")}
-                                  defaultValue={e.phone ?? ""}
-                                />
-                                <Input
-                                  name="email"
-                                  label={t("email")}
-                                  type="email"
-                                  defaultValue={e.email ?? ""}
-                                />
-                                <Input
-                                  name="jobTitle"
-                                  label={t("jobTitle")}
-                                  defaultValue={e.jobTitle ?? ""}
-                                  className="md:col-span-2"
-                                />
-                                <div className="md:col-span-2">
+                                <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+                                  <div>
+                                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                                      {t("sectionPersonal")}
+                                    </h3>
+                                    <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                                      {t("sectionPersonalHint")}
+                                    </p>
+                                  </div>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    <Input
+                                      name="employeeNumber"
+                                      label={t("employeeNumber")}
+                                      defaultValue={e.employeeNumber}
+                                      disabled
+                                    />
+                                    <Input
+                                      name="fullName"
+                                      label={t("fullName")}
+                                      required
+                                      defaultValue={e.fullName}
+                                    />
+                                    <Input
+                                      name="email"
+                                      label={t("email")}
+                                      type="email"
+                                      defaultValue={e.email ?? ""}
+                                    />
+                                    <Input
+                                      name="phone"
+                                      label={t("phone")}
+                                      defaultValue={e.phone ?? ""}
+                                    />
+                                    <Input
+                                      name="jobTitle"
+                                      label={t("jobTitle")}
+                                      defaultValue={e.jobTitle ?? ""}
+                                    />
+                                    <Input
+                                      name="hireDate"
+                                      label={t("hireDate")}
+                                      type="date"
+                                      defaultValue={
+                                        e.hireDate?.slice(0, 10) ?? ""
+                                      }
+                                    />
+                                    <EmployeeQiwaContractFields
+                                      qiwaUrl={qiwaUrl}
+                                      defaultQiwaRegistered={
+                                        e.approvalStatus === "APPROVED"
+                                          ? "yes"
+                                          : "no"
+                                      }
+                                      defaultEmploymentCategory={
+                                        e.employmentCategory ===
+                                          "WAGE_WORKER" ||
+                                        e.employmentCategory ===
+                                          "TRIAL_PERIOD" ||
+                                        e.employmentCategory ===
+                                          "EMPLOYMENT_CONTRACT"
+                                          ? e.employmentCategory
+                                          : "EMPLOYMENT_CONTRACT"
+                                      }
+                                      defaultTrialStartsOn={e.trialStartsOn}
+                                      defaultTrialEndsOn={e.trialEndsOn}
+                                      labels={{
+                                        qiwaRegistered: t("qiwaRegistered"),
+                                        qiwaYes: t("qiwaRegisteredYes"),
+                                        qiwaNo: t("qiwaRegisteredNo"),
+                                        qiwaFile: t("qiwaProofFile"),
+                                        qiwaFileHint: t("qiwaProofFileHint"),
+                                        goQiwa: t("goToQiwa"),
+                                        contractType: t("employmentCategory"),
+                                        employment: t(
+                                          "employmentCategoryContract",
+                                        ),
+                                        ajeer: t("employmentCategoryWage"),
+                                        trial: t("employmentCategoryTrial"),
+                                        trialStart: t("trialStartsOn"),
+                                        trialEnd: t("trialEndsOn"),
+                                        trialHint: t("trialPeriodHint"),
+                                      }}
+                                    />
+                                    <EmployeeIdentityFields
+                                      defaultType={
+                                        e.identityType === "CITIZEN"
+                                          ? "CITIZEN"
+                                          : "RESIDENT"
+                                      }
+                                      defaultNumber={e.identityNumber ?? ""}
+                                      defaultExpiresOn={
+                                        e.identityExpiresOn?.slice(0, 10) ?? ""
+                                      }
+                                    />
+                                    <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+                                      <span className="font-medium text-[var(--foreground)]">
+                                        {t("identityPhoto")}
+                                      </span>
+                                      <input
+                                        type="file"
+                                        name="identityPhoto"
+                                        accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                                        className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                                      />
+                                      <span className="text-xs text-[var(--muted-foreground)]">
+                                        {t("identityPhotoHint")}
+                                      </span>
+                                    </label>
+                                    <label className="flex flex-col gap-1.5 text-sm md:col-span-2">
+                                      <span className="font-medium text-[var(--foreground)]">
+                                        {t("insuranceCertificate")}
+                                      </span>
+                                      <input
+                                        type="file"
+                                        name="insurance"
+                                        accept=".pdf,.jpg,.jpeg,.png,application/pdf"
+                                        className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] shadow-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                                      />
+                                    </label>
+                                  </div>
+                                </section>
+
+                                <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+                                  <div>
+                                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                                      {t("sectionFinancial")}
+                                    </h3>
+                                    <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                                      {t("sectionFinancialHint")}
+                                    </p>
+                                  </div>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    <Input
+                                      name="basicSalary"
+                                      label={`${t("basicSalary")} (SAR)`}
+                                      defaultValue={e.basicSalary ?? ""}
+                                    />
+                                    <EmployeeCommissionFields
+                                      defaultSalesTargetMode={
+                                        e.salesTargetMode
+                                      }
+                                      defaultSalesTargetAmount={
+                                        e.salesTargetAmount
+                                      }
+                                      defaultSalesRewardAmount={
+                                        e.salesRewardAmount
+                                      }
+                                      defaultTargetPercent={e.targetPercent}
+                                      labels={{
+                                        plan: t("commissionPlan"),
+                                        withTarget: t("commissionWithTarget"),
+                                        noTarget: t("commissionNoTarget"),
+                                        targetAmount: `${t("salesTargetAmount")} (SAR)`,
+                                        rewardType: t("commissionRewardType"),
+                                        rewardFixed: t(
+                                          "commissionRewardFixed",
+                                        ),
+                                        rewardPercent: t(
+                                          "commissionRewardPercent",
+                                        ),
+                                        rewardAmount: `${t("salesRewardAmount")} (SAR)`,
+                                        commissionPercent: t(
+                                          "salesCommissionPercent",
+                                        ),
+                                        hintTarget: t("commissionHintTarget"),
+                                        hintNoTarget: t(
+                                          "commissionHintNoTarget",
+                                        ),
+                                      }}
+                                    />
+                                    <EmployeeAllowancesFields
+                                      allowanceTypes={allowanceTypes}
+                                      locale={locale}
+                                      defaultAllowances={(
+                                        e.allowances ?? []
+                                      ).map((a) => ({
+                                        allowanceTypeId: a.allowanceTypeId,
+                                        amount: String(a.amount ?? ""),
+                                      }))}
+                                      labels={{
+                                        heading: t("allowancesHeading"),
+                                        hint: t("allowancesHint"),
+                                        select: t("allowanceSelect"),
+                                        amount: `${t("allowanceAmount")} (SAR)`,
+                                        add: t("allowanceAdd"),
+                                        remove: t("allowanceRemove"),
+                                        empty: t("allowancesEmpty"),
+                                      }}
+                                    />
+                                    <div>
+                                      <Input
+                                        name="iban"
+                                        label={t("iban")}
+                                        placeholder="SA0380000000608010167519"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        pattern="SA[0-9]{22}"
+                                        maxLength={34}
+                                      />
+                                      <p className="mt-1.5 text-xs text-[var(--muted-foreground)]">
+                                        {t("ibanOptionalHint")}
+                                      </p>
+                                    </div>
+                                    <Input
+                                      name="advanceAllowancePercent"
+                                      label={t("advanceAllowancePercent")}
+                                      defaultValue={
+                                        e.advanceAllowancePercent ?? ""
+                                      }
+                                    />
+                                    <p className="text-xs text-[var(--muted-foreground)] md:col-span-2">
+                                      {t("advanceAllowanceHint")}
+                                    </p>
+                                    <input
+                                      type="hidden"
+                                      name="currency"
+                                      value="SAR"
+                                    />
+                                  </div>
+                                </section>
+
+                                <section className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+                                  <div>
+                                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                                      {t("sectionShifts")}
+                                    </h3>
+                                    <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                                      {t("sectionShiftsHint")}
+                                    </p>
+                                  </div>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    <EmployeeShiftPatternFields
+                                      defaultMode={e.shiftPatternMode}
+                                      defaultWindows={
+                                        e.shiftWindows &&
+                                        e.shiftWindows.length > 0
+                                          ? e.shiftWindows
+                                          : e.workShift
+                                            ? [
+                                                {
+                                                  start: e.workShift.startTime,
+                                                  end: e.workShift.endTime,
+                                                },
+                                              ]
+                                            : null
+                                      }
+                                      labels={{
+                                        pattern: t("shiftPattern"),
+                                        one: t("shiftPatternOne"),
+                                        two: t("shiftPatternTwo"),
+                                        flexible: t("shiftPatternFlexible"),
+                                        hint: t("shiftPatternHint"),
+                                        start: t("shiftStart"),
+                                        end: t("shiftEnd"),
+                                        addShift: t("shiftAdd"),
+                                        remove: t("allowanceRemove"),
+                                        shiftN: t("shiftLabel"),
+                                      }}
+                                    />
+                                    <Input
+                                      name="attendanceBadgeId"
+                                      label={t("attendanceBadgeId")}
+                                      placeholder={t("attendanceBadgeHint")}
+                                      defaultValue={e.attendanceBadgeId ?? ""}
+                                    />
+                                  </div>
+                                </section>
+
+                                <div>
                                   <Button type="submit">{t("save")}</Button>
                                 </div>
                               </form>
                             </CreateFormDialog>
+
                           ) : null}
                         </div>
                       </td>
@@ -764,4 +856,25 @@ function suggestNextEmployeeNumber(
     if (Number.isFinite(n) && n > max) max = n;
   }
   return `EMP-${String(max + 1).padStart(3, "0")}`;
+}
+
+function formatEmployeeShiftHours(e: {
+  shiftWindows?: Array<{ start: string; end: string }> | null;
+  workShift?: { startTime: string; endTime: string } | null;
+}): string {
+  const windows =
+    e.shiftWindows && e.shiftWindows.length > 0
+      ? e.shiftWindows
+      : e.workShift
+        ? [
+            {
+              start: e.workShift.startTime,
+              end: e.workShift.endTime,
+            },
+          ]
+        : [];
+  if (windows.length === 0) return "—";
+  return windows
+    .map((w) => `${w.start.slice(0, 5)}–${w.end.slice(0, 5)}`)
+    .join(" · ");
 }

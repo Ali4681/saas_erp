@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      // Logo / CV uploads (UI allows up to 5MB)
+      // Logo / file uploads (UI allows up to 5MB)
       bodySizeLimit: "8mb",
     },
   },

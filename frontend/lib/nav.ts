@@ -106,9 +106,7 @@ export function tenantNav(companyId: string): NavItem[] {
         child(`${root}/sales`, "/invoices", "salesInvoices"),
         child(`${root}/sales`, "/credit-notes", "salesCreditNotes"),
         child(`${root}/sales`, "/ar-aging", "salesArAging"),
-        child(`${root}/sales`, "/channels", "salesChannels"),
-        child(`${root}/sales`, "/customer-pos", "salesCustomerPo"),
-        child(`${root}/sales`, "/ops-reports", "salesOpsReports"),
+        child(`${root}/sales`, "/pos", "salesPos"),
       ],
     },
     {

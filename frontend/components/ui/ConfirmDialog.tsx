@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { lockPageScroll } from "@/lib/lock-page-scroll";
 
 export function ConfirmDialog({
   open,
@@ -38,14 +39,13 @@ export function ConfirmDialog({
 
   useEffect(() => {
     if (!open) return;
+    const unlock = lockPageScroll();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCancel();
     };
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prev;
+      unlock();
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onCancel]);

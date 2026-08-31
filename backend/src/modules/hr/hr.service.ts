@@ -259,20 +259,42 @@ export class HrService {
     const usesAmountTarget =
       mode === 'AMOUNT' ||
       mode === 'BOTH' ||
+      mode === 'TARGET_FIXED' ||
+      mode === 'TARGET_PERCENT' ||
       (mode == null && employee.salesTargetAmount != null);
     const usesSalesPercent =
       mode === 'PERCENT' ||
       mode === 'BOTH' ||
+      mode === 'TARGET_PERCENT' ||
+      mode === 'NO_TARGET_PERCENT' ||
       (mode == null && employee.targetPercent != null);
     const target =
       usesAmountTarget && employee.salesTargetAmount != null
         ? Number(employee.salesTargetAmount)
         : null;
     const salesPercent = Number(employee.targetPercent ?? 0);
-    const salesCommission =
-      usesSalesPercent && salesPercent > 0
-        ? (approvedSalesSum * salesPercent) / 100
-        : 0;
+    const rewardFixed = Number(
+      (employee as { salesRewardAmount?: unknown }).salesRewardAmount ?? 0,
+    );
+    let salesCommission = 0;
+    if (mode === 'TARGET_FIXED') {
+      salesCommission =
+        target != null && target > 0 && approvedSalesSum >= target
+          ? rewardFixed
+          : 0;
+    } else if (mode === 'TARGET_PERCENT') {
+      const over =
+        target != null && target > 0 && approvedSalesSum > target
+          ? approvedSalesSum - target
+          : 0;
+      salesCommission =
+        over > 0 && salesPercent > 0 ? (over * salesPercent) / 100 : 0;
+    } else if (mode === 'NO_TARGET_PERCENT') {
+      salesCommission =
+        salesPercent > 0 ? (approvedSalesSum * salesPercent) / 100 : 0;
+    } else if (usesSalesPercent && salesPercent > 0) {
+      salesCommission = (approvedSalesSum * salesPercent) / 100;
+    }
     const targetCompletedPercent =
       target != null && target > 0
         ? (approvedSalesSum / target) * 100
@@ -344,6 +366,16 @@ export class HrService {
             },
           },
         },
+        allowances: {
+          select: {
+            id: true,
+            amount: true,
+            allowanceTypeId: true,
+            allowanceType: {
+              select: { id: true, code: true, nameAr: true, nameEn: true },
+            },
+          },
+        },
       },
     });
     return rows.map((row) => {
@@ -357,10 +389,21 @@ export class HrService {
       };
       const latest = row.qiwaContracts[0];
       const currentShift = row.shiftAssignments[0]?.shift ?? null;
+      const rawWindows = row.shiftWindowsJson;
+      const shiftWindows = Array.isArray(rawWindows)
+        ? (rawWindows as Array<{ start?: string; end?: string }>)
+            .map((w) => ({
+              start: String(w?.start ?? '').trim(),
+              end: String(w?.end ?? '').trim(),
+            }))
+            .filter((w) => w.start && w.end)
+        : [];
       return {
         ...rest,
         qiwaStatus: latest?.status ?? 'NOT_STARTED',
         workShift: currentShift,
+        shiftWindows,
+        shiftPatternMode: row.shiftPatternMode,
       };
     });
   }
@@ -445,8 +488,9 @@ export class HrService {
     identityExpiresOn?: string;
     iban?: string;
     ibanBankName?: string;
-    salesTargetMode?: SalesTargetMode | 'PERCENT' | 'AMOUNT' | 'BOTH';
+    salesTargetMode?: SalesTargetMode | string;
     salesTargetAmount?: string | number;
+    salesRewardAmount?: string | number;
     lateHourRate?: string | number;
     advanceAllowancePercent?: string | number;
     advanceAllowanceMonthly?: string | number;
@@ -469,9 +513,15 @@ export class HrService {
     employmentCategory:
       | EmployeeEmploymentCategory
       | 'WAGE_WORKER'
-      | 'EMPLOYMENT_CONTRACT';
+      | 'EMPLOYMENT_CONTRACT'
+      | 'TRIAL_PERIOD';
+    trialStartsOn?: string;
+    trialEndsOn?: string;
+    shiftPatternMode?: string;
+    shiftWindows?: Array<{ start: string; end: string }>;
+    allowances?: Array<{ allowanceTypeId: string; amount: string | number }>;
     /** Work shift assigned at hire (from company roster / business hours). */
-    workShiftId: string;
+    workShiftId?: string;
     basicSalary?: string | number;
     targetPercent?: string | number;
     targetCompletedPercent?: string | number;
@@ -489,27 +539,84 @@ export class HrService {
     }
     if (
       input.employmentCategory !== 'WAGE_WORKER' &&
-      input.employmentCategory !== 'EMPLOYMENT_CONTRACT'
+      input.employmentCategory !== 'EMPLOYMENT_CONTRACT' &&
+      input.employmentCategory !== 'TRIAL_PERIOD'
     ) {
       throw new BadRequestException(
-        'employmentCategory must be WAGE_WORKER or EMPLOYMENT_CONTRACT',
+        'employmentCategory must be WAGE_WORKER, EMPLOYMENT_CONTRACT, or TRIAL_PERIOD',
       );
     }
-    if (!input.workShiftId?.trim()) {
+    if (input.employmentCategory === 'TRIAL_PERIOD') {
+      if (!input.trialStartsOn?.trim() || !input.trialEndsOn?.trim()) {
+        throw new BadRequestException(
+          'trialStartsOn and trialEndsOn are required for TRIAL_PERIOD',
+        );
+      }
+      const ts = new Date(input.trialStartsOn);
+      const te = new Date(input.trialEndsOn);
+      if (Number.isNaN(ts.getTime()) || Number.isNaN(te.getTime()) || te < ts) {
+        throw new BadRequestException(
+          'trialEndsOn must be on or after trialStartsOn',
+        );
+      }
+    }
+    const windows = (input.shiftWindows ?? [])
+      .map((w) => ({
+        start: String(w.start ?? '').trim(),
+        end: String(w.end ?? '').trim(),
+      }))
+      .filter((w) => w.start && w.end);
+    const patternMode = input.shiftPatternMode?.trim() || undefined;
+    if (patternMode && windows.length === 0) {
       throw new BadRequestException(
-        'workShiftId is required — choose the employee work shift',
+        'shiftWindows are required when shiftPatternMode is set',
       );
     }
-    const workShift = await this.prisma.workShift.findFirst({
-      where: {
-        id: input.workShiftId,
-        companyId: input.companyId,
-        isActive: true,
-      },
-    });
-    if (!workShift) {
+    if (
+      patternMode === 'ONE_SHIFT' &&
+      windows.length !== 1
+    ) {
+      throw new BadRequestException('ONE_SHIFT requires exactly one window');
+    }
+    if (patternMode === 'TWO_SHIFTS' && windows.length !== 2) {
+      throw new BadRequestException('TWO_SHIFTS requires exactly two windows');
+    }
+
+    let workShift =
+      input.workShiftId?.trim()
+        ? await this.prisma.workShift.findFirst({
+            where: {
+              id: input.workShiftId,
+              companyId: input.companyId,
+              isActive: true,
+            },
+          })
+        : null;
+    if (input.workShiftId?.trim() && !workShift) {
       throw new BadRequestException(
         'Active work shift not found. Configure business hours / shifts first.',
+      );
+    }
+    if (!workShift && windows.length > 0) {
+      const first = windows[0];
+      workShift = await this.prisma.workShift.create({
+        data: {
+          companyId: input.companyId,
+          name: `وردية موظف ${input.employeeNumber}`,
+          startTime: first.start.slice(0, 5),
+          endTime: first.end.slice(0, 5),
+          sequenceIndex: 0,
+          isActive: true,
+        },
+      });
+    }
+    if (!workShift) {
+      const fallback = await this.listShifts(input.companyId);
+      workShift = fallback[0] ?? null;
+    }
+    if (!workShift) {
+      throw new BadRequestException(
+        'workShiftId or shift windows are required — configure business hours / shifts first.',
       );
     }
     let identityNumber: string;
@@ -623,6 +730,20 @@ export class HrService {
         jobTitle: input.jobTitle,
         hireDate: input.hireDate ? new Date(input.hireDate) : undefined,
         employmentCategory: input.employmentCategory as EmployeeEmploymentCategory,
+        trialStartsOn:
+          input.employmentCategory === 'TRIAL_PERIOD' && input.trialStartsOn
+            ? new Date(input.trialStartsOn)
+            : undefined,
+        trialEndsOn:
+          input.employmentCategory === 'TRIAL_PERIOD' && input.trialEndsOn
+            ? new Date(input.trialEndsOn)
+            : undefined,
+        shiftPatternMode: patternMode,
+        shiftWindowsJson: windows.length > 0 ? windows : undefined,
+        salesRewardAmount:
+          input.salesRewardAmount != null
+            ? String(input.salesRewardAmount)
+            : undefined,
         basicSalary: basic != null ? String(basic) : undefined,
         targetPercent:
           input.targetPercent != null ? String(input.targetPercent) : undefined,
@@ -649,7 +770,7 @@ export class HrService {
         ...ibanData,
         approvalStatus:
           (input.approvalStatus as EmployeeApprovalStatus) ?? 'PENDING',
-        salesTargetMode: input.salesTargetMode,
+        salesTargetMode: input.salesTargetMode as SalesTargetMode | undefined,
         salesTargetAmount:
           input.salesTargetAmount != null
             ? String(input.salesTargetAmount)
@@ -681,6 +802,35 @@ export class HrService {
       },
     });
 
+    const allowanceRows = (input.allowances ?? [])
+      .map((a) => ({
+        allowanceTypeId: String(a.allowanceTypeId ?? '').trim(),
+        amount: Number(a.amount),
+      }))
+      .filter((a) => a.allowanceTypeId && Number.isFinite(a.amount) && a.amount >= 0);
+    if (allowanceRows.length > 0) {
+      const types = await this.prisma.companyAllowanceType.findMany({
+        where: {
+          companyId: input.companyId,
+          id: { in: allowanceRows.map((a) => a.allowanceTypeId) },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      const allowed = new Set(types.map((t) => t.id));
+      const valid = allowanceRows.filter((a) => allowed.has(a.allowanceTypeId));
+      if (valid.length > 0) {
+        await this.prisma.employeeAllowance.createMany({
+          data: valid.map((a) => ({
+            companyId: input.companyId,
+            employeeId: created.id,
+            allowanceTypeId: a.allowanceTypeId,
+            amount: a.amount.toFixed(2),
+          })),
+        });
+      }
+    }
+
     return {
       ...this.stripSensitiveIban(created),
       workShift: {
@@ -698,6 +848,8 @@ export class HrService {
     employeeId: string,
     input: {
       // personal
+      fullName?: string;
+      hireDate?: string | null;
       identityType?: EmployeeIdentityType | 'RESIDENT' | 'CITIZEN';
       identityNumber?: string;
       identityExpiresOn?: string | null;
@@ -707,7 +859,8 @@ export class HrService {
       employmentCategory?:
         | EmployeeEmploymentCategory
         | 'WAGE_WORKER'
-        | 'EMPLOYMENT_CONTRACT';
+        | 'EMPLOYMENT_CONTRACT'
+        | 'TRIAL_PERIOD';
       approvalStatus?:
         EmployeeApprovalStatus | 'PENDING' | 'APPROVED' | 'REJECTED';
       // financial
@@ -722,8 +875,14 @@ export class HrService {
       attendanceBadgeId?: string | null;
       targetPercent?: string | number;
       targetCompletedPercent?: string | number;
-      salesTargetMode?: SalesTargetMode | 'PERCENT' | 'AMOUNT' | 'BOTH' | null;
+      salesTargetMode?: SalesTargetMode | string | null;
       salesTargetAmount?: string | number | null;
+      salesRewardAmount?: string | number | null;
+      trialStartsOn?: string | null;
+      trialEndsOn?: string | null;
+      shiftPatternMode?: string | null;
+      shiftWindows?: Array<{ start: string; end: string }> | null;
+      allowances?: Array<{ allowanceTypeId: string; amount: string | number }>;
       absenceDiscountPerDay?: string | number;
       isPurchaseOperator?: boolean;
       // compliance
@@ -796,6 +955,14 @@ export class HrService {
     const updated = await this.prisma.employee.update({
       where: { id: employeeId },
       data: {
+        ...(input.fullName !== undefined
+          ? { fullName: input.fullName.trim() }
+          : {}),
+        ...(input.hireDate !== undefined
+          ? {
+              hireDate: input.hireDate ? new Date(input.hireDate) : null,
+            }
+          : {}),
         ...(input.identityType != null
           ? { identityType: input.identityType }
           : {}),
@@ -871,6 +1038,43 @@ export class HrService {
                   : null,
             }
           : {}),
+        ...(input.salesRewardAmount !== undefined
+          ? {
+              salesRewardAmount:
+                input.salesRewardAmount != null
+                  ? String(input.salesRewardAmount)
+                  : null,
+            }
+          : {}),
+        ...(input.trialStartsOn !== undefined
+          ? {
+              trialStartsOn: input.trialStartsOn
+                ? new Date(input.trialStartsOn)
+                : null,
+            }
+          : {}),
+        ...(input.trialEndsOn !== undefined
+          ? {
+              trialEndsOn: input.trialEndsOn
+                ? new Date(input.trialEndsOn)
+                : null,
+            }
+          : {}),
+        ...(input.employmentCategory === 'EMPLOYMENT_CONTRACT' ||
+        input.employmentCategory === 'WAGE_WORKER'
+          ? {
+              trialStartsOn: null,
+              trialEndsOn: null,
+            }
+          : {}),
+        ...(input.shiftPatternMode !== undefined
+          ? { shiftPatternMode: input.shiftPatternMode }
+          : {}),
+        ...(input.shiftWindows !== undefined
+          ? {
+              shiftWindowsJson: input.shiftWindows,
+            }
+          : {}),
         ...(input.absenceDiscountPerDay != null
           ? { absenceDiscountPerDay: String(input.absenceDiscountPerDay) }
           : {}),
@@ -885,6 +1089,57 @@ export class HrService {
           : {}),
       } as Prisma.EmployeeUncheckedUpdateInput,
     });
+
+    if (input.shiftWindows !== undefined) {
+      const windows = (input.shiftWindows ?? [])
+        .map((w) => ({
+          start: String(w.start ?? '').trim().slice(0, 5),
+          end: String(w.end ?? '').trim().slice(0, 5),
+        }))
+        .filter((w) => w.start && w.end);
+      if (windows.length > 0) {
+        const assignment = await this.prisma.employeeShiftAssignment.findFirst({
+          where: { companyId, employeeId },
+          orderBy: { effectiveFrom: 'desc' },
+          select: { shiftId: true },
+        });
+        if (assignment?.shiftId) {
+          await this.prisma.workShift.update({
+            where: { id: assignment.shiftId },
+            data: {
+              startTime: windows[0].start,
+              endTime: windows[0].end,
+            },
+          });
+        }
+      }
+    }
+
+    if (input.allowances) {
+      await this.prisma.employeeAllowance.deleteMany({
+        where: { companyId, employeeId },
+      });
+      const allowanceRows = input.allowances
+        .map((a) => ({
+          allowanceTypeId: String(a.allowanceTypeId ?? '').trim(),
+          amount: Number(a.amount),
+        }))
+        .filter(
+          (a) =>
+            a.allowanceTypeId && Number.isFinite(a.amount) && a.amount >= 0,
+        );
+      if (allowanceRows.length > 0) {
+        await this.prisma.employeeAllowance.createMany({
+          data: allowanceRows.map((a) => ({
+            companyId,
+            employeeId,
+            allowanceTypeId: a.allowanceTypeId,
+            amount: a.amount.toFixed(2),
+          })),
+        });
+      }
+    }
+
     return this.stripSensitiveIban(updated);
   }
 
@@ -1713,6 +1968,151 @@ export class HrService {
     });
   }
 
+  // —— Allowances ——
+  private async ensureDefaultAllowanceTypes(companyId: string) {
+    const defaults = [
+      { code: 'HOUSING', nameAr: 'بدل السكن', nameEn: 'Housing allowance' },
+      { code: 'TRANSPORT', nameAr: 'بدل النقل', nameEn: 'Transport allowance' },
+      {
+        code: 'COMMUNICATION',
+        nameAr: 'بدل الاتصال',
+        nameEn: 'Communication allowance',
+      },
+      {
+        code: 'FOOD',
+        nameAr: 'بدل الطعام أو الإعاشة',
+        nameEn: 'Food / subsistence allowance',
+      },
+      {
+        code: 'SHIFT',
+        nameAr: 'بدل المناوبة أو الشفتات',
+        nameEn: 'Shift / rotation allowance',
+      },
+      {
+        code: 'OVERTIME',
+        nameAr: 'بدل العمل الإضافي',
+        nameEn: 'Overtime allowance',
+      },
+      {
+        code: 'NATURE_OF_WORK',
+        nameAr: 'بدل طبيعة العمل',
+        nameEn: 'Nature of work allowance',
+      },
+      {
+        code: 'HAZARD',
+        nameAr: 'بدل الخطر أو العدوى حسب طبيعة الوظيفة',
+        nameEn: 'Hazard / infection allowance',
+      },
+      {
+        code: 'TRAVEL',
+        nameAr: 'بدل السفر أو الانتداب',
+        nameEn: 'Travel / secondment allowance',
+      },
+      {
+        code: 'TRAVEL_TICKETS',
+        nameAr: 'بدل تذاكر السفر',
+        nameEn: 'Travel tickets allowance',
+      },
+      {
+        code: 'REMOTE_AREA',
+        nameAr: 'بدل العمل في المناطق النائية',
+        nameEn: 'Remote area allowance',
+      },
+      {
+        code: 'COST_OF_LIVING',
+        nameAr: 'بدل غلاء المعيشة إذا كان معمولًا به في جهة العمل',
+        nameEn: 'Cost of living allowance',
+      },
+    ];
+
+    const existing = await this.prisma.companyAllowanceType.findMany({
+      where: { companyId },
+      select: { id: true, code: true },
+    });
+    const byCode = new Map(existing.map((r) => [r.code, r.id]));
+    const missing = defaults.filter((d) => !byCode.has(d.code));
+    const toRename = defaults.filter((d) => byCode.has(d.code));
+
+    if (missing.length > 0) {
+      await this.prisma.companyAllowanceType.createMany({
+        data: missing.map((d) => ({
+          companyId,
+          code: d.code,
+          nameAr: d.nameAr,
+          nameEn: d.nameEn,
+          isActive: true,
+        })),
+      });
+    }
+
+    for (const d of toRename) {
+      const id = byCode.get(d.code);
+      if (!id) continue;
+      await this.prisma.companyAllowanceType.update({
+        where: { id },
+        data: {
+          nameAr: d.nameAr,
+          nameEn: d.nameEn,
+          isActive: true,
+        },
+      });
+    }
+  }
+
+  async listAllowanceTypes(companyId: string) {
+    this.tenant.setCompanyId(companyId);
+    await this.ensureDefaultAllowanceTypes(companyId);
+    return this.prisma.companyAllowanceType.findMany({
+      where: { companyId, isActive: true },
+      orderBy: { nameAr: 'asc' },
+    });
+  }
+
+  async createAllowanceType(input: {
+    companyId: string;
+    code: string;
+    nameAr: string;
+    nameEn: string;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const code = input.code.trim().toUpperCase().replace(/\s+/g, '_');
+    if (!code) throw new BadRequestException('code is required');
+    return this.prisma.companyAllowanceType.create({
+      data: {
+        companyId: input.companyId,
+        code,
+        nameAr: input.nameAr.trim(),
+        nameEn: input.nameEn.trim() || input.nameAr.trim(),
+        isActive: true,
+      },
+    });
+  }
+
+  async deactivateAllowanceType(companyId: string, allowanceTypeId: string) {
+    this.tenant.setCompanyId(companyId);
+    const row = await this.prisma.companyAllowanceType.findFirst({
+      where: { id: allowanceTypeId, companyId },
+    });
+    if (!row) throw new BadRequestException('Allowance type not found');
+    return this.prisma.companyAllowanceType.update({
+      where: { id: allowanceTypeId },
+      data: { isActive: false },
+    });
+  }
+
+  async setEmployeeIdentityAttachment(
+    companyId: string,
+    employeeId: string,
+    attachmentId: string,
+  ) {
+    this.tenant.setCompanyId(companyId);
+    await this.requireEmployee(companyId, employeeId);
+    return this.prisma.employee.update({
+      where: { id: employeeId },
+      data: { identityAttachmentId: attachmentId },
+    });
+  }
+
   // —— Shifts ——
   async listShifts(companyId: string) {
     this.tenant.setCompanyId(companyId);
@@ -1730,7 +2130,7 @@ export class HrService {
       const profile = await this.prisma.companyBusinessHoursProfile.findUnique({
         where: { companyId },
       });
-      if (profile?.mode === 'HOURS_24' || profile?.mode === 'HOURS_12' || profile?.mode === 'DYNAMIC') {
+      if (profile?.mode === 'HOURS_24' || profile?.mode === 'HOURS_12') {
         for (const d of ALL_STANDARD_SHIFTS) {
           await this.prisma.workShift.create({
             data: {
@@ -1894,29 +2294,27 @@ export class HrService {
         },
       });
     }
-    if (!invoice) {
-      throw new BadRequestException(
-        'Select an existing sales invoice (payment must be against an invoice)',
-      );
-    }
-    if (['DRAFT', 'CANCELLED', 'PAID'].includes(invoice.status)) {
-      throw new BadRequestException(
-        'Invoice must be issued/open with a remaining balance',
-      );
-    }
-    const balance = Number(invoice.balanceDue);
-    if (!(balance > 0)) {
-      throw new BadRequestException('Invoice has no remaining balance');
-    }
 
     const amount = Number(input.amount);
     if (!(amount > 0)) {
       throw new BadRequestException('amount must be > 0');
     }
-    if (amount > balance + 0.001) {
-      throw new BadRequestException(
-        `Amount exceeds invoice balance due (${balance})`,
-      );
+
+    if (invoice) {
+      if (['DRAFT', 'CANCELLED', 'PAID'].includes(invoice.status)) {
+        throw new BadRequestException(
+          'Invoice must be issued/open with a remaining balance',
+        );
+      }
+      const balance = Number(invoice.balanceDue);
+      if (!(balance > 0)) {
+        throw new BadRequestException('Invoice has no remaining balance');
+      }
+      if (amount > balance + 0.001) {
+        throw new BadRequestException(
+          `Amount exceeds invoice balance due (${balance})`,
+        );
+      }
     }
 
     const method = input.paymentMethod;
@@ -1928,6 +2326,12 @@ export class HrService {
     } else {
       status = 'NEEDS_RECEIPT';
     }
+
+    const invoiceNumber =
+      invoice?.invoiceNumber ??
+      input.invoiceNumber?.trim() ??
+      `EMP-${method}-${input.saleDate.replace(/-/g, '')}-${Date.now().toString(36).slice(-6)}`;
+
     return this.prisma.employeeSalesSubmission.create({
       data: {
         companyId: input.companyId,
@@ -1935,8 +2339,8 @@ export class HrService {
         saleDate: new Date(input.saleDate),
         amount: amount.toFixed(2),
         paymentMethod: method,
-        invoiceNumber: invoice.invoiceNumber,
-        salesInvoiceId: invoice.id,
+        invoiceNumber,
+        salesInvoiceId: invoice?.id,
         status,
         receiptAttachmentId: input.receiptAttachmentId,
         notes: input.notes,

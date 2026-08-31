@@ -1,5 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { FlashFromSearch } from "@/components/erp/Flash";
+import { EmployeeSalesSubmitForm } from "@/components/erp/EmployeeSalesSubmitForm";
+import { LeaveDaysAutoField } from "@/components/erp/LeaveDaysAutoField";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -75,15 +77,6 @@ type MySale = {
   status: string;
 };
 
-type PayableInvoice = {
-  id: string;
-  invoiceNumber: string;
-  balanceDue: string;
-  totalAmount: string;
-  currency: string;
-  contact?: { name: string } | null;
-};
-
 export default async function HrMePage({
   params,
   searchParams,
@@ -104,13 +97,6 @@ export default async function HrMePage({
     ? await apiServer<MySale[]>(`/companies/${companyId}/hr/me/sales`, {
         companyId,
       }).catch(() => [])
-    : [];
-
-  const payableInvoices = me
-    ? await apiServer<PayableInvoice[]>(
-        `/companies/${companyId}/hr/payable-invoices`,
-        { companyId },
-      ).catch(() => [])
     : [];
 
   const updateProfile = updateMyProfile.bind(null, companyId);
@@ -295,57 +281,24 @@ export default async function HrMePage({
               {t("salesProgressHint")}
             </p>
             <h3 className="mb-3 text-sm font-semibold">{t("submitSale")}</h3>
-            <form action={submitSale} className="grid gap-3 md:grid-cols-2">
-              <Input
-                name="saleDate"
-                label={t("date")}
-                type="date"
-                required
-                defaultValue={new Date().toISOString().slice(0, 10)}
-              />
-              <Input name="amount" label={`${t("amount")} (SAR)`} required />
-              <Select
-                name="salesInvoiceId"
-                label={t("saleInvoiceNumber")}
-                required
-                placeholder={t("selectInvoice")}
-                options={payableInvoices.map((inv) => ({
-                  value: inv.id,
-                  label: `${inv.invoiceNumber} · ${inv.contact?.name ?? "—"} · ${formatMoney(inv.balanceDue, inv.currency)}`,
-                }))}
-              />
-              <Select
-                name="paymentMethod"
-                label={t("paymentMethod")}
-                required
-                options={[
-                  { value: "CASH", label: t("payCash") },
-                  { value: "CARD", label: t("payCard") },
-                  { value: "TRANSFER", label: t("payTransfer") },
-                  { value: "NETWORK", label: t("payNetwork") },
-                ]}
-              />
-              {payableInvoices.length === 0 ? (
-                <p className="md:col-span-2 text-xs text-[var(--muted-foreground)]">
-                  {t("noPayableInvoices")}
-                </p>
-              ) : null}
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="font-medium">{t("receipt")}</span>
-                <input
-                  type="file"
-                  name="receipt"
-                  accept=".pdf,.jpg,.jpeg,.png,application/pdf"
-                  className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5"
-                />
-                <span className="text-xs text-[var(--muted-foreground)]">
-                  {t("receiptHint")}
-                </span>
-              </label>
-              <div className="md:col-span-2">
-                <Button type="submit">{t("submitSale")}</Button>
-              </div>
-            </form>
+            <EmployeeSalesSubmitForm
+              action={submitSale}
+              labels={{
+                saleDate: t("date"),
+                amount: `${t("amount")} (SAR)`,
+                paymentMethod: t("paymentMethod"),
+                cash: t("payCash"),
+                network: t("payNetwork"),
+                transfer: t("payTransfer"),
+                cashHint: t("saleCashHint"),
+                multiHint: t("saleMultiHint"),
+                salesCount: t("saleSalesCount"),
+                receiptN: t("saleReceiptN"),
+                receipt: t("receipt"),
+                notes: t("notes"),
+                submit: t("submitSale"),
+              }}
+            />
             <div className="mt-6">
               <h3 className="mb-3 text-sm font-semibold">
                 {t("mySales")}
@@ -470,14 +423,13 @@ export default async function HrMePage({
                   { value: "OTHER", label: t("leaveOther") },
                 ]}
               />
-              <Input
-                name="requestedDays"
-                label={t("days")}
-                required
-                defaultValue="1"
+              <LeaveDaysAutoField
+                labels={{
+                  from: t("from"),
+                  to: t("to"),
+                  days: t("days"),
+                }}
               />
-              <Input name="startsOn" label={t("from")} type="date" required />
-              <Input name="endsOn" label={t("to")} type="date" required />
               <div className="md:col-span-2">
                 <Textarea name="reason" label={t("reason")} required />
               </div>

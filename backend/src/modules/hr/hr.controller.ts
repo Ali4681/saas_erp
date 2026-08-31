@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -118,6 +119,32 @@ class CreateEmployeeBody {
   @IsOptional()
   @Transform(emptyToUndefined)
   @IsNumberString()
+  salesRewardAmount?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  trialStartsOn?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  trialEndsOn?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  shiftPatternMode?: string;
+
+  @IsOptional()
+  shiftWindows?: Array<{ start: string; end: string }>;
+
+  @IsOptional()
+  allowances?: Array<{ allowanceTypeId: string; amount: string }>;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsNumberString()
   lateHourRate?: string;
 
   @IsOptional()
@@ -197,10 +224,11 @@ class CreateEmployeeBody {
   @IsEnum(EmployeeEmploymentCategory)
   employmentCategory!: EmployeeEmploymentCategory;
 
-  /** Required work shift from company business-hours / shift roster */
+  /** Optional roster shift; custom windows use shiftPatternMode + shiftWindows */
+  @IsOptional()
+  @Transform(emptyToUndefined)
   @IsString()
-  @MinLength(1)
-  workShiftId!: string;
+  workShiftId?: string;
 
   @IsOptional()
   @Transform(emptyToUndefined)
@@ -254,6 +282,14 @@ class UpdateEmployeeBody {
   @IsOptional()
   @IsString()
   identityExpiresOn?: string;
+
+  @IsOptional()
+  @IsString()
+  fullName?: string;
+
+  @IsOptional()
+  @IsString()
+  hireDate?: string;
 
   @IsOptional()
   @IsString()
@@ -326,6 +362,28 @@ class UpdateEmployeeBody {
   @IsOptional()
   @IsNumberString()
   salesTargetAmount?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  salesRewardAmount?: string;
+
+  @IsOptional()
+  @IsString()
+  trialStartsOn?: string;
+
+  @IsOptional()
+  @IsString()
+  trialEndsOn?: string;
+
+  @IsOptional()
+  @IsString()
+  shiftPatternMode?: string;
+
+  @IsOptional()
+  shiftWindows?: Array<{ start: string; end: string }>;
+
+  @IsOptional()
+  allowances?: Array<{ allowanceTypeId: string; amount: string }>;
 
   @IsOptional()
   @IsNumberString()
@@ -783,6 +841,53 @@ export class HrController {
   @RequirePermissions('hr.read')
   listEmployees(@Param('companyId') companyId: string) {
     return this.hr.listEmployees(companyId);
+  }
+
+  @Get('allowance-types')
+  @RequirePermissions('hr.read')
+  listAllowanceTypes(@Param('companyId') companyId: string) {
+    return this.hr.listAllowanceTypes(companyId);
+  }
+
+  @Post('allowance-types')
+  @RequirePermissions('hr.write')
+  createAllowanceType(
+    @Param('companyId') companyId: string,
+    @Body()
+    body: { code: string; nameAr: string; nameEn?: string },
+  ) {
+    return this.hr.createAllowanceType({
+      companyId,
+      code: body.code,
+      nameAr: body.nameAr,
+      nameEn: body.nameEn ?? body.nameAr,
+    });
+  }
+
+  @Delete('allowance-types/:allowanceTypeId')
+  @RequirePermissions('hr.write')
+  deactivateAllowanceType(
+    @Param('companyId') companyId: string,
+    @Param('allowanceTypeId') allowanceTypeId: string,
+  ) {
+    return this.hr.deactivateAllowanceType(companyId, allowanceTypeId);
+  }
+
+  @Patch('employees/:employeeId/identity-attachment')
+  @RequirePermissions('hr.write')
+  setIdentityAttachment(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: { attachmentId: string },
+  ) {
+    if (!body.attachmentId?.trim()) {
+      throw new BadRequestException('attachmentId is required');
+    }
+    return this.hr.setEmployeeIdentityAttachment(
+      companyId,
+      employeeId,
+      body.attachmentId.trim(),
+    );
   }
 
   @Get('employees/:employeeId')

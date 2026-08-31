@@ -28,6 +28,7 @@ import { getSession } from "@/lib/auth/session";
 import { can, roleKey } from "@/lib/permissions";
 import { apiServer } from "@/lib/api/server";
 import { companyLogoUrl } from "@/lib/company-logo";
+import { updateCompanyLogo } from "./actions";
 import { toNumber, getFormatters } from "@/lib/format-server";
 import { COMPANY_CHANNEL_SECTIONS } from "@/lib/integrations";
 import {
@@ -158,15 +159,10 @@ export default async function CompanyHomePage({
   const sessionLogoId = sameTenant ? (user?.logoAttachmentId ?? null) : null;
 
   const [company, unreadRes, report] = await Promise.all([
-    sessionCompanyName
-      ? Promise.resolve({
-          displayName: sessionCompanyName,
-          logoAttachmentId: sessionLogoId,
-        })
-      : apiServer<{
+    apiServer<{
           displayName: string;
           logoAttachmentId?: string | null;
-        }>(`/companies/${companyId}`, { companyId }).catch(() => null),
+        }>(`/companies/${companyId}`, { companyId }).catch(() => sessionCompanyName ? ({ displayName: sessionCompanyName, logoAttachmentId: sessionLogoId }) : null),
     user && can(user, "notifications.read")
       ? apiServer<{ count: number }>(
           `/companies/${companyId}/notifications/unread-count`,
@@ -267,6 +263,20 @@ export default async function CompanyHomePage({
           </div>
         }
       />
+
+      {can(user, "companies.write") ? (
+        <Card title="Company logo">
+          <form action={updateCompanyLogo.bind(null, companyId)} className="flex flex-wrap items-end gap-3">
+            <input type="hidden" name="returnTo" value={`/c/${companyId}`} />
+            <label className="grid gap-1 text-sm font-medium">
+              Upload or replace logo
+              <input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required className="block text-sm" />
+            </label>
+            <Button type="submit">Save logo</Button>
+            <p className="text-xs text-[var(--muted-foreground)]">PNG or JPG works best in quotes and invoices. Maximum 5 MB.</p>
+          </form>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

@@ -24,11 +24,6 @@ import {
   uploadEmployeeInsurance,
 } from "../../actions";
 import { AppLoginCredentials } from "../AppLoginCredentials";
-import {
-  QiwaContractSection,
-  type QiwaContractView,
-  type QiwaSummary,
-} from "./QiwaContractSection";
 
 type Shift = {
   id: string;
@@ -90,6 +85,8 @@ type EmployeeDetail = {
   hireDate: string | null;
   employmentStatus: string;
   employmentCategory?: string | null;
+  trialEndsOn?: string | null;
+  trialStartsOn?: string | null;
   basicSalary: string | null;
   salesTargetMode?: string | null;
   salesTargetAmount?: string | null;
@@ -176,8 +173,6 @@ export default async function EmployeeDetailPage({
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
   const canApproveCash = can(session?.user, "hr.sales_cash.approve");
-  const canManageQiwa = can(session?.user, "hr.qiwa.manage");
-  const canApproveQiwa = can(session?.user, "hr.qiwa.approve");
   const qiwaUrl =
     process.env.NEXT_PUBLIC_QIWA_URL?.trim() || "https://www.qiwa.sa/";
 
@@ -187,50 +182,21 @@ export default async function EmployeeDetailPage({
       { companyId },
     ).catch(() => null)) ?? null;
 
-  const [insuranceFiles, shifts, report, qiwaContract, qiwaSummary] =
-    await Promise.all([
-      apiServer<Attachment[]>(
-        `/companies/${companyId}/attachments?entityType=employee_insurance&entityId=${employeeId}`,
-        { companyId },
-      ).catch(() => []),
-      apiServer<Shift[]>(`/companies/${companyId}/hr/shifts`, {
-        companyId,
-      }).catch(() => []),
-      tab === "reports" && flash.from && flash.to
-        ? apiServer<PersonalReport>(
-            `/companies/${companyId}/hr/employees/${employeeId}/personal-report?from=${encodeURIComponent(flash.from)}&to=${encodeURIComponent(flash.to)}`,
-            { companyId },
-          ).catch(() => null)
-        : Promise.resolve(null),
-      apiServer<QiwaContractView>(
-        `/companies/${companyId}/hr/employees/${employeeId}/qiwa-contract`,
-        { companyId },
-      ).catch(
-        () =>
-          ({
-            id: null,
-            employeeId,
-            status: "NOT_STARTED",
-            qiwaContractReference: null,
-            contractAttachmentId: null,
-            contractFile: null,
-            startedAt: null,
-            sentAt: null,
-            documentedAt: null,
-            rejectedAt: null,
-            verifiedBy: null,
-            lastUpdatedBy: null,
-            notes: null,
-            updatedAt: null,
-          }) satisfies QiwaContractView,
-      ),
-      canManageQiwa
-        ? apiServer<QiwaSummary>(
-            `/companies/${companyId}/hr/employees/${employeeId}/qiwa-contract/summary`,
-            { companyId },
-          ).catch(() => null)
-        : Promise.resolve(null),
-    ]);
+  const [insuranceFiles, shifts, report] = await Promise.all([
+    apiServer<Attachment[]>(
+      `/companies/${companyId}/attachments?entityType=employee_insurance&entityId=${employeeId}`,
+      { companyId },
+    ).catch(() => []),
+    apiServer<Shift[]>(`/companies/${companyId}/hr/shifts`, {
+      companyId,
+    }).catch(() => []),
+    tab === "reports" && flash.from && flash.to
+      ? apiServer<PersonalReport>(
+          `/companies/${companyId}/hr/employees/${employeeId}/personal-report?from=${encodeURIComponent(flash.from)}&to=${encodeURIComponent(flash.to)}`,
+          { companyId },
+        ).catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   const insurance =
     insuranceFiles[0] ??
@@ -257,13 +223,13 @@ export default async function EmployeeDetailPage({
     );
   }
 
-  const qiwaDocumented = qiwaContract.status === "DOCUMENTED";
   const incompleteProfile = !(
     Boolean(employee.hasInsurance || insurance) &&
     Boolean(employee.hasIdentity ?? employee.identityNumber) &&
     Boolean(employee.hasIban ?? employee.ibanLast4)
   );
   const detailPath = `/c/${companyId}/hr/employees/${employeeId}?tab=targets`;
+  const qiwaRegistered = employee.approvalStatus === "APPROVED";
 
   return (
     <div className="space-y-5">
@@ -286,24 +252,26 @@ export default async function EmployeeDetailPage({
 
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge
-          status={qiwaDocumented ? "DOCUMENTED" : qiwaContract.status}
+          status={qiwaRegistered ? "APPROVED" : "PENDING"}
           label={
-            qiwaDocumented
-              ? t("qiwaStatusDocumented")
-              : qiwaContract.status === "IN_PROGRESS"
-                ? t("qiwaStatusInProgress")
-                : qiwaContract.status === "AWAITING_EMPLOYEE"
-                  ? t("qiwaStatusAwaitingEmployee")
-                  : qiwaContract.status === "PENDING_APPROVAL"
-                    ? t("qiwaStatusPendingApproval")
-                    : qiwaContract.status === "REJECTED_OR_MODIFICATION"
-                      ? t("qiwaStatusRejected")
-                      : t("qiwaStatusNotStarted")
+            qiwaRegistered
+              ? t("qiwaRegisteredYesShort")
+              : t("qiwaRegisteredNoShort")
           }
         />
         <span className="text-sm text-[var(--muted-foreground)]">
-          {t("qiwaEmploymentContract")}
+          {t("qiwaRegisteredColumn")}
         </span>
+        {!qiwaRegistered ? (
+          <a
+            href={qiwaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-[var(--primary)] underline-offset-2 hover:underline"
+          >
+            {t("goToQiwa")}
+          </a>
+        ) : null}
       </div>
 
       {incompleteProfile ? (
@@ -385,10 +353,26 @@ export default async function EmployeeDetailPage({
               <p className="mt-1 font-medium">
                 {employee.employmentCategory === "WAGE_WORKER"
                   ? t("employmentCategoryWage")
-                  : employee.employmentCategory === "EMPLOYMENT_CONTRACT"
-                    ? t("employmentCategoryContract")
-                    : "—"}
+                  : employee.employmentCategory === "TRIAL_PERIOD"
+                    ? t("employmentCategoryTrial")
+                    : employee.employmentCategory === "EMPLOYMENT_CONTRACT"
+                      ? t("employmentCategoryContract")
+                      : "—"}
               </p>
+              {employee.employmentCategory === "TRIAL_PERIOD" &&
+              employee.trialEndsOn ? (
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                  {t("trialEndsOn")}: {formatDate(employee.trialEndsOn)} ·{" "}
+                  <a
+                    href={qiwaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--primary)] underline-offset-2 hover:underline"
+                  >
+                    {t("goToQiwa")}
+                  </a>
+                </p>
+              ) : null}
               {canWrite ? (
                 <form
                   action={updateEmployeeEmploymentCategory.bind(
@@ -406,7 +390,9 @@ export default async function EmployeeDetailPage({
                     defaultValue={
                       employee.employmentCategory === "WAGE_WORKER"
                         ? "WAGE_WORKER"
-                        : "EMPLOYMENT_CONTRACT"
+                        : employee.employmentCategory === "TRIAL_PERIOD"
+                          ? "TRIAL_PERIOD"
+                          : "EMPLOYMENT_CONTRACT"
                     }
                     options={[
                       {
@@ -416,6 +402,10 @@ export default async function EmployeeDetailPage({
                       {
                         value: "WAGE_WORKER",
                         label: t("employmentCategoryWage"),
+                      },
+                      {
+                        value: "TRIAL_PERIOD",
+                        label: t("employmentCategoryTrial"),
                       },
                     ]}
                   />
@@ -468,29 +458,6 @@ export default async function EmployeeDetailPage({
             ) : null}
           </Card>
 
-          <QiwaContractSection
-            companyId={companyId}
-            employeeId={employeeId}
-            canManage={canManageQiwa}
-            canApprove={canApproveQiwa}
-            qiwaUrl={qiwaUrl}
-            contract={qiwaContract}
-            summary={
-              qiwaSummary ?? {
-                fullName: employee.fullName,
-                employeeNumber: employee.employeeNumber,
-                identityType: employee.identityType ?? null,
-                identityNumber: employee.identityNumber ?? null,
-                jobTitle: employee.jobTitle ?? null,
-                department: null,
-                branch: null,
-                basicSalary: employee.basicSalary ?? null,
-                currency: employee.currency,
-                hireDate: employee.hireDate ?? null,
-                employmentStatus: employee.employmentStatus,
-              }
-            }
-          />
         </div>
       ) : null}
 
@@ -608,12 +575,12 @@ export default async function EmployeeDetailPage({
             </Card>
             <Card className="p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
-                {t("qiwaVerifiedStatus")}
+                {t("qiwaRegisteredColumn")}
               </p>
               <p className="mt-1 font-semibold">
                 {employee.approvalStatus === "APPROVED"
-                  ? t("qiwaVerified")
-                  : t("qiwaNotVerified")}
+                  ? t("qiwaRegisteredYesShort")
+                  : t("qiwaRegisteredNoShort")}
               </p>
             </Card>
           </div>

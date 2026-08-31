@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { CheckCircle2, Copy, ExternalLink, FileText } from "lucide-react";
@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDate, formatMoney } from "@/lib/format";
+import { lockPageScroll } from "@/lib/lock-page-scroll";
 import { cn } from "@/lib/utils";
 import {
   approveEmployeeQiwaDocumentation,
@@ -825,8 +826,20 @@ function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  useEffect(() => {
+    const unlock = lockPageScroll();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      unlock();
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden p-4 sm:p-6">
       <button
         type="button"
         aria-label="Close"
@@ -836,12 +849,14 @@ function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 flex max-h-[min(92vh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl"
+        className="relative z-10 flex max-h-[min(92dvh,880px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl"
       >
-        <div className="border-b border-[var(--border)] px-5 py-4">
+        <div className="shrink-0 border-b border-[var(--border)] px-5 py-4">
           <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+          {children}
+        </div>
       </div>
     </div>
   );

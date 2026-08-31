@@ -61,6 +61,8 @@ model Company {
   employeeShiftAssignments EmployeeShiftAssignment[]
   employeeSalesSubmissions EmployeeSalesSubmission[]
   employeeQiwaContracts EmployeeQiwaContract[]
+  companyAllowanceTypes CompanyAllowanceType[]
+  employeeAllowances    EmployeeAllowance[]
   dailyCashClosings DailyCashClosing[]
   workProjects      WorkProject[]
   automationRules   AutomationRule[]
@@ -93,6 +95,8 @@ model Company {
   journalLines         JournalLine[]
   cashierShiftSessions CashierShiftSession[]
   cashierShiftHandovers CashierShiftHandover[]
+  pointOfSales         PointOfSale[]
+  posCashiers          PosCashier[]
   glAccounts           GlAccount[]
   accountMapping       CompanyAccountMapping?
   purchaseRequisitions PurchaseRequisition[]
@@ -166,6 +170,7 @@ model CompanyBranch {
   dailyCashClosings DailyCashClosing[]
   approvalThresholds ApprovalThreshold[]
   cashierShiftSessions CashierShiftSession[]
+  pointOfSales PointOfSale[]
   purchaseRequisitions PurchaseRequisition[]
 
   @@unique([companyId, code, deletedMarker], map: "uq_branch_company_code")

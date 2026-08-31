@@ -139,6 +139,13 @@ class UpdateCompanyBody {
   status?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
 }
 
+class UpdateCompanyLogoBody {
+  @IsString() logoFileName!: string;
+  @IsString() logoMimeType!: string;
+  @IsNumberString() logoSizeBytes!: string;
+  @IsString() logoContentBase64!: string;
+}
+
 class UpdateSettingsBody {
   @IsOptional()
   @IsString()
@@ -240,6 +247,12 @@ export class CompaniesController {
   @RequirePermissions('companies.write')
   update(@Param('id') id: string, @Body() body: UpdateCompanyBody) {
     return this.companies.update(id, body);
+  }
+
+  @Patch(':id/logo')
+  @RequirePermissions('companies.write')
+  updateLogo(@Param('id') id: string, @Body() body: UpdateCompanyLogoBody, @CurrentUser() user: AuthUser) {
+    return this.companies.updateLogo(id, body, user.userId);
   }
 
   @Delete(':id')

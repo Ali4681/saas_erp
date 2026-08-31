@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { lockPageScroll } from "@/lib/lock-page-scroll";
 
 type Props = {
   title: string;
@@ -50,11 +51,10 @@ export function CreateFormDialog({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockPageScroll();
     document.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prev;
+      unlock();
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
@@ -71,7 +71,7 @@ export function CreateFormDialog({
       </Button>
       {open ? (
         <div
-          className="fixed inset-0 z-[200] overflow-y-auto p-4 sm:p-6"
+          className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden p-4 sm:p-6"
           role="presentation"
         >
           <button
@@ -86,8 +86,8 @@ export function CreateFormDialog({
             aria-labelledby={titleId}
             aria-describedby={description ? descId : undefined}
             className={cn(
-              "relative z-10 mx-auto my-4 flex w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-2xl",
-              "max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]",
+              "relative z-10 flex w-full min-w-0 max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] shadow-2xl",
+              "max-h-[min(92dvh,calc(100dvh-2rem))]",
               className,
             )}
           >
@@ -118,7 +118,7 @@ export function CreateFormDialog({
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain px-5 py-4">
               {closeOnSuccess && isValidElement(children)
                 ? cloneElement(
                     children as ReactElement<{ onSuccess?: () => void }>,

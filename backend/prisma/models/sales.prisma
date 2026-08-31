@@ -55,6 +55,10 @@ model SalesInvoice {
   companyBranchId String?       @map("company_branch_id") @db.Char(36)
   /// Creator / salesperson user for BI rankings & employee filter.
   createdById     String?       @map("created_by") @db.Char(36)
+  /// Point of sale where the sale was made.
+  pointOfSaleId   String?       @map("point_of_sale_id") @db.Char(36)
+  /// Cashier assignment used for this sale.
+  posCashierId    String?       @map("pos_cashier_id") @db.Char(36)
   invoiceNumber   String        @map("invoice_number") @db.VarChar(60)
   status          InvoiceStatus @default(DRAFT)
   issuedOn        DateTime      @map("issued_on") @db.Date
@@ -66,6 +70,8 @@ model SalesInvoice {
   totalAmount     Decimal       @map("total_amount") @db.Decimal(18, 2)
   balanceDue      Decimal       @map("balance_due") @db.Decimal(18, 2)
   saleChannel     String        @default("POS") @map("sale_channel") @db.VarChar(40)
+  /// Tender at issue: CASH | BANK_TRANSFER | CARD | PAYMENT_GATEWAY | OTHER | CREDIT | BNPL | MIXED
+  paymentMethod   String?       @map("payment_method") @db.VarChar(40)
   couponCode      String?       @map("coupon_code") @db.VarChar(80)
   priceListId     String?       @map("price_list_id") @db.Char(36)
   storeCreditApplied Decimal    @default(0) @map("store_credit_applied") @db.Decimal(18, 2)
@@ -78,6 +84,8 @@ model SalesInvoice {
   quote       SalesQuote?            @relation(fields: [salesQuoteId], references: [id], onDelete: SetNull)
   branch      CompanyBranch?         @relation(fields: [companyBranchId], references: [id], onDelete: SetNull)
   createdBy   User?                  @relation("SalesInvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  pointOfSale PointOfSale?           @relation(fields: [pointOfSaleId], references: [id], onDelete: SetNull)
+  posCashier  PosCashier?            @relation(fields: [posCashierId], references: [id], onDelete: SetNull)
   priceList   PriceList?             @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   items       SalesInvoiceItem[]
   payments    SalesPayment[]
@@ -90,6 +98,8 @@ model SalesInvoice {
   @@index([companyId, companyBranchId, issuedOn], map: "idx_sales_invoice_branch_issued")
   @@index([companyId, createdById, issuedOn], map: "idx_sales_invoice_creator_issued")
   @@index([companyId, saleChannel, issuedOn], map: "idx_sales_invoice_channel_issued")
+  @@index([companyId, pointOfSaleId, issuedOn], map: "idx_sales_invoice_pos_issued")
+  @@index([companyId, posCashierId, issuedOn], map: "idx_sales_invoice_cashier_issued")
   @@map("sales_invoices")
 }
 

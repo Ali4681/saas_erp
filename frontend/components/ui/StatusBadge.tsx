@@ -10,6 +10,7 @@ const tones: Record<
   CANCELLED: "secondary",
   CLOSED: "secondary",
   DRAFT: "secondary",
+  ON_HOLD: "warning",
   ENABLED: "success",
   DISABLED: "secondary",
   INVITED: "info",

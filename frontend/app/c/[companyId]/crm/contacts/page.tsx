@@ -1,14 +1,12 @@
 import { getTranslations } from "next-intl/server";
 import { FlashFromSearch } from "@/components/erp/Flash";
 import { CreateFormDialog } from "@/components/erp/CreateFormDialog";
+import { ContactCreateFields } from "@/components/erp/ContactCreateFields";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Textarea } from "@/components/ui/Textarea";
 import { can } from "@/lib/permissions";
 import { getSession } from "@/lib/auth/session";
 import { apiServer } from "@/lib/api/server";
@@ -72,45 +70,7 @@ export default async function ContactsPage({
           triggerLabel={t("contacts.add")}
         >
           <form action={create} className="grid gap-3 md:grid-cols-2">
-            <Select
-              name="contactType"
-              label={t("type")}
-              required
-              defaultValue="CUSTOMER"
-              options={[
-                { value: "CUSTOMER", label: t("contacts.customerType") },
-                { value: "LEAD", label: t("contacts.leadType") },
-              ]}
-            />
-            <Select
-              name="customerTrack"
-              label={t("track")}
-              required
-              defaultValue="B2C"
-              options={[
-                { value: "B2C", label: t("b2c") },
-                { value: "B2B", label: t("b2b") },
-              ]}
-            />
-            <Input name="name" label={t("name")} required />
-            <Input name="companyName" label={t("contacts.companyName")} />
-            <Input name="email" label={t("email")} type="email" />
-            <Input name="phone" label={t("phone")} />
-            <Input name="taxNumber" label={t("taxNumber")} />
-            <Input
-              name="companyRegNumber"
-              label={t("companyRegNumber")}
-            />
-            <Input name="creditLimit" label={t("creditLimit")} type="number" />
-            <Input
-              name="creditTermsDays"
-              label={t("creditTermsDays")}
-              type="number"
-            />
-            <Input name="dateOfBirth" label={t("dateOfBirth")} type="date" />
-            <div className="md:col-span-2">
-              <Textarea name="notes" label={t("notes")} />
-            </div>
+            <ContactCreateFields />
             <div className="md:col-span-2">
               <Button type="submit">{t("create")}</Button>
             </div>
@@ -188,97 +148,23 @@ export default async function ContactsPage({
                             action={updateContact.bind(null, companyId, c.id)}
                             className="grid gap-3 md:grid-cols-2"
                           >
-                            <Select
-                              name="contactType"
-                              label={t("type")}
-                              required
-                              defaultValue={c.contactType}
-                              options={[
-                                {
-                                  value: "CUSTOMER",
-                                  label: t("contacts.customerType"),
-                                },
-                                {
-                                  value: "LEAD",
-                                  label: t("contacts.leadType"),
-                                },
-                              ]}
+                            <ContactCreateFields
+                              showStatus
+                              defaults={{
+                                contactType: c.contactType,
+                                customerTrack: c.customerTrack ?? "B2C",
+                                status: c.status,
+                                name: c.name,
+                                companyName: c.companyName,
+                                email: c.email,
+                                phone: c.phone,
+                                taxNumber: c.taxNumber,
+                                companyRegNumber: c.companyRegNumber,
+                                creditLimit: c.creditLimit,
+                                creditTermsDays: c.creditTermsDays,
+                                notes: c.notes,
+                              }}
                             />
-                            <Select
-                              name="customerTrack"
-                              label={t("track")}
-                              required
-                              defaultValue={c.customerTrack ?? "B2C"}
-                              options={[
-                                { value: "B2C", label: t("b2c") },
-                                { value: "B2B", label: t("b2b") },
-                              ]}
-                            />
-                            <Select
-                              name="status"
-                              label={t("status")}
-                              defaultValue={c.status}
-                              options={[
-                                { value: "ACTIVE", label: "ACTIVE" },
-                                { value: "INACTIVE", label: "INACTIVE" },
-                              ]}
-                            />
-                            <Input
-                              name="name"
-                              label={t("name")}
-                              required
-                              defaultValue={c.name}
-                            />
-                            <Input
-                              name="companyName"
-                              label={t("contacts.companyName")}
-                              defaultValue={c.companyName ?? ""}
-                            />
-                            <Input
-                              name="email"
-                              label={t("email")}
-                              type="email"
-                              defaultValue={c.email ?? ""}
-                            />
-                            <Input
-                              name="phone"
-                              label={t("phone")}
-                              defaultValue={c.phone ?? ""}
-                            />
-                            <Input
-                              name="taxNumber"
-                              label={t("taxNumber")}
-                              defaultValue={c.taxNumber ?? ""}
-                            />
-                            <Input
-                              name="companyRegNumber"
-                              label={t("companyRegNumber")}
-                              defaultValue={c.companyRegNumber ?? ""}
-                            />
-                            <Input
-                              name="creditLimit"
-                              label={t("creditLimit")}
-                              type="number"
-                              defaultValue={c.creditLimit ?? 0}
-                            />
-                            <Input
-                              name="creditTermsDays"
-                              label={t("creditTermsDays")}
-                              type="number"
-                              defaultValue={c.creditTermsDays ?? 0}
-                            />
-                            <Input
-                              name="dateOfBirth"
-                              label={t("dateOfBirth")}
-                              type="date"
-                            />
-                            <div className="md:col-span-2">
-                              <Textarea
-                                name="notes"
-                                label={t("notes")}
-                                defaultValue={c.notes ?? ""}
-                              />
-                            </div>
                             <div className="md:col-span-2">
                               <Button type="submit">{t("contacts.save")}</Button>
                             </div>

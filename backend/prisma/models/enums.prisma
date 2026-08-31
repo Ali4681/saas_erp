@@ -45,6 +45,7 @@ enum SubscriptionStatus {
 
 enum InvoiceStatus {
   DRAFT
+  ON_HOLD
   ISSUED
   PARTIALLY_PAID
   PAID
@@ -447,6 +448,7 @@ enum EmployeeIdentityType {
 enum EmployeeEmploymentCategory {
   WAGE_WORKER
   EMPLOYMENT_CONTRACT
+  TRIAL_PERIOD
 }
 
 enum EmployeeApprovalStatus {
@@ -468,6 +470,12 @@ enum SalesTargetMode {
   PERCENT
   AMOUNT
   BOTH
+  /// Target sales amount; reward is a fixed SAR amount after target
+  TARGET_FIXED
+  /// Target sales amount; reward is % of sales after target
+  TARGET_PERCENT
+  /// No target — commission % on all approved sales (+ basic salary)
+  NO_TARGET_PERCENT
 }
 
 enum EmployeeContractKind {

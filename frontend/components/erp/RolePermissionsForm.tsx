@@ -144,8 +144,8 @@ export function RolePermissionsForm({
   }
 
   return (
-    <form action={action} className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 space-y-3 border-b border-[var(--border)] px-5 py-4">
+    <form action={action} className="flex min-h-0 min-w-0 w-full flex-col">
+      <div className="shrink-0 space-y-3 border-b border-[var(--border)] pb-4">
         <div className="grid gap-3 md:grid-cols-2">
           <Input
             name="name"
@@ -208,7 +208,7 @@ export function RolePermissionsForm({
         <input key={code} type="hidden" name="permissionCodes" value={code} />
       ))}
 
-      <div className="min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-5 py-4">
+      <div className="min-h-0 min-w-0 space-y-3 overflow-x-hidden py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">{t("permsHeading")}</h3>
           <div className="flex items-center gap-3">
@@ -289,7 +289,7 @@ export function RolePermissionsForm({
         )}
       </div>
 
-      <div className="flex shrink-0 justify-end border-t border-[var(--border)] px-5 py-3">
+      <div className="sticky bottom-0 flex shrink-0 justify-end border-t border-[var(--border)] bg-[var(--card)] pt-3">
         <Button
           type="submit"
           disabled={loading || visiblePermissions.length === 0}

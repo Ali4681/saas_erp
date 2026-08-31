@@ -35,19 +35,9 @@ export default async function SalesHubPage({
           hint: t("hub.arAgingHint"),
         },
         {
-          href: `${base}/channels`,
-          label: t("hub.channels"),
-          hint: t("hub.channelsHint"),
-        },
-        {
-          href: `${base}/customer-pos`,
-          label: t("customerPo.title"),
-          hint: t("customerPo.title"),
-        },
-        {
-          href: `${base}/ops-reports`,
-          label: t("opsReports.title"),
-          hint: t("opsReports.description"),
+          href: `${base}/pos`,
+          label: t("hub.pos"),
+          hint: t("hub.posHint"),
         },
       ]}
     />

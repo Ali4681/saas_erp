@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
@@ -89,27 +89,13 @@ export async function createEmployee(companyId: string, formData: FormData) {
   const t = await hrT();
   const tc = await commonT();
   const pagePath = page(companyId, "employees");
-  const file = formData.get("cv");
-  const hasCv = file instanceof File && file.size > 0;
   const insurance = formData.get("insurance");
   const hasInsurance = insurance instanceof File && insurance.size > 0;
-
-  if (hasCv) {
-    const mimeType = file.type || "application/octet-stream";
-    const allowed = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "image/jpeg",
-      "image/png",
-    ];
-    if (
-      !allowed.includes(mimeType) &&
-      !/\.(pdf|doc|docx|jpg|jpeg|png)$/i.test(file.name)
-    ) {
-      redirect(flashPath(pagePath, "error", t("flash.cvUnsupportedType")));
-    }
-  }
+  const qiwaFile = formData.get("qiwaContractFile");
+  const hasQiwaFile = qiwaFile instanceof File && qiwaFile.size > 0;
+  const identityPhoto = formData.get("identityPhoto");
+  const hasIdentityPhoto =
+    identityPhoto instanceof File && identityPhoto.size > 0;
 
   const qiwaUrl = optStr(formData, "qiwaContractUrl");
   const qiwaRef = optStr(formData, "qiwaContractRef");
@@ -119,9 +105,27 @@ export async function createEmployee(companyId: string, formData: FormData) {
   const advanceAmount = optStr(formData, "advanceAllowanceMonthly");
   const advancePercent = optStr(formData, "advanceAllowancePercent");
 
+  const allowanceCount = Number(optStr(formData, "allowanceCount") ?? "0");
+  const allowances: Array<{ allowanceTypeId: string; amount: string }> = [];
+  for (let i = 0; i < allowanceCount; i++) {
+    const typeId = optStr(formData, `allowanceTypeId_${i}`);
+    const amount = optStr(formData, `allowanceAmount_${i}`);
+    if (typeId && amount) {
+      allowances.push({ allowanceTypeId: typeId, amount });
+    }
+  }
+
+  const shiftWindowCount = Number(optStr(formData, "shiftWindowCount") ?? "0");
+  const shiftWindows: Array<{ start: string; end: string }> = [];
+  for (let i = 0; i < shiftWindowCount; i++) {
+    const start = optStr(formData, `shiftWindowStart_${i}`);
+    const end = optStr(formData, `shiftWindowEnd_${i}`);
+    if (start && end) shiftWindows.push({ start, end });
+  }
+
   try {
     const salesTargetMode =
-      optStr(formData, "salesTargetMode") ?? "AMOUNT";
+      optStr(formData, "salesTargetMode") ?? "TARGET_FIXED";
     const approvalStatus =
       optStr(formData, "approvalStatus") === "APPROVED"
         ? "APPROVED"
@@ -150,10 +154,16 @@ export async function createEmployee(companyId: string, formData: FormData) {
         jobTitle: optStr(formData, "jobTitle"),
         hireDate: optStr(formData, "hireDate"),
         employmentCategory: str(formData, "employmentCategory"),
-        workShiftId: str(formData, "workShiftId"),
+        trialStartsOn: optStr(formData, "trialStartsOn"),
+        trialEndsOn: optStr(formData, "trialEndsOn"),
+        workShiftId: optStr(formData, "workShiftId"),
+        shiftPatternMode: optStr(formData, "shiftPatternMode"),
+        shiftWindows,
+        allowances,
         basicSalary: optStr(formData, "basicSalary"),
         salesTargetMode,
         salesTargetAmount: optStr(formData, "salesTargetAmount"),
+        salesRewardAmount: optStr(formData, "salesRewardAmount"),
         targetPercent: optStr(formData, "targetPercent"),
         lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
         absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
@@ -168,17 +178,43 @@ export async function createEmployee(companyId: string, formData: FormData) {
       }),
     });
 
-    if (hasCv && file instanceof File) {
+    if (hasInsurance && insurance instanceof File) {
+      await uploadInsuranceViaHr(companyId, employee.id, insurance);
+    }
+    if (hasQiwaFile && qiwaFile instanceof File) {
       await uploadAttachmentFile(
         companyId,
         employee.id,
-        file,
-        "employee",
-        "cv.pdf",
+        qiwaFile,
+        "employee_qiwa_proof",
+        "qiwa-proof.pdf",
       );
     }
-    if (hasInsurance && insurance instanceof File) {
-      await uploadInsuranceViaHr(companyId, employee.id, insurance);
+    if (hasIdentityPhoto && identityPhoto instanceof File) {
+      const buf = Buffer.from(await identityPhoto.arrayBuffer());
+      const attachment = await apiServer<{ id: string }>(
+        `/companies/${companyId}/attachments`,
+        {
+          method: "POST",
+          companyId,
+          body: JSON.stringify({
+            entityType: "employee_identity",
+            entityId: employee.id,
+            fileName: identityPhoto.name || "identity.jpg",
+            mimeType: identityPhoto.type || "image/jpeg",
+            sizeBytes: String(identityPhoto.size),
+            contentBase64: buf.toString("base64"),
+          }),
+        },
+      );
+      await apiServer(
+        `/companies/${companyId}/hr/employees/${employee.id}/identity-attachment`,
+        {
+          method: "PATCH",
+          companyId,
+          body: JSON.stringify({ attachmentId: attachment.id }),
+        },
+      );
     }
     // Legacy optional link/ref only — does not mark Qiwa as documented.
     if (qiwaUrl || qiwaRef) {
@@ -202,13 +238,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
       });
       redirect(`${detailPath}?${q.toString()}`);
     }
-    redirect(
-      flashPath(
-        pagePath,
-        "ok",
-        hasCv ? t("flash.employeeCreatedWithCv") : t("flash.employeeCreated"),
-      ),
-    );
+    redirect(flashPath(pagePath, "ok", t("flash.employeeCreated")));
   } catch (error) {
     if (error instanceof ApiError) {
       const details =
@@ -337,54 +367,157 @@ export async function updateEmployeeCompensation(
   employeeId: string,
   formData: FormData,
 ) {
+  const pagePath = page(companyId, "employees");
+  const t = await hrT();
   const isPurchaseRaw = formData.get("isPurchaseOperator");
   const advanceAmount = optStr(formData, "advanceAllowanceMonthly");
   const advanceMonth =
     optStr(formData, "advanceAllowanceMonth") ?? currentMonth();
   const advancePercent = optStr(formData, "advanceAllowancePercent");
+  const approvalStatus = optStr(formData, "approvalStatus");
+  const previousApprovalStatus = optStr(formData, "previousApprovalStatus");
+  const qiwaFile = formData.get("qiwaContractFile");
+  const hasQiwaFile = qiwaFile instanceof File && qiwaFile.size > 0;
+  const identityPhoto = formData.get("identityPhoto");
+  const hasIdentityPhoto =
+    identityPhoto instanceof File && identityPhoto.size > 0;
+  const insurance = formData.get("insurance");
+  const hasInsurance = insurance instanceof File && insurance.size > 0;
 
-  await erpMutate({
-    companyId,
-    path: `/companies/${companyId}/hr/employees/${employeeId}`,
-    method: "PATCH",
-    body: {
-      basicSalary: optStr(formData, "basicSalary"),
-      salesTargetMode: optStr(formData, "salesTargetMode") ?? "AMOUNT",
-      salesTargetAmount: optStr(formData, "salesTargetAmount"),
-      targetPercent: optStr(formData, "targetPercent"),
-      lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
-      absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
-      identityType: optStr(formData, "identityType"),
-      identityNumber: optStr(formData, "identityNumber"),
-      identityExpiresOn: optStr(formData, "identityExpiresOn"),
-      iban: optStr(formData, "iban"),
-      attendanceBadgeId: optStr(formData, "attendanceBadgeId"),
-      ...(optStr(formData, "approvalStatus")
-        ? { approvalStatus: optStr(formData, "approvalStatus") }
-        : {}),
-      ...(advancePercent
-        ? { advanceAllowancePercent: advancePercent }
-        : {}),
-      ...(advanceAmount
-        ? {
-            advanceAllowanceMonthly: advanceAmount,
-            advanceAllowanceMonth: advanceMonth,
-          }
-        : {}),
-      phone: optStr(formData, "phone"),
-      email: optStr(formData, "email"),
-      jobTitle: optStr(formData, "jobTitle"),
-      currency: "SAR",
-      ...(isPurchaseRaw != null
-        ? {
-            isPurchaseOperator:
-              isPurchaseRaw === "true" || isPurchaseRaw === "on",
-          }
-        : {}),
-    },
-    pagePath: page(companyId, "employees"),
-    okMessage: (await hrT())("flash.employeeUpdated"),
-  });
+  const becomingApproved =
+    approvalStatus === "APPROVED" && previousApprovalStatus !== "APPROVED";
+  if (becomingApproved && !hasQiwaFile) {
+    redirect(flashPath(pagePath, "error", t("flash.qiwaProofRequired")));
+  }
+
+  const allowanceCount = Number(optStr(formData, "allowanceCount") ?? "0");
+  const allowances: Array<{ allowanceTypeId: string; amount: string }> = [];
+  for (let i = 0; i < allowanceCount; i++) {
+    const typeId = optStr(formData, `allowanceTypeId_${i}`);
+    const amount = optStr(formData, `allowanceAmount_${i}`);
+    if (typeId && amount) {
+      allowances.push({ allowanceTypeId: typeId, amount });
+    }
+  }
+
+  const shiftWindowCount = Number(optStr(formData, "shiftWindowCount") ?? "0");
+  const shiftWindows: Array<{ start: string; end: string }> = [];
+  for (let i = 0; i < shiftWindowCount; i++) {
+    const start = optStr(formData, `shiftWindowStart_${i}`);
+    const end = optStr(formData, `shiftWindowEnd_${i}`);
+    if (start && end) shiftWindows.push({ start, end });
+  }
+
+  const employmentCategory = optStr(formData, "employmentCategory");
+  const identityNumberRaw = optStr(formData, "identityNumber");
+
+  try {
+    await apiServer(`/companies/${companyId}/hr/employees/${employeeId}`, {
+      method: "PATCH",
+      companyId,
+      body: JSON.stringify({
+        fullName: optStr(formData, "fullName"),
+        phone: optStr(formData, "phone"),
+        email: optStr(formData, "email"),
+        jobTitle: optStr(formData, "jobTitle"),
+        hireDate: optStr(formData, "hireDate"),
+        ...(employmentCategory ? { employmentCategory } : {}),
+        trialStartsOn:
+          employmentCategory === "TRIAL_PERIOD"
+            ? optStr(formData, "trialStartsOn")
+            : employmentCategory
+              ? null
+              : undefined,
+        trialEndsOn:
+          employmentCategory === "TRIAL_PERIOD"
+            ? optStr(formData, "trialEndsOn")
+            : employmentCategory
+              ? null
+              : undefined,
+        identityType: optStr(formData, "identityType"),
+        identityNumber: identityNumberRaw
+          ? normalizeSaudiId(identityNumberRaw)
+          : identityNumberRaw,
+        identityExpiresOn: optStr(formData, "identityExpiresOn"),
+        basicSalary: optStr(formData, "basicSalary"),
+        salesTargetMode: optStr(formData, "salesTargetMode"),
+        salesTargetAmount: optStr(formData, "salesTargetAmount"),
+        salesRewardAmount: optStr(formData, "salesRewardAmount"),
+        targetPercent: optStr(formData, "targetPercent"),
+        lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
+        absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
+        iban: normalizeSaudiIban(optStr(formData, "iban")),
+        attendanceBadgeId: optStr(formData, "attendanceBadgeId"),
+        shiftPatternMode: optStr(formData, "shiftPatternMode"),
+        ...(shiftWindowCount > 0 ? { shiftWindows } : {}),
+        allowances,
+        ...(approvalStatus ? { approvalStatus } : {}),
+        ...(advancePercent
+          ? { advanceAllowancePercent: advancePercent }
+          : {}),
+        ...(advanceAmount
+          ? {
+              advanceAllowanceMonthly: advanceAmount,
+              advanceAllowanceMonth: advanceMonth,
+            }
+          : {}),
+        currency: "SAR",
+        ...(isPurchaseRaw != null
+          ? {
+              isPurchaseOperator:
+                isPurchaseRaw === "true" || isPurchaseRaw === "on",
+            }
+          : {}),
+      }),
+    });
+
+    if (hasQiwaFile && qiwaFile instanceof File) {
+      await uploadAttachmentFile(
+        companyId,
+        employeeId,
+        qiwaFile,
+        "employee_qiwa_proof",
+        "qiwa-proof.pdf",
+      );
+    }
+    if (hasIdentityPhoto && identityPhoto instanceof File) {
+      const buf = Buffer.from(await identityPhoto.arrayBuffer());
+      const attachment = await apiServer<{ id: string }>(
+        `/companies/${companyId}/attachments`,
+        {
+          method: "POST",
+          companyId,
+          body: JSON.stringify({
+            entityType: "employee_identity",
+            entityId: employeeId,
+            fileName: identityPhoto.name || "identity.jpg",
+            mimeType: identityPhoto.type || "image/jpeg",
+            sizeBytes: String(identityPhoto.size),
+            contentBase64: buf.toString("base64"),
+          }),
+        },
+      );
+      await apiServer(
+        `/companies/${companyId}/hr/employees/${employeeId}/identity-attachment`,
+        {
+          method: "PATCH",
+          companyId,
+          body: JSON.stringify({ attachmentId: attachment.id }),
+        },
+      );
+    }
+    if (hasInsurance && insurance instanceof File) {
+      await uploadInsuranceViaHr(companyId, employeeId, insurance);
+    }
+
+    revalidatePath(pagePath);
+    redirect(flashPath(pagePath, "ok", t("flash.employeeUpdated")));
+  } catch (error) {
+    if (error instanceof ApiError) {
+      redirect(flashPath(pagePath, "error", error.message));
+    }
+    throw error;
+  }
 }
 
 export async function updateEmployeeEmploymentCategory(
@@ -393,13 +526,22 @@ export async function updateEmployeeEmploymentCategory(
   formData: FormData,
 ) {
   const pagePath = `/c/${companyId}/hr/employees/${employeeId}?tab=personal`;
+  const employmentCategory = str(formData, "employmentCategory");
+  const body: Record<string, unknown> = { employmentCategory };
+  // Leaving trial for employment/Ajeer after Qiwa → clear trial dates & mark trusted
+  if (
+    employmentCategory === "EMPLOYMENT_CONTRACT" ||
+    employmentCategory === "WAGE_WORKER"
+  ) {
+    body.trialStartsOn = null;
+    body.trialEndsOn = null;
+    body.approvalStatus = "APPROVED";
+  }
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/employees/${employeeId}`,
     method: "PATCH",
-    body: {
-      employmentCategory: str(formData, "employmentCategory"),
-    },
+    body,
     pagePath,
     okMessage: (await hrT())("flash.employeeUpdated"),
   });
@@ -549,52 +691,142 @@ export async function decideSalesSubmission(
 
 export async function submitMySale(companyId: string, formData: FormData) {
   const pagePath = page(companyId, "me");
-  const receipt = formData.get("receipt");
-  const hasReceipt = receipt instanceof File && receipt.size > 0;
+  const method = str(formData, "paymentMethod");
+  const saleDate = str(formData, "saleDate");
+  const notes = optStr(formData, "notes");
 
   try {
-    let receiptAttachmentId: string | undefined;
-    if (hasReceipt && receipt instanceof File) {
-      const buf = Buffer.from(await receipt.arrayBuffer());
-      const attachment = await apiServer<{ id: string }>(
-        `/companies/${companyId}/attachments`,
-        {
+    if (method === "CASH") {
+      const amount = str(formData, "amount");
+      if (!amount || !(Number(amount) > 0)) {
+        redirect(
+          flashPath(pagePath, "error", (await hrT())("flash.saleAmountRequired")),
+        );
+      }
+      const receipt = formData.get("receipt");
+      let receiptAttachmentId: string | undefined;
+      if (receipt instanceof File && receipt.size > 0) {
+        const buf = Buffer.from(await receipt.arrayBuffer());
+        const attachment = await apiServer<{ id: string }>(
+          `/companies/${companyId}/attachments`,
+          {
+            method: "POST",
+            companyId,
+            body: JSON.stringify({
+              entityType: "employee_sales_receipt",
+              entityId: companyId,
+              fileName: receipt.name || "receipt.pdf",
+              mimeType: receipt.type || "application/octet-stream",
+              sizeBytes: String(receipt.size),
+              contentBase64: buf.toString("base64"),
+            }),
+          },
+        );
+        receiptAttachmentId = attachment.id;
+      }
+      await apiServer(`/companies/${companyId}/hr/me/sales`, {
+        method: "POST",
+        companyId,
+        body: JSON.stringify({
+          saleDate,
+          amount,
+          paymentMethod: method,
+          notes,
+          receiptAttachmentId,
+        }),
+      });
+    } else {
+      const salesCount = Math.min(
+        20,
+        Math.max(1, Number(optStr(formData, "salesCount") ?? "1")),
+      );
+      for (let i = 0; i < salesCount; i++) {
+        const amount = str(formData, `saleAmount_${i}`);
+        if (!amount || !(Number(amount) > 0)) {
+          redirect(
+            flashPath(
+              pagePath,
+              "error",
+              (await hrT())("flash.saleAmountRequired"),
+            ),
+          );
+        }
+        const receipt = formData.get(`receipt_${i}`);
+        if (!(receipt instanceof File) || receipt.size <= 0) {
+          redirect(
+            flashPath(
+              pagePath,
+              "error",
+              (await hrT())("flash.saleReceiptRequired"),
+            ),
+          );
+        }
+        const buf = Buffer.from(await receipt.arrayBuffer());
+        const attachment = await apiServer<{ id: string }>(
+          `/companies/${companyId}/attachments`,
+          {
+            method: "POST",
+            companyId,
+            body: JSON.stringify({
+              entityType: "employee_sales_receipt",
+              entityId: companyId,
+              fileName: receipt.name || `receipt-${i + 1}.pdf`,
+              mimeType: receipt.type || "application/octet-stream",
+              sizeBytes: String(receipt.size),
+              contentBase64: buf.toString("base64"),
+            }),
+          },
+        );
+        await apiServer(`/companies/${companyId}/hr/me/sales`, {
           method: "POST",
           companyId,
           body: JSON.stringify({
-            entityType: "employee_sales_receipt",
-            entityId: companyId,
-            fileName: receipt.name || "receipt.pdf",
-            mimeType: receipt.type || "application/octet-stream",
-            sizeBytes: String(receipt.size),
-            contentBase64: buf.toString("base64"),
+            saleDate,
+            amount,
+            paymentMethod: method,
+            notes,
+            receiptAttachmentId: attachment.id,
           }),
-        },
-      );
-      receiptAttachmentId = attachment.id;
+        });
+      }
     }
-
-    await apiServer(`/companies/${companyId}/hr/me/sales`, {
-      method: "POST",
-      companyId,
-      body: JSON.stringify({
-        saleDate: str(formData, "saleDate"),
-        amount: str(formData, "amount"),
-        paymentMethod: str(formData, "paymentMethod"),
-        salesInvoiceId: str(formData, "salesInvoiceId"),
-        notes: optStr(formData, "notes"),
-        receiptAttachmentId,
-      }),
-    });
-
-    revalidatePath(pagePath);
-    redirect(flashPath(pagePath, "ok", (await hrT())("flash.saleSubmitted")));
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
       redirect(flashPath(pagePath, "error", error.message));
     }
     throw error;
   }
+
+  revalidatePath(pagePath);
+  redirect(flashPath(pagePath, "ok", (await hrT())("flash.saleSubmitted")));
+}
+
+export async function createAllowanceType(companyId: string, formData: FormData) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/allowance-types`,
+    body: {
+      code: str(formData, "code"),
+      nameAr: str(formData, "nameAr"),
+      nameEn: optStr(formData, "nameEn") ?? str(formData, "nameAr"),
+    },
+    pagePath: page(companyId, "employees"),
+    okMessage: (await hrT())("flash.allowanceTypeCreated"),
+  });
+}
+
+export async function deleteAllowanceType(
+  companyId: string,
+  allowanceTypeId: string,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/allowance-types/${allowanceTypeId}`,
+    method: "DELETE",
+    pagePath: page(companyId, "employees"),
+    okMessage: (await hrT())("flash.allowanceTypeDeleted"),
+  });
 }
 
 export async function updateMyTargetCompleted(

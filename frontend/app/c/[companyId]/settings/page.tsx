@@ -1,12 +1,20 @@
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
+import { FlashFromSearch } from "@/components/erp/Flash";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { apiServer } from "@/lib/api/server";
 import { fetchLocalesLookup, lookupLabel } from "@/lib/lookups";
 import { getAppLocale } from "@/lib/i18n/locale-server";
+import { getSession } from "@/lib/auth/session";
+import { can } from "@/lib/permissions";
+import { companyLogoUrl } from "@/lib/company-logo";
+import { updateCompanyLogo } from "../actions";
+import { saveCompanyTaxSettings } from "./actions";
 
 type CompanyDetail = {
   id: string;
@@ -17,6 +25,7 @@ type CompanyDetail = {
   defaultCurrency: string;
   timezone: string;
   countryCode: string | null;
+  logoAttachmentId?: string | null;
   settings: {
     taxNumber: string | null;
     invoicePrefix: string;
@@ -32,11 +41,16 @@ type CompanyDetail = {
 
 export default async function SettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const { companyId } = await params;
+  const flash = await searchParams;
   const t = await getTranslations("settings");
+  const session = await getSession();
+  const canWrite = can(session?.user, "companies.write");
   const [company, locales, locale] = await Promise.all([
     apiServer<CompanyDetail>(`/companies/${companyId}`, {
       companyId,
@@ -58,10 +72,13 @@ export default async function SettingsPage({
 
   const plan = company.subscriptions?.[0]?.plan;
   const base = `/c/${companyId}/settings`;
+  const saveTax = saveCompanyTaxSettings.bind(null, companyId);
+  const logoUrl = companyLogoUrl(companyId, company.logoAttachmentId);
 
   return (
     <div className="space-y-5">
       <PageHeader title={t("title")} description={t("description")} />
+      <FlashFromSearch searchParams={flash} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Link
@@ -92,6 +109,51 @@ export default async function SettingsPage({
           </p>
         </Link>
       </div>
+
+      <Card title={t("logoCard")}>
+        <div className="flex flex-wrap items-start gap-5">
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt={company.displayName}
+              className="h-20 w-20 rounded-xl border border-[var(--border)] object-cover shadow-sm"
+            />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-dashed border-[var(--border)] text-xs text-[var(--muted-foreground)]">
+              {t("logoEmpty")}
+            </div>
+          )}
+          {canWrite ? (
+            <form
+              action={updateCompanyLogo.bind(null, companyId)}
+              className="grid min-w-[220px] flex-1 gap-2"
+            >
+              <input type="hidden" name="returnTo" value={base} />
+              <label className="grid gap-1 text-sm font-medium">
+                {t("logoUpload")}
+                <input
+                  name="logo"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  required
+                  className="block text-sm"
+                />
+              </label>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {t("logoHint")}
+              </p>
+              <div>
+                <Button type="submit">{t("logoSave")}</Button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {logoUrl ? t("logoSaved") : t("logoEmpty")}
+            </p>
+          )}
+        </div>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card title={t("companyCard")}>
@@ -133,7 +195,45 @@ export default async function SettingsPage({
         </Card>
 
         <Card title={t("taxCard")}>
-          {!company.settings ? (
+          {canWrite ? (
+            <form action={saveTax} className="grid gap-3">
+              <Input
+                name="taxNumber"
+                label={t("taxNumber")}
+                defaultValue={company.settings?.taxNumber ?? ""}
+              />
+              <Input
+                name="invoicePrefix"
+                label={t("invoicePrefix")}
+                defaultValue={company.settings?.invoicePrefix ?? "INV"}
+              />
+              <Input
+                name="defaultTaxRate"
+                label={t("defaultTaxRate")}
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                required
+                defaultValue={company.settings?.defaultTaxRate ?? "15"}
+              />
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {t("defaultTaxRateHint")}
+              </p>
+              <Input
+                name="emailFromName"
+                label={t("emailFromName")}
+                defaultValue={company.settings?.emailFromName ?? ""}
+              />
+              <Input
+                name="emailFromAddress"
+                label={t("emailFromAddress")}
+                type="email"
+                defaultValue={company.settings?.emailFromAddress ?? ""}
+              />
+              <Button type="submit">{t("saveTaxSettings")}</Button>
+            </form>
+          ) : !company.settings ? (
             <EmptyState message={t("noSettings")} />
           ) : (
             <dl className="space-y-3 text-sm">

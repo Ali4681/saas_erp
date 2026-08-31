@@ -51,7 +51,8 @@ function writeSessionCookies(jar: CookieJar, session: SessionPayload) {
   const common = commonCookieOptions();
   jar.set(COOKIE_ACCESS, session.accessToken, {
     ...common,
-    maxAge: 60 * 60 * 12,
+    // Match access-token TTL (10 minutes)
+    maxAge: 60 * 10,
   });
   jar.set(COOKIE_REFRESH, session.refreshToken, {
     ...common,

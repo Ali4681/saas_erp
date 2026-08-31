@@ -1,13 +1,12 @@
 /**
- * Standard operational shifts from the governance شرح — three company modes:
+ * Standard operational shifts — company modes:
  * 1) HOURS_24 — sequential operational shifts
  * 2) HOURS_12 — FIXED single period OR TWO_PERIODS
- * 3) DYNAMIC — flexible-duration templates (+ datetime windows in seed)
  */
 
 export type StandardShiftDef = {
   code: string;
-  modePack: 'HOURS_24' | 'HOURS_12_FIXED' | 'HOURS_12_TWO' | 'DYNAMIC';
+  modePack: 'HOURS_24' | 'HOURS_12_FIXED' | 'HOURS_12_TWO';
   nameAr: string;
   nameEn: string;
   startTime: string;
@@ -84,46 +83,11 @@ export const SHIFTS_12H_TWO_PERIODS: StandardShiftDef[] = [
   },
 ];
 
-/**
- * 3) الدوام المرن / المخصص — قوالب مدد حرة كما في الشرح (8 / 14 / 16 ساعة).
- * نوافذ التاريخ/الوقت تُنشأ في الـ seed كـ DynamicHoursWindow.
- */
-export const SHIFTS_DYNAMIC_TEMPLATES: StandardShiftDef[] = [
-  {
-    code: 'DYN_8H',
-    modePack: 'DYNAMIC',
-    nameAr: 'دوام مرن — قالب 8 ساعات',
-    nameEn: 'Dynamic — 8h template',
-    startTime: '10:00',
-    endTime: '18:00',
-    sequenceIndex: 30,
-  },
-  {
-    code: 'DYN_14H',
-    modePack: 'DYNAMIC',
-    nameAr: 'دوام مرن — قالب 14 ساعة',
-    nameEn: 'Dynamic — 14h template',
-    startTime: '08:00',
-    endTime: '22:00',
-    sequenceIndex: 31,
-  },
-  {
-    code: 'DYN_16H',
-    modePack: 'DYNAMIC',
-    nameAr: 'دوام مرن — قالب 16 ساعة',
-    nameEn: 'Dynamic — 16h template',
-    startTime: '06:00',
-    endTime: '22:00',
-    sequenceIndex: 32,
-  },
-];
-
-/** Full roster from the شرح (all three mode types). */
+/** Full roster for company work type (24h + 12h only). */
 export const ALL_STANDARD_SHIFTS: StandardShiftDef[] = [
   ...SHIFTS_24H_8H,
   ...SHIFTS_12H_FIXED,
   ...SHIFTS_12H_TWO_PERIODS,
-  ...SHIFTS_DYNAMIC_TEMPLATES,
 ];
 
 export function displayShiftName(def: StandardShiftDef, locale: 'ar' | 'en' = 'ar') {

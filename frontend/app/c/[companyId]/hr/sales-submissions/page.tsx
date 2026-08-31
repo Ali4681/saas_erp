@@ -17,7 +17,6 @@ type Sale = {
   saleDate: string;
   amount: string;
   paymentMethod: string;
-  invoiceNumber?: string | null;
   status: string;
   employee?: { fullName: string; employeeNumber: string } | null;
 };
@@ -64,14 +63,11 @@ export default async function SalesSubmissionsPage({
           <EmptyState message={t("emptySales")} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-sm">
+            <table className="w-full min-w-[800px] text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
                   <th className="px-2 py-2 font-medium">{t("employee")}</th>
                   <th className="px-2 py-2 font-medium">{t("date")}</th>
-                  <th className="px-2 py-2 font-medium">
-                    {t("saleInvoiceNumber")}
-                  </th>
                   <th className="px-2 py-2 font-medium">{t("amount")}</th>
                   <th className="px-2 py-2 font-medium">
                     {t("paymentMethod")}
@@ -92,9 +88,6 @@ export default async function SalesSubmissionsPage({
                         : "—"}
                     </td>
                     <td className="px-2 py-2">{formatDate(s.saleDate)}</td>
-                    <td className="px-2 py-2 font-mono text-xs">
-                      {s.invoiceNumber ?? "—"}
-                    </td>
                     <td className="px-2 py-2">
                       {formatMoney(s.amount, "SAR")}
                     </td>
