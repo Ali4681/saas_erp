@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { FileText } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { FlashFromSearch } from "@/components/erp/Flash";
 import { ActionForm } from "@/components/erp/ActionForm";
+import { AttachmentFileCard } from "@/components/erp/AttachmentFileCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -21,6 +21,7 @@ import {
   setEmployeeAdvanceAllowance,
   setEmployeeFinancialSettings,
   updateEmployeeEmploymentCategory,
+  uploadEmployeeIdentityPhoto,
   uploadEmployeeInsurance,
 } from "../../actions";
 import { AppLoginCredentials } from "../AppLoginCredentials";
@@ -105,6 +106,7 @@ type EmployeeDetail = {
   approvalStatus?: string | null;
   qiwaContractUrl?: string | null;
   qiwaContractRef?: string | null;
+  identityAttachmentId?: string | null;
   insuranceAttachmentId?: string | null;
   hasInsurance?: boolean;
   hasIdentity?: boolean;
@@ -124,6 +126,7 @@ type Attachment = {
   entityType: string;
   entityId: string;
   fileName: string;
+  mimeType?: string | null;
 };
 
 type PersonalReport = {
@@ -182,9 +185,13 @@ export default async function EmployeeDetailPage({
       { companyId },
     ).catch(() => null)) ?? null;
 
-  const [insuranceFiles, shifts, report] = await Promise.all([
+  const [insuranceFiles, identityFiles, shifts, report] = await Promise.all([
     apiServer<Attachment[]>(
       `/companies/${companyId}/attachments?entityType=employee_insurance&entityId=${employeeId}`,
+      { companyId },
+    ).catch(() => []),
+    apiServer<Attachment[]>(
+      `/companies/${companyId}/attachments?entityType=employee_identity&entityId=${employeeId}`,
       { companyId },
     ).catch(() => []),
     apiServer<Shift[]>(`/companies/${companyId}/hr/shifts`, {
@@ -209,6 +216,17 @@ export default async function EmployeeDetailPage({
         } satisfies Attachment)
       : null);
 
+  const identityPhoto =
+    identityFiles[0] ??
+    (employee?.identityAttachmentId
+      ? ({
+          id: employee.identityAttachmentId,
+          entityType: "employee_identity",
+          entityId: employeeId,
+          fileName: t("identityPhoto"),
+        } satisfies Attachment)
+      : null);
+
   const tabHref = (key: Tab) =>
     `/c/${companyId}/hr/employees/${employeeId}?tab=${key}`;
 
@@ -225,7 +243,12 @@ export default async function EmployeeDetailPage({
 
   const incompleteProfile = !(
     Boolean(employee.hasInsurance || insurance) &&
-    Boolean(employee.hasIdentity ?? employee.identityNumber) &&
+    Boolean(
+      employee.hasIdentity ??
+        employee.identityAttachmentId ??
+        employee.identityNumber ??
+        identityPhoto,
+    ) &&
     Boolean(employee.hasIban ?? employee.ibanLast4)
   );
   const detailPath = `/c/${companyId}/hr/employees/${employeeId}?tab=targets`;
@@ -416,22 +439,48 @@ export default async function EmployeeDetailPage({
           </div>
 
           <Card className="space-y-3 p-4">
+            <h3 className="text-sm font-semibold">{t("identityPhoto")}</h3>
+            <AttachmentFileCard
+              companyId={companyId}
+              attachment={identityPhoto}
+              missingLabel={t("identityPhotoMissing")}
+            />
+            {canWrite ? (
+              <form
+                action={uploadEmployeeIdentityPhoto.bind(
+                  null,
+                  companyId,
+                  employeeId,
+                )}
+                className="flex flex-col gap-2 sm:flex-row sm:items-end"
+              >
+                <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm">
+                  <span className="font-medium">{t("uploadIdentityPhoto")}</span>
+                  <input
+                    type="file"
+                    name="identityPhoto"
+                    required
+                    accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                    className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5"
+                  />
+                </label>
+                <Button type="submit">{t("save")}</Button>
+              </form>
+            ) : null}
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t("identityPhotoHint")}
+            </p>
+          </Card>
+
+          <Card className="space-y-3 p-4">
             <h3 className="text-sm font-semibold">
               {t("insuranceCertificate")}
             </h3>
-            {insurance ? (
-              <a
-                href={`/api/attachments/${insurance.id}?companyId=${companyId}`}
-                className="inline-flex items-center gap-2 text-sm text-[var(--primary)] underline-offset-2 hover:underline"
-              >
-                <FileText className="h-4 w-4" />
-                {insurance.fileName}
-              </a>
-            ) : (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                {t("insuranceMissing")}
-              </p>
-            )}
+            <AttachmentFileCard
+              companyId={companyId}
+              attachment={insurance}
+              missingLabel={t("insuranceMissing")}
+            />
             {canWrite ? (
               <form
                 action={uploadEmployeeInsurance.bind(
@@ -449,7 +498,7 @@ export default async function EmployeeDetailPage({
                     type="file"
                     name="insurance"
                     required
-                    accept=".pdf,.jpg,.jpeg,.png,application/pdf"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                     className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5"
                   />
                 </label>

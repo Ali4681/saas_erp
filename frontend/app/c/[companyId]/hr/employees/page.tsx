@@ -45,6 +45,7 @@ type Employee = {
   identityType?: string | null;
   identityNumber?: string | null;
   identityExpiresOn?: string | null;
+  identityAttachmentId?: string | null;
   approvalStatus?: string | null;
   qiwaContractUrl?: string | null;
   qiwaContractRef?: string | null;
@@ -653,6 +654,21 @@ export default async function EmployeesPage({
                                       <span className="font-medium text-[var(--foreground)]">
                                         {t("identityPhoto")}
                                       </span>
+                                      {e.identityAttachmentId ? (
+                                        <a
+                                          href={`/api/attachments/${e.identityAttachmentId}?companyId=${companyId}&inline=1`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="mb-1 block max-w-xs"
+                                        >
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img
+                                            src={`/api/attachments/${e.identityAttachmentId}?companyId=${companyId}&inline=1`}
+                                            alt={t("identityPhoto")}
+                                            className="max-h-40 w-full rounded-lg border border-[var(--border)] object-contain"
+                                          />
+                                        </a>
+                                      ) : null}
                                       <input
                                         type="file"
                                         name="identityPhoto"

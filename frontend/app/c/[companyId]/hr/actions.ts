@@ -85,6 +85,37 @@ async function uploadInsuranceViaHr(
   );
 }
 
+async function uploadIdentityPhotoViaHr(
+  companyId: string,
+  employeeId: string,
+  file: File,
+) {
+  const buf = Buffer.from(await file.arrayBuffer());
+  const attachment = await apiServer<{ id: string }>(
+    `/companies/${companyId}/attachments`,
+    {
+      method: "POST",
+      companyId,
+      body: JSON.stringify({
+        entityType: "employee_identity",
+        entityId: employeeId,
+        fileName: file.name || "identity.jpg",
+        mimeType: file.type || "image/jpeg",
+        sizeBytes: String(file.size),
+        contentBase64: buf.toString("base64"),
+      }),
+    },
+  );
+  await apiServer(
+    `/companies/${companyId}/hr/employees/${employeeId}/identity-attachment`,
+    {
+      method: "PATCH",
+      companyId,
+      body: JSON.stringify({ attachmentId: attachment.id }),
+    },
+  );
+}
+
 export async function createEmployee(companyId: string, formData: FormData) {
   const t = await hrT();
   const tc = await commonT();
@@ -191,30 +222,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
       );
     }
     if (hasIdentityPhoto && identityPhoto instanceof File) {
-      const buf = Buffer.from(await identityPhoto.arrayBuffer());
-      const attachment = await apiServer<{ id: string }>(
-        `/companies/${companyId}/attachments`,
-        {
-          method: "POST",
-          companyId,
-          body: JSON.stringify({
-            entityType: "employee_identity",
-            entityId: employee.id,
-            fileName: identityPhoto.name || "identity.jpg",
-            mimeType: identityPhoto.type || "image/jpeg",
-            sizeBytes: String(identityPhoto.size),
-            contentBase64: buf.toString("base64"),
-          }),
-        },
-      );
-      await apiServer(
-        `/companies/${companyId}/hr/employees/${employee.id}/identity-attachment`,
-        {
-          method: "PATCH",
-          companyId,
-          body: JSON.stringify({ attachmentId: attachment.id }),
-        },
-      );
+      await uploadIdentityPhotoViaHr(companyId, employee.id, identityPhoto);
     }
     // Legacy optional link/ref only — does not mark Qiwa as documented.
     if (qiwaUrl || qiwaRef) {
@@ -481,30 +489,7 @@ export async function updateEmployeeCompensation(
       );
     }
     if (hasIdentityPhoto && identityPhoto instanceof File) {
-      const buf = Buffer.from(await identityPhoto.arrayBuffer());
-      const attachment = await apiServer<{ id: string }>(
-        `/companies/${companyId}/attachments`,
-        {
-          method: "POST",
-          companyId,
-          body: JSON.stringify({
-            entityType: "employee_identity",
-            entityId: employeeId,
-            fileName: identityPhoto.name || "identity.jpg",
-            mimeType: identityPhoto.type || "image/jpeg",
-            sizeBytes: String(identityPhoto.size),
-            contentBase64: buf.toString("base64"),
-          }),
-        },
-      );
-      await apiServer(
-        `/companies/${companyId}/hr/employees/${employeeId}/identity-attachment`,
-        {
-          method: "PATCH",
-          companyId,
-          body: JSON.stringify({ attachmentId: attachment.id }),
-        },
-      );
+      await uploadIdentityPhotoViaHr(companyId, employeeId, identityPhoto);
     }
     if (hasInsurance && insurance instanceof File) {
       await uploadInsuranceViaHr(companyId, employeeId, insurance);
@@ -561,6 +546,32 @@ export async function uploadEmployeeInsurance(
     await uploadInsuranceViaHr(companyId, employeeId, file);
     revalidatePath(pagePath);
     redirect(flashPath(pagePath, "ok", (await hrT())("flash.insuranceUploaded")));
+  } catch (error) {
+    if (error instanceof ApiError) {
+      redirect(flashPath(pagePath, "error", error.message));
+    }
+    throw error;
+  }
+}
+
+export async function uploadEmployeeIdentityPhoto(
+  companyId: string,
+  employeeId: string,
+  formData: FormData,
+) {
+  const pagePath = `/c/${companyId}/hr/employees/${employeeId}?tab=personal`;
+  const file = formData.get("identityPhoto");
+  if (!(file instanceof File) || file.size <= 0) {
+    redirect(
+      flashPath(pagePath, "error", (await hrT())("flash.identityPhotoRequired")),
+    );
+  }
+  try {
+    await uploadIdentityPhotoViaHr(companyId, employeeId, file);
+    revalidatePath(pagePath);
+    redirect(
+      flashPath(pagePath, "ok", (await hrT())("flash.identityPhotoUploaded")),
+    );
   } catch (error) {
     if (error instanceof ApiError) {
       redirect(flashPath(pagePath, "error", error.message));

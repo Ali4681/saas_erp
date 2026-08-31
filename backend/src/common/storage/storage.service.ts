@@ -189,14 +189,105 @@ export class StorageService {
   }
 
   private async getS3(storageKey: string): Promise<Buffer> {
-    // Prefer public URL when available; otherwise fall back to local mirror.
+    const publicBase = this.config.get<string>('S3_PUBLIC_BASE_URL')?.trim();
+    if (publicBase) {
+      const url = `${publicBase.replace(/\/$/, '')}/${storageKey}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        return Buffer.from(await res.arrayBuffer());
+      }
+      this.logger.warn(
+        `S3 public GET failed (${res.status}) for ${storageKey}; trying signed GET`,
+      );
+    }
+
+    if (this.s3Configured()) {
+      try {
+        return await this.getS3Signed(storageKey);
+      } catch (error) {
+        this.logger.warn(
+          `S3 signed GET failed for ${storageKey}: ${
+            error instanceof Error ? error.message : 'unknown'
+          }`,
+        );
+      }
+    }
+
     try {
       return await fs.readFile(path.join(this.localRoot, storageKey));
     } catch {
       throw new BadRequestException(
-        'Object not available locally; fetch via S3 public URL or re-upload',
+        'Object not available in storage; re-upload the file',
       );
     }
+  }
+
+  private async getS3Signed(storageKey: string): Promise<Buffer> {
+    const bucket = this.config.getOrThrow<string>('S3_BUCKET').trim();
+    const region = (this.config.get<string>('S3_REGION') ?? 'us-east-1').trim();
+    const accessKey = this.config.getOrThrow<string>('S3_ACCESS_KEY_ID').trim();
+    const secretKey = this.config
+      .getOrThrow<string>('S3_SECRET_ACCESS_KEY')
+      .trim();
+    const endpoint = this.config.get<string>('S3_ENDPOINT')?.trim();
+    const forcePath =
+      (this.config.get<string>('S3_FORCE_PATH_STYLE') ?? 'true') === 'true';
+
+    const host = endpoint
+      ? new URL(endpoint).host
+      : `${bucket}.s3.${region}.amazonaws.com`;
+    const urlPath =
+      forcePath || endpoint ? `/${bucket}/${storageKey}` : `/${storageKey}`;
+    const baseUrl = endpoint ? endpoint.replace(/\/$/, '') : `https://${host}`;
+    const url = `${baseUrl}${urlPath}`;
+
+    const amzDate = this.amzDate();
+    const dateStamp = amzDate.slice(0, 8);
+    const payloadHash = createHash('sha256').update('').digest('hex');
+    const canonicalHeaders =
+      `host:${host}\n` +
+      `x-amz-content-sha256:${payloadHash}\n` +
+      `x-amz-date:${amzDate}\n`;
+    const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+    const canonicalRequest = [
+      'GET',
+      urlPath,
+      '',
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash,
+    ].join('\n');
+    const credentialScope = `${dateStamp}/${region}/s3/aws4_request`;
+    const stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      credentialScope,
+      createHash('sha256').update(canonicalRequest).digest('hex'),
+    ].join('\n');
+    const signingKey = this.getSignatureKey(secretKey, dateStamp, region, 's3');
+    const signature = createHmac('sha256', signingKey)
+      .update(stringToSign)
+      .digest('hex');
+    const authorization =
+      `AWS4-HMAC-SHA256 Credential=${accessKey}/${credentialScope}, ` +
+      `SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: authorization,
+        'x-amz-content-sha256': payloadHash,
+        'x-amz-date': amzDate,
+        Host: host,
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new BadRequestException(
+        `S3 download failed (${res.status}): ${text.slice(0, 200)}`,
+      );
+    }
+    return Buffer.from(await res.arrayBuffer());
   }
 
   private amzDate(): string {

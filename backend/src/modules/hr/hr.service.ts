@@ -143,18 +143,20 @@ export class HrService {
 
   private computeProfileComplete(employee: {
     insuranceAttachmentId?: string | null;
+    identityAttachmentId?: string | null;
     identityNumber?: string | null;
     ibanLast4?: string | null;
   }) {
     return Boolean(
       employee.insuranceAttachmentId &&
-      employee.identityNumber &&
+      (employee.identityAttachmentId || employee.identityNumber) &&
       employee.ibanLast4,
     );
   }
 
   private docsFlags(employee: {
     insuranceAttachmentId?: string | null;
+    identityAttachmentId?: string | null;
     identityNumber?: string | null;
     ibanLast4?: string | null;
     qiwaContractUrl?: string | null;
@@ -162,7 +164,9 @@ export class HrService {
   }) {
     return {
       hasInsurance: Boolean(employee.insuranceAttachmentId),
-      hasIdentity: Boolean(employee.identityNumber),
+      hasIdentity: Boolean(
+        employee.identityAttachmentId || employee.identityNumber,
+      ),
       hasIban: Boolean(employee.ibanLast4),
       hasQiwa: Boolean(employee.qiwaContractUrl || employee.qiwaContractRef),
       profileComplete: this.computeProfileComplete(employee),
