@@ -14,11 +14,13 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "animate-fade-up flex flex-wrap items-start justify-between gap-3",
+        "flex flex-wrap items-start justify-between gap-3",
         className,
       )}
     >
-      <div className="space-y-1">
+      {/* Animation only on title — transform on this wrapper would break
+          position:fixed modals rendered inside `actions` (CreateFormDialog). */}
+      <div className="animate-fade-up space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)] md:text-3xl">
           {title}
         </h1>
@@ -28,7 +30,9 @@ export function PageHeader({
           </p>
         ) : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="relative z-[1] flex flex-wrap gap-2">{actions}</div>
+      ) : null}
     </div>
   );
 }

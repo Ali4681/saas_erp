@@ -43,7 +43,11 @@ export default function LoginForm() {
             : {}),
         }),
       });
-      const data = (await res.json()) as { user?: AuthUser; message?: string };
+      const data = (await res.json()) as {
+        user?: AuthUser;
+        message?: string;
+        landingPath?: string;
+      };
       if (!res.ok || !data.user) {
         toast.error(data.message ?? t("loginFailed"));
         return;
@@ -67,8 +71,14 @@ export default function LoginForm() {
       void registerFcmDevice(data.user.companyId).catch(() => undefined);
       const next = search.get("next");
       const dest =
-        next && next.startsWith("/c/") ? next : homePathFor(data.user);
-      router.replace(dest);
+        next &&
+        (next.startsWith("/c/") ||
+          next === "/me" ||
+          next.startsWith("/me/"))
+          ? next
+          : data.landingPath || homePathFor(data.user);
+      // Full document navigation avoids soft-nav + layout redirect blank loops.
+      window.location.assign(dest);
     } catch {
       toast.error(t("serverError"));
     } finally {
@@ -162,6 +172,16 @@ export default function LoginForm() {
           </form>
 
           <p className="mt-5 text-center text-xs text-[var(--muted-foreground)]">
+            {t("posLoginLinkPrompt")}{" "}
+            <Link
+              href="/login/pos"
+              className="font-medium text-[var(--primary)] hover:underline"
+            >
+              {t("posLoginLink")}
+            </Link>
+          </p>
+
+          <p className="mt-3 text-center text-xs text-[var(--muted-foreground)]">
             {t("platformAdminLinkPrompt")}{" "}
             <Link
               href="/admin/login"

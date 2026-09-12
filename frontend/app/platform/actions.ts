@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 import { erpMutate } from "@/lib/erp/mutate";
 import { optStr, str } from "@/lib/erp/form";
+import { parsePhoneFromForm } from "@/lib/phone";
 
 function companyPage(companyId: string) {
   return `/platform/companies/${companyId}`;
@@ -14,6 +16,7 @@ function companyPage(companyId: string) {
 
 export async function createCompany(formData: FormData) {
   const t = await getTranslations("platform");
+  const tc = await getTranslations("common");
   const pagePath = "/platform/companies";
   const file = formData.get("logo");
   const logoBlob =
@@ -46,6 +49,53 @@ export async function createCompany(formData: FormData) {
       );
     }
 
+    // Establishment legal fields are collected in the tenant onboarding wizard.
+    const commercialRegistrationNumber = optStr(
+      formData,
+      "commercialRegistrationNumber",
+    );
+    const licenseNumber = optStr(formData, "licenseNumber");
+    const unifiedNumber = optStr(formData, "unifiedNumber");
+    const taxNumber = optStr(formData, "taxNumber");
+
+    if (commercialRegistrationNumber && !/^\d{10}$/.test(commercialRegistrationNumber)) {
+      redirect(
+        `${pagePath}?error=${encodeURIComponent(t("flash.crInvalid"))}`,
+      );
+    }
+    if (unifiedNumber && !/^\d{10}$/.test(unifiedNumber)) {
+      redirect(
+        `${pagePath}?error=${encodeURIComponent(t("flash.unifiedInvalid"))}`,
+      );
+    }
+
+    const ownerPhoneResult = parsePhoneFromForm(formData, {
+      phoneField: "ownerPhone",
+      dialCodeField: "ownerPhoneDialCode",
+    });
+    if (!ownerPhoneResult.ok) {
+      redirect(
+        `${pagePath}?error=${encodeURIComponent(
+          ownerPhoneResult.error === "invalidLength"
+            ? tc("phoneInvalidLength")
+            : tc("phoneInvalidFormat"),
+        )}`,
+      );
+    }
+    const companyPhoneResult = parsePhoneFromForm(formData, {
+      phoneField: "companyPhone",
+      dialCodeField: "companyPhoneDialCode",
+    });
+    if (!companyPhoneResult.ok) {
+      redirect(
+        `${pagePath}?error=${encodeURIComponent(
+          companyPhoneResult.error === "invalidLength"
+            ? tc("phoneInvalidLength")
+            : tc("phoneInvalidFormat"),
+        )}`,
+      );
+    }
+
     const payload: Record<string, string> = {
       legalName: str(formData, "legalName"),
       displayName: str(formData, "displayName"),
@@ -57,6 +107,19 @@ export async function createCompany(formData: FormData) {
       planCode,
       defaultTaxRate: optStr(formData, "defaultTaxRate") ?? "15",
     };
+    if (taxNumber) payload.taxNumber = taxNumber;
+    if (commercialRegistrationNumber) {
+      payload.commercialRegistrationNumber = commercialRegistrationNumber;
+    }
+    if (licenseNumber) payload.licenseNumber = licenseNumber;
+    if (unifiedNumber) payload.unifiedNumber = unifiedNumber;
+
+    const addressLine = optStr(formData, "addressLine");
+    const activityDescription = optStr(formData, "activityDescription");
+    if (addressLine) payload.addressLine = addressLine;
+    if (activityDescription) payload.activityDescription = activityDescription;
+    if (ownerPhoneResult.phone) payload.ownerPhone = ownerPhoneResult.phone;
+    if (companyPhoneResult.phone) payload.companyPhone = companyPhoneResult.phone;
 
     const ownerFullName = optStr(formData, "ownerFullName");
     const ownerEmail = optStr(formData, "ownerEmail");
@@ -69,6 +132,8 @@ export async function createCompany(formData: FormData) {
     if (ownerFullName) payload.ownerFullName = ownerFullName;
     if (ownerEmail) payload.ownerEmail = ownerEmail;
     if (ownerPassword) payload.ownerPassword = ownerPassword;
+    const companyEmail = optStr(formData, "companyEmail");
+    if (companyEmail) payload.companyEmail = companyEmail;
 
     if (logoBlob) {
       const buf = Buffer.from(await logoBlob.arrayBuffer());
@@ -93,6 +158,8 @@ export async function createCompany(formData: FormData) {
       )}`,
     );
   } catch (error) {
+    // redirect() throws — must not be treated as a failure
+    if (isRedirectError(error)) throw error;
     if (error instanceof ApiError) {
       redirect(
         `${pagePath}?error=${encodeURIComponent(

@@ -28,6 +28,8 @@ export function EmployeeQiwaContractFields({
     trialStart: string;
     trialEnd: string;
     trialHint: string;
+    workContract: string;
+    workContractHint: string;
   };
   defaultQiwaRegistered?: "yes" | "no";
   defaultEmploymentCategory?:
@@ -45,8 +47,9 @@ export function EmployeeQiwaContractFields({
     "EMPLOYMENT_CONTRACT" | "WAGE_WORKER" | "TRIAL_PERIOD"
   >(defaultEmploymentCategory ?? "EMPLOYMENT_CONTRACT");
 
-  // Already registered: file optional. Newly selecting registered: required.
   const fileRequired = qiwaRegistered === "yes" && !initiallyRegistered;
+  const needsWorkContract =
+    contractType === "EMPLOYMENT_CONTRACT" || contractType === "WAGE_WORKER";
 
   return (
     <div className="space-y-3 md:col-span-2">
@@ -118,6 +121,24 @@ export function EmployeeQiwaContractFields({
           { value: "TRIAL_PERIOD", label: labels.trial },
         ]}
       />
+
+      {needsWorkContract ? (
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium text-[var(--foreground)]">
+            {labels.workContract}
+          </span>
+          <input
+            type="file"
+            name="workContractFile"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf"
+            className="h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-sm file:me-3 file:rounded-md file:border-0 file:bg-[var(--secondary)] file:px-3 file:py-1.5"
+          />
+          <span className="text-xs text-[var(--muted-foreground)]">
+            {labels.workContractHint}
+          </span>
+        </label>
+      ) : null}
+
       {contractType === "TRIAL_PERIOD" ? (
         <div className="grid gap-3 md:grid-cols-2">
           <Input

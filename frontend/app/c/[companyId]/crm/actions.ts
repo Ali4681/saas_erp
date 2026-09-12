@@ -1,15 +1,36 @@
 "use server";
 
 import { getTranslations } from "next-intl/server";
+import { redirect } from "next/navigation";
 import { erpMutate } from "@/lib/erp/mutate";
 import { optStr, str } from "@/lib/erp/form";
+import { parsePhoneFromForm } from "@/lib/phone";
 
 function page(companyId: string, segment: string) {
   return `/c/${companyId}/crm/${segment}`;
 }
 
+function flashPath(pagePath: string, key: "ok" | "error", message: string) {
+  const sep = pagePath.includes("?") ? "&" : "?";
+  return `${pagePath}${sep}${key}=${encodeURIComponent(message)}`;
+}
+
 export async function createContact(companyId: string, formData: FormData) {
   const t = await getTranslations("crm");
+  const tc = await getTranslations("common");
+  const pagePath = page(companyId, "contacts");
+  const phoneResult = parsePhoneFromForm(formData);
+  if (!phoneResult.ok) {
+    redirect(
+      flashPath(
+        pagePath,
+        "error",
+        phoneResult.error === "invalidLength"
+          ? tc("phoneInvalidLength")
+          : tc("phoneInvalidFormat"),
+      ),
+    );
+  }
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/crm/contacts`,
@@ -19,7 +40,7 @@ export async function createContact(companyId: string, formData: FormData) {
       name: str(formData, "name"),
       companyName: optStr(formData, "companyName"),
       email: optStr(formData, "email"),
-      phone: optStr(formData, "phone"),
+      phone: phoneResult.phone,
       taxNumber: optStr(formData, "taxNumber"),
       companyRegNumber: optStr(formData, "companyRegNumber"),
       creditLimit: optStr(formData, "creditLimit"),
@@ -27,13 +48,27 @@ export async function createContact(companyId: string, formData: FormData) {
       dateOfBirth: optStr(formData, "dateOfBirth"),
       notes: optStr(formData, "notes"),
     },
-    pagePath: page(companyId, "contacts"),
+    pagePath,
     okMessage: t("flash.contactCreated"),
   });
 }
 
 export async function updateContact(companyId: string, contactId: string, formData: FormData) {
   const t = await getTranslations("crm");
+  const tc = await getTranslations("common");
+  const pagePath = page(companyId, "contacts");
+  const phoneResult = parsePhoneFromForm(formData);
+  if (!phoneResult.ok) {
+    redirect(
+      flashPath(
+        pagePath,
+        "error",
+        phoneResult.error === "invalidLength"
+          ? tc("phoneInvalidLength")
+          : tc("phoneInvalidFormat"),
+      ),
+    );
+  }
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/crm/contacts/${contactId}`,
@@ -44,7 +79,7 @@ export async function updateContact(companyId: string, contactId: string, formDa
       name: str(formData, "name"),
       companyName: optStr(formData, "companyName"),
       email: optStr(formData, "email"),
-      phone: optStr(formData, "phone"),
+      phone: phoneResult.phone,
       taxNumber: optStr(formData, "taxNumber"),
       companyRegNumber: optStr(formData, "companyRegNumber"),
       creditLimit: optStr(formData, "creditLimit"),
@@ -53,7 +88,7 @@ export async function updateContact(companyId: string, contactId: string, formDa
       notes: optStr(formData, "notes"),
       status: optStr(formData, "status"),
     },
-    pagePath: page(companyId, "contacts"),
+    pagePath,
     okMessage: t("flash.contactUpdated"),
   });
 }

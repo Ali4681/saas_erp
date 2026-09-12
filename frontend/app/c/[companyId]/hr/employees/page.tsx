@@ -6,6 +6,7 @@ import { EmployeeAllowancesFields } from "@/components/erp/EmployeeAllowancesFie
 import { EmployeeCommissionFields } from "@/components/erp/EmployeeCommissionFields";
 import { EmployeeQiwaContractFields } from "@/components/erp/EmployeeQiwaContractFields";
 import { EmployeeShiftPatternFields } from "@/components/erp/EmployeeShiftPatternFields";
+import { PhoneWithDialCodeField } from "@/components/erp/PhoneWithDialCodeField";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -262,7 +263,7 @@ export default async function EmployeesPage({
                   />
                   <Input name="fullName" label={t("fullName")} required />
                 <Input name="email" label={t("email")} type="email" required />
-                <Input name="phone" label={t("phone")} />
+                <PhoneWithDialCodeField name="phone" label={t("phone")} />
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3 md:col-span-2">
                   <label className="flex cursor-pointer items-start gap-3 text-sm">
                     <input
@@ -300,6 +301,8 @@ export default async function EmployeesPage({
                     trialStart: t("trialStartsOn"),
                     trialEnd: t("trialEndsOn"),
                     trialHint: t("trialPeriodHint"),
+                    workContract: t("workContract"),
+                    workContractHint: t("workContractHint"),
                   }}
                 />
                 <EmployeeIdentityFields />
@@ -584,7 +587,7 @@ export default async function EmployeesPage({
                                       type="email"
                                       defaultValue={e.email ?? ""}
                                     />
-                                    <Input
+                                    <PhoneWithDialCodeField
                                       name="phone"
                                       label={t("phone")}
                                       defaultValue={e.phone ?? ""}
@@ -637,6 +640,8 @@ export default async function EmployeesPage({
                                         trialStart: t("trialStartsOn"),
                                         trialEnd: t("trialEndsOn"),
                                         trialHint: t("trialPeriodHint"),
+                                        workContract: t("workContract"),
+                                        workContractHint: t("workContractHint"),
                                       }}
                                     />
                                     <EmployeeIdentityFields

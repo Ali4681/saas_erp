@@ -408,6 +408,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'finance.write',
     'sales.read',
     'sales.write',
+    'attachments.read',
     'hr.self',
   ],
   SHIFT_SUPERVISOR: [
@@ -422,6 +423,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'crm.loyalty',
     'sales.write',
     'sales.discount_override',
+    'attachments.read',
   ],
   SALES_DELIVERY_REP: [
     'companies.read',
@@ -429,6 +431,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'sales.read',
     'sales.write',
     'crm.read',
+    'attachments.read',
     'hr.self',
   ],
   WAREHOUSE_KEEPER: [
@@ -506,6 +509,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'sales.discount_override',
     'finance.read',
     'finance.write',
+    'attachments.read',
   ],
   MARKETING_SPECIALIST: [
     'companies.read',
@@ -1758,6 +1762,10 @@ async function main() {
   console.log('    sales@demo-co.local           COMPANY_ADMIN');
   console.log('    viewer@demo-co.local          EMPLOYEE_VIEWER');
   console.log('    support@demo-co.local         EMPLOYEE_VIEWER');
+  console.log('');
+  console.log('  POS demo:');
+  console.log('    Terminal: MAIN  |  Cashier: cashier@demo-co.local');
+  console.log('    Supervisor PIN (returns / overrides): 1234');
   console.log('');
   console.log('  Seed packs included:');
   console.log('    - Chart of accounts + account mapping (seed-coa)');

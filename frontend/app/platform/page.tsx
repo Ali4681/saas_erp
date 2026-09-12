@@ -125,6 +125,9 @@ export default async function PlatformHomePage() {
                 <Building2 className="h-4 w-4" />
                 {t("viewCompanies")}
               </Button>
+              <Button href="/platform/service-requests" variant="secondary" size="sm">
+                {t("serviceRequestsTitle")}
+              </Button>
               <Badge variant="secondary">{companies.length}</Badge>
             </div>
           </PermissionGate>

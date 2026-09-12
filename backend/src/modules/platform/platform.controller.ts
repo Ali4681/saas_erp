@@ -29,6 +29,7 @@ import {
 } from '../../generated/prisma/client';
 import {
   CurrentUser,
+  RequireAnyPermission,
   RequirePermissions,
   type AuthUser,
 } from '../../common/auth/auth.decorators';
@@ -419,7 +420,13 @@ export class PlatformController {
   }
 
   @Get('attachments/:attachmentId')
-  @RequirePermissions('attachments.read')
+  // POS / inventory UIs embed product images; cashiers often lack attachments.read.
+  @RequireAnyPermission(
+    'attachments.read',
+    'sales.read',
+    'inventory.read',
+    'companies.read',
+  )
   getAttachment(
     @Param('companyId') companyId: string,
     @Param('attachmentId') attachmentId: string,

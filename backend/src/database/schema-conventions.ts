@@ -70,6 +70,7 @@ export const TENANT_OWNED_MODELS = new Set<string>([
   'ItemCategory',
   'Unit',
   'Item',
+  'ItemBomComponent',
   'Warehouse',
   'StockMovement',
   'StockCount',
@@ -79,7 +80,9 @@ export const TENANT_OWNED_MODELS = new Set<string>([
   'PayrollRun',
   'EmployeeContract',
   'SalaryAdvance',
+  'EmployeeWalletWithdrawal',
   'EmployeeEwallet',
+  'EmployeeEwalletTransaction',
   'AttendanceDevice',
   'AttendanceDeviceEvent',
   'WorkShift',
@@ -103,6 +106,10 @@ export const TENANT_OWNED_MODELS = new Set<string>([
   'MessageTemplate',
   'MessageDelivery',
   'CompanyPaymentMethod',
+  'CompanyComplianceDocument',
+  'CompanyServiceRequest',
+  'FiscalYear',
+  'OpeningBalanceLine',
 ]);
 
 /** Prisma model names that must never be updated or deleted. */

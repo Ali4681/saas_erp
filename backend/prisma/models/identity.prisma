@@ -22,6 +22,7 @@ model User {
   createdProjects ConnectedProject[]        @relation("ProjectCreator")
   operations    ProviderOperationRequest[]  @relation("OperationRequester")
   expenses      Expense[]                   @relation("ExpenseCreator")
+  serviceRequestsCreated CompanyServiceRequest[] @relation("ServiceRequestCreator")
   ownedCrmContacts CrmContact[]             @relation("CrmContactOwner")
   ownedOpportunities CrmOpportunity[]       @relation("CrmOpportunityOwner")
   assignedActivities CrmActivity[]          @relation("CrmActivityAssignee")
@@ -44,6 +45,8 @@ model User {
   approvedLeaves    LeaveRequest[]          @relation("LeaveApprover")
   createdPayrollRuns PayrollRun[]           @relation("PayrollCreator")
   decidedSalaryAdvances SalaryAdvance[]     @relation("SalaryAdvanceDecider")
+  decidedWalletWithdrawals EmployeeWalletWithdrawal[] @relation("WalletWithdrawalDecider")
+  createdEwalletTransactions EmployeeEwalletTransaction[] @relation("EwalletTxnCreator")
   approvedSalesSubmissions EmployeeSalesSubmission[] @relation("SalesSubmissionApprover")
   qiwaContractsVerified    EmployeeQiwaContract[]    @relation("QiwaContractVerifier")
   qiwaContractsUpdated     EmployeeQiwaContract[]    @relation("QiwaContractUpdater")
@@ -73,6 +76,7 @@ model User {
   cashierShiftsApproved CashierShiftSession[]     @relation("CashierShiftApprover")
   handoversCreated  CashierShiftHandover[]        @relation("HandoverCreator")
   posCashiers       PosCashier[]
+  posAuditEvents    PosAuditEvent[]
   assignedTickets   SupportTicket[]               @relation("TicketAssignee")
   createdTickets    SupportTicket[]               @relation("TicketCreator")
   ticketComments    TicketComment[]               @relation("TicketCommentCreator")

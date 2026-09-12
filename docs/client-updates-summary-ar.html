@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>ملخص التحديثات — SaaS ERP</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      color: #152033;
+      line-height: 1.7;
+      font-size: 12.5px;
+      margin: 0;
+      background: #fff;
+    }
+    .header {
+      border-bottom: 3px solid #1d4ed8;
+      padding-bottom: 14px;
+      margin-bottom: 22px;
+    }
+    .brand {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1d4ed8;
+      margin: 0 0 4px;
+    }
+    .subtitle {
+      margin: 0;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .meta {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    h2 {
+      font-size: 15px;
+      color: #0f172a;
+      margin: 22px 0 10px;
+      padding: 6px 10px;
+      background: #eff6ff;
+      border-right: 4px solid #1d4ed8;
+    }
+    h3 {
+      font-size: 13px;
+      margin: 14px 0 6px;
+      color: #1e293b;
+    }
+    p { margin: 0 0 8px; }
+    ul {
+      margin: 0 0 10px;
+      padding-right: 18px;
+    }
+    li { margin-bottom: 4px; }
+    .card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      background: #fafbfc;
+    }
+    .card strong { color: #1d4ed8; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 14px;
+      font-size: 11.5px;
+    }
+    th, td {
+      border: 1px solid #dbe3ef;
+      padding: 8px 10px;
+      text-align: right;
+      vertical-align: top;
+    }
+    th {
+      background: #1d4ed8;
+      color: #fff;
+      font-weight: 600;
+    }
+    tr:nth-child(even) td { background: #f8fafc; }
+    code, .mono {
+      font-family: Consolas, "Courier New", monospace;
+      direction: ltr;
+      unicode-bidi: embed;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .note {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 8px;
+    }
+    .note strong { color: #c2410c; }
+    .footer {
+      margin-top: 28px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 11px;
+      color: #94a3b8;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <p class="brand">SaaS ERP</p>
+    <p class="subtitle">ملخص التحديثات الجديدة للعميل</p>
+    <p class="meta">تاريخ الإصدار: 12 سبتمبر 2026</p>
+  </div>
+
+  <h2>1) التحديثات الرئيسية</h2>
+
+  <div class="card">
+    <strong>صفحة الكاشير (POS)</strong>
+    <p>شاشة نقطة بيع مستقلة للمبيعات اليومية: فتح وإغلاق الوردية، البيع، المرتجعات (مع إشراف عند الحاجة)، وعرض صور المنتجات.</p>
+  </div>
+
+  <div class="card">
+    <strong>الصفحة الشخصية للموظف</strong>
+    <p>بوابة ذاتية لكل موظف (الملف الشخصي، الحضور، الإجازات… حسب التفعيل). حساب الموظف العادي يدخل لصفحته الشخصية فقط، وليس لوحة الـ ERP الكاملة.</p>
+  </div>
+
+  <div class="card">
+    <strong>توليد الصور بالذكاء الاصطناعي</strong>
+    <p>مسار توليد صور المنتجات بالذكاء الاصطناعي جاهز ضمن النظام. لتفعيله بشكل حي نحتاج مفتاح API لمزوّد الـ AI Agent (توليد الصور).</p>
+  </div>
+
+  <h2>2) طرق تسجيل الدخول</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>المسار</th>
+        <th>الرابط</th>
+        <th>لمن؟</th>
+        <th>إلى أين؟</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>دخول الشركة / الموظفين</td>
+        <td class="mono">/login</td>
+        <td>مالك، أدمن، محاسب، موظف…</td>
+        <td>المنصة الرئيسية، أو الصفحة الشخصية للموظف/الكاشير</td>
+      </tr>
+      <tr>
+        <td>دخول الكاشير (POS)</td>
+        <td class="mono">/login/pos</td>
+        <td>الكاشير / نقطة البيع</td>
+        <td>شاشة الـ POS مباشرة</td>
+      </tr>
+      <tr>
+        <td>دخول سوبر أدمن المنصة</td>
+        <td class="mono">/admin/login</td>
+        <td>مدير المنصة فقط</td>
+        <td>لوحة المنصة</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>من صفحة <span class="mono">/login</span> يوجد رابط مباشر لصفحة دخول الكاشير POS.</p>
+
+  <h2>3) حسابات التجربة</h2>
+  <p>كلمة المرور لجميع الحسابات أدناه: <span class="mono">Admin123!</span></p>
+  <table>
+    <thead>
+      <tr>
+        <th>الحساب</th>
+        <th>الاستخدام</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">owner@demo-co.local</td>
+        <td>مالك الشركة — المنصة الكاملة</td>
+      </tr>
+      <tr>
+        <td class="mono">admin@demo-co.local</td>
+        <td>أدمن الشركة — المنصة</td>
+      </tr>
+      <tr>
+        <td class="mono">hr@demo-co.local</td>
+        <td>موارد بشرية / عمليات</td>
+      </tr>
+      <tr>
+        <td class="mono">cashier@demo-co.local</td>
+        <td>كاشير — من <span class="mono">/login</span> للصفحة الشخصية، ومن <span class="mono">/login/pos</span> لشاشة البيع</td>
+      </tr>
+      <tr>
+        <td class="mono">admin@saas-erp.local</td>
+        <td>سوبر أدمن المنصة — من <span class="mono">/admin/login</span> فقط</td>
+      </tr>
+    </tbody>
+  </table>
+  <p><strong>ملاحظة POS:</strong> رقم مشرف المرتجعات / التجاوزات (PIN): <span class="mono">1234</span></p>
+
+  <h2>4) مطلوب من العميل</h2>
+  <div class="note">
+    <strong>لتفعيل توليد الصور بالذكاء الاصطناعي:</strong>
+    <p style="margin-top:6px;margin-bottom:0">
+      نحتاج تزويدنا بـ API Key لمزوّد الذكاء الاصطناعي (AI Agent / Image Generation)
+      حتى نفعّل توليد الصور بشكل حي داخل النظام. بدون المفتاح تظهر الواجهة، لكن التوليد الحي لا يكتمل.
+    </p>
+  </div>
+
+  <div class="footer">
+    مستند داخلي للعميل — SaaS ERP · تحديثات الكاشير · بوابة الموظف · الذكاء الاصطناعي
+  </div>
+</body>
+</html>

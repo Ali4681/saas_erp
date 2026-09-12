@@ -1,0 +1,29 @@
+---
+description: Deferred ZATCA Phase 2 — remind when sales/e-invoicing work comes up
+globs: "**/zatca*"
+alwaysApply: false
+---
+
+# Deferred: ZATCA Phase 2
+
+**Status:** Explicitly deferred by the product owner. Do not implement unless asked.
+
+## Current state
+- Phase 1 only: local TLV QR (tags 1–5) + simplified non-UBL XML
+- Seller name + VAT in CRM ops settings
+- Invoice field `zatcaQr`; download action opens `/zatca` endpoint
+
+## When resumed, need from tenant (صاحب المنشأة)
+1. Legal seller name + VAT number
+2. Fatoora registration (Sandbox then Production)
+3. Device onboarding OTP → CSID / certificates (secure, not email)
+4. Invoice mix: B2C simplified / B2B tax / both
+
+## Build backlog (Phase 2)
+- Official UBL XML, digital signature, previous-hash chain
+- ZATCA API: compliance → reporting (B2C) / clearance (B2B)
+- Persist authority UUID/hash/status on invoice
+- Auto-embed QR on PDF (Phase 1 polish still useful earlier)
+
+## Do not
+- Expand ZATCA beyond current QR unless the user reopens this topic

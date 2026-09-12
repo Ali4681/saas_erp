@@ -1,7 +1,6 @@
 import {
-  clearSessionCookies,
+  applySessionCookies,
   readSessionFromCookies,
-  setSessionCookies,
   COOKIE_REFRESH,
   COOKIE_USER,
   COOKIE_EXPIRES,
@@ -10,8 +9,15 @@ import { userFromAccessToken } from "@/lib/auth/jwt";
 import { nestFetch } from "@/lib/api/client";
 import type { AuthUser, SessionPayload } from "@/lib/types/auth";
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 
-async function refreshSession(
+export type ResolvedApiSession = {
+  session: SessionPayload | null;
+  /** When set, attach these cookies on the Route Handler response. */
+  cookieSession: SessionPayload | null;
+};
+
+async function performRefresh(
   refreshToken: string,
   previousUser: AuthUser,
 ): Promise<SessionPayload | null> {
@@ -27,51 +33,56 @@ async function refreshSession(
         companyId: previousUser.companyId,
       }),
     });
-    const session: SessionPayload = {
+    return {
       user: userFromAccessToken(tokens.accessToken, previousUser),
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.expiresAt,
     };
-    try {
-      await setSessionCookies(session);
-    } catch {
-      /* ignore Set-Cookie flakiness */
-    }
-    return session;
   } catch {
-    try {
-      await clearSessionCookies();
-    } catch {
-      /* ignore */
-    }
     return null;
   }
 }
 
+/** Attach refreshed session cookies to a Route Handler response. */
+export function applyResolvedSessionCookies(
+  res: NextResponse,
+  resolved: ResolvedApiSession | null | undefined,
+) {
+  if (resolved?.cookieSession) {
+    return applySessionCookies(res, resolved.cookieSession);
+  }
+  return res;
+}
+
 /**
  * Resolve a usable session for Route Handlers (PDF downloads, etc.).
- * Renews access when missing/near expiry using the refresh cookie —
- * pages can stay open after `erp_access` (10m) expires.
+ * Renews access when missing/near expiry using the refresh cookie.
+ * Callers must use `applyResolvedSessionCookies` on the response so
+ * Set-Cookie is reliable (cookies() alone is flaky in Route Handlers).
  */
-export async function resolveApiSession(): Promise<SessionPayload | null> {
+export async function resolveApiSession(): Promise<ResolvedApiSession> {
   let session = await readSessionFromCookies();
+  let cookieSession: SessionPayload | null = null;
 
   if (!session) {
     const jar = await cookies();
     const refreshToken = jar.get(COOKIE_REFRESH)?.value;
     const userRaw = jar.get(COOKIE_USER)?.value;
     const expiresAt = jar.get(COOKIE_EXPIRES)?.value;
-    if (!refreshToken || !userRaw) return null;
+    if (!refreshToken || !userRaw) {
+      return { session: null, cookieSession: null };
+    }
     try {
       const user = JSON.parse(userRaw) as AuthUser;
-      session = await refreshSession(refreshToken, user);
-      if (session && !session.expiresAt && expiresAt) {
-        session = { ...session, expiresAt };
+      const refreshed = await performRefresh(refreshToken, user);
+      if (!refreshed) return { session: null, cookieSession: null };
+      if (!refreshed.expiresAt && expiresAt) {
+        refreshed.expiresAt = expiresAt;
       }
-      return session;
+      return { session: refreshed, cookieSession: refreshed };
     } catch {
-      return null;
+      return { session: null, cookieSession: null };
     }
   }
 
@@ -81,12 +92,11 @@ export async function resolveApiSession(): Promise<SessionPayload | null> {
     expiresMs < Date.now() + 60_000 &&
     session.refreshToken
   ) {
-    const refreshed = await refreshSession(
-      session.refreshToken,
-      session.user,
-    );
-    if (refreshed) return refreshed;
+    const refreshed = await performRefresh(session.refreshToken, session.user);
+    if (refreshed) {
+      return { session: refreshed, cookieSession: refreshed };
+    }
   }
 
-  return session;
+  return { session, cookieSession };
 }

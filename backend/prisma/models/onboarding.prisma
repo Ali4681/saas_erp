@@ -1,0 +1,99 @@
+enum ComplianceDocumentType {
+  COMMERCIAL_REGISTRATION
+  MUNICIPAL_LICENSE
+  CIVIL_DEFENSE
+  NATIONAL_ADDRESS
+  CHAMBER_OF_COMMERCE
+  GOSI
+  VAT_CERTIFICATE
+}
+
+enum ServiceRequestStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum VatStatus {
+  TAXABLE
+  EXEMPT
+  NOT_SUBJECT
+}
+
+model CompanyComplianceDocument {
+  id               String                 @id @default(uuid(7)) @db.Char(36)
+  companyId        String                 @map("company_id") @db.Char(36)
+  documentType     ComplianceDocumentType @map("document_type")
+  documentNumber   String?                @map("document_number") @db.VarChar(120)
+  issuedOn         DateTime?              @map("issued_on") @db.Date
+  expiresOn        DateTime?              @map("expires_on") @db.Date
+  /// Extra fields (fire extinguishers, saudization, address parts, chamber grade…)
+  details          Json                   @default("{}")
+  serviceRequestedAt DateTime?            @map("service_requested_at") @db.DateTime(3)
+  createdAt        DateTime               @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt        DateTime               @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, documentType], map: "uq_compliance_doc_company_type")
+  @@index([expiresOn], map: "idx_compliance_doc_expires")
+  @@index([companyId], map: "idx_compliance_doc_company")
+  @@map("company_compliance_documents")
+}
+
+model CompanyServiceRequest {
+  id          String               @id @default(uuid(7)) @db.Char(36)
+  companyId   String               @map("company_id") @db.Char(36)
+  step        Int                  @db.TinyInt
+  requestType String               @map("request_type") @db.VarChar(80)
+  note        String?              @db.VarChar(500)
+  status      ServiceRequestStatus @default(OPEN)
+  createdById String?              @map("created_by") @db.Char(36)
+  createdAt   DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime             @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("ServiceRequestCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)], map: "idx_service_request_status_created")
+  @@index([companyId, status], map: "idx_service_request_company_status")
+  @@map("company_service_requests")
+}
+
+model FiscalYear {
+  id        String    @id @default(uuid(7)) @db.Char(36)
+  companyId String    @map("company_id") @db.Char(36)
+  name      String    @db.VarChar(80)
+  startsOn  DateTime  @map("starts_on") @db.Date
+  endsOn    DateTime  @map("ends_on") @db.Date
+  isCurrent Boolean   @default(true) @map("is_current")
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company        Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  openingBalances OpeningBalanceLine[]
+
+  @@index([companyId, isCurrent], map: "idx_fiscal_year_company_current")
+  @@map("fiscal_years")
+}
+
+model OpeningBalanceLine {
+  id           String   @id @default(uuid(7)) @db.Char(36)
+  companyId    String   @map("company_id") @db.Char(36)
+  fiscalYearId String   @map("fiscal_year_id") @db.Char(36)
+  /// cash | bank | customers | suppliers | inventory | other
+  accountKey   String   @map("account_key") @db.VarChar(40)
+  label        String?  @db.VarChar(140)
+  amount       Decimal  @db.Decimal(18, 2)
+  currency     String   @db.Char(3)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+
+  @@unique([fiscalYearId, accountKey], map: "uq_opening_balance_year_key")
+  @@index([companyId], map: "idx_opening_balance_company")
+  @@map("opening_balance_lines")
+}

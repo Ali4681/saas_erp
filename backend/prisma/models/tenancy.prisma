@@ -53,8 +53,10 @@ model Company {
   leaveRequests     LeaveRequest[]
   payrollRuns       PayrollRun[]
   salaryAdvances    SalaryAdvance[]
+  walletWithdrawals EmployeeWalletWithdrawal[]
   employeeContracts EmployeeContract[]
   employeeEwallets  EmployeeEwallet[]
+  employeeEwalletTransactions EmployeeEwalletTransaction[]
   attendanceDevices AttendanceDevice[]
   attendanceDeviceEvents AttendanceDeviceEvent[]
   workShifts        WorkShift[]
@@ -97,6 +99,7 @@ model Company {
   cashierShiftHandovers CashierShiftHandover[]
   pointOfSales         PointOfSale[]
   posCashiers          PosCashier[]
+  posAuditEvents       PosAuditEvent[]
   glAccounts           GlAccount[]
   accountMapping       CompanyAccountMapping?
   purchaseRequisitions PurchaseRequisition[]
@@ -125,6 +128,10 @@ model Company {
   labelTemplates       LabelTemplate[]
   invoicePrintTemplates InvoicePrintTemplate[]
   landedCostAllocations LandedCostAllocation[]
+  complianceDocuments   CompanyComplianceDocument[]
+  serviceRequests       CompanyServiceRequest[]
+  fiscalYears           FiscalYear[]
+  openingBalanceLines   OpeningBalanceLine[]
 
   @@index([status], map: "idx_companies_status")
   @@map("companies")

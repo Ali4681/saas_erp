@@ -7,9 +7,15 @@ import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 import { erpMutate } from "@/lib/erp/mutate";
 import { optStr, str } from "@/lib/erp/form";
+import { parsePhoneFromForm } from "@/lib/phone";
 
 function page(companyId: string, segment: string) {
   return `/c/${companyId}/hr/${segment}`;
+}
+
+function employeePortalPage(companyId: string, segment?: string) {
+  const base = `/c/${companyId}/me`;
+  return segment ? `${base}/${segment}` : base;
 }
 
 async function hrT() {
@@ -116,6 +122,37 @@ async function uploadIdentityPhotoViaHr(
   );
 }
 
+async function uploadWorkContractViaHr(
+  companyId: string,
+  employeeId: string,
+  file: File,
+) {
+  const buf = Buffer.from(await file.arrayBuffer());
+  const attachment = await apiServer<{ id: string }>(
+    `/companies/${companyId}/attachments`,
+    {
+      method: "POST",
+      companyId,
+      body: JSON.stringify({
+        entityType: "employee_work_contract",
+        entityId: employeeId,
+        fileName: file.name || "work-contract.pdf",
+        mimeType: file.type || "application/pdf",
+        sizeBytes: String(file.size),
+        contentBase64: buf.toString("base64"),
+      }),
+    },
+  );
+  await apiServer(
+    `/companies/${companyId}/hr/employees/${employeeId}/work-contract-attachment`,
+    {
+      method: "PATCH",
+      companyId,
+      body: JSON.stringify({ attachmentId: attachment.id }),
+    },
+  );
+}
+
 export async function createEmployee(companyId: string, formData: FormData) {
   const t = await hrT();
   const tc = await commonT();
@@ -127,10 +164,25 @@ export async function createEmployee(companyId: string, formData: FormData) {
   const identityPhoto = formData.get("identityPhoto");
   const hasIdentityPhoto =
     identityPhoto instanceof File && identityPhoto.size > 0;
+  const workContractFile = formData.get("workContractFile");
+  const hasWorkContract =
+    workContractFile instanceof File && workContractFile.size > 0;
+  const employmentCategory = str(formData, "employmentCategory");
+  const phoneResult = parsePhoneFromForm(formData);
+  if (!phoneResult.ok) {
+    redirect(
+      flashPath(
+        pagePath,
+        "error",
+        phoneResult.error === "invalidLength"
+          ? tc("phoneInvalidLength")
+          : tc("phoneInvalidFormat"),
+      ),
+    );
+  }
 
   const qiwaUrl = optStr(formData, "qiwaContractUrl");
   const qiwaRef = optStr(formData, "qiwaContractRef");
-
   const advanceMonth =
     optStr(formData, "advanceAllowanceMonth") ?? currentMonth();
   const advanceAmount = optStr(formData, "advanceAllowanceMonthly");
@@ -181,7 +233,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
         identityNumber,
         identityExpiresOn: optStr(formData, "identityExpiresOn"),
         email: optStr(formData, "email"),
-        phone: optStr(formData, "phone"),
+        phone: phoneResult.phone,
         jobTitle: optStr(formData, "jobTitle"),
         hireDate: optStr(formData, "hireDate"),
         employmentCategory: str(formData, "employmentCategory"),
@@ -223,6 +275,14 @@ export async function createEmployee(companyId: string, formData: FormData) {
     }
     if (hasIdentityPhoto && identityPhoto instanceof File) {
       await uploadIdentityPhotoViaHr(companyId, employee.id, identityPhoto);
+    }
+    if (
+      hasWorkContract &&
+      workContractFile instanceof File &&
+      (employmentCategory === "EMPLOYMENT_CONTRACT" ||
+        employmentCategory === "WAGE_WORKER")
+    ) {
+      await uploadWorkContractViaHr(companyId, employee.id, workContractFile);
     }
     // Legacy optional link/ref only — does not mark Qiwa as documented.
     if (qiwaUrl || qiwaRef) {
@@ -389,6 +449,10 @@ export async function updateEmployeeCompensation(
   const identityPhoto = formData.get("identityPhoto");
   const hasIdentityPhoto =
     identityPhoto instanceof File && identityPhoto.size > 0;
+  const workContractFile = formData.get("workContractFile");
+  const hasWorkContract =
+    workContractFile instanceof File && workContractFile.size > 0;
+  const employmentCategory = optStr(formData, "employmentCategory");
   const insurance = formData.get("insurance");
   const hasInsurance = insurance instanceof File && insurance.size > 0;
 
@@ -416,8 +480,20 @@ export async function updateEmployeeCompensation(
     if (start && end) shiftWindows.push({ start, end });
   }
 
-  const employmentCategory = optStr(formData, "employmentCategory");
   const identityNumberRaw = optStr(formData, "identityNumber");
+  const phoneResult = parsePhoneFromForm(formData);
+  if (!phoneResult.ok) {
+    const tc = await commonT();
+    redirect(
+      flashPath(
+        pagePath,
+        "error",
+        phoneResult.error === "invalidLength"
+          ? tc("phoneInvalidLength")
+          : tc("phoneInvalidFormat"),
+      ),
+    );
+  }
 
   try {
     await apiServer(`/companies/${companyId}/hr/employees/${employeeId}`, {
@@ -425,7 +501,7 @@ export async function updateEmployeeCompensation(
       companyId,
       body: JSON.stringify({
         fullName: optStr(formData, "fullName"),
-        phone: optStr(formData, "phone"),
+        phone: phoneResult.phone,
         email: optStr(formData, "email"),
         jobTitle: optStr(formData, "jobTitle"),
         hireDate: optStr(formData, "hireDate"),
@@ -490,6 +566,14 @@ export async function updateEmployeeCompensation(
     }
     if (hasIdentityPhoto && identityPhoto instanceof File) {
       await uploadIdentityPhotoViaHr(companyId, employeeId, identityPhoto);
+    }
+    if (
+      hasWorkContract &&
+      workContractFile instanceof File &&
+      (employmentCategory === "EMPLOYMENT_CONTRACT" ||
+        employmentCategory === "WAGE_WORKER")
+    ) {
+      await uploadWorkContractViaHr(companyId, employeeId, workContractFile);
     }
     if (hasInsurance && insurance instanceof File) {
       await uploadInsuranceViaHr(companyId, employeeId, insurance);
@@ -571,6 +655,32 @@ export async function uploadEmployeeIdentityPhoto(
     revalidatePath(pagePath);
     redirect(
       flashPath(pagePath, "ok", (await hrT())("flash.identityPhotoUploaded")),
+    );
+  } catch (error) {
+    if (error instanceof ApiError) {
+      redirect(flashPath(pagePath, "error", error.message));
+    }
+    throw error;
+  }
+}
+
+export async function uploadEmployeeWorkContract(
+  companyId: string,
+  employeeId: string,
+  formData: FormData,
+) {
+  const pagePath = `/c/${companyId}/hr/employees/${employeeId}?tab=personal`;
+  const file = formData.get("workContractFile");
+  if (!(file instanceof File) || file.size <= 0) {
+    redirect(
+      flashPath(pagePath, "error", (await hrT())("flash.workContractRequired")),
+    );
+  }
+  try {
+    await uploadWorkContractViaHr(companyId, employeeId, file);
+    revalidatePath(pagePath);
+    redirect(
+      flashPath(pagePath, "ok", (await hrT())("flash.workContractUploaded")),
     );
   } catch (error) {
     if (error instanceof ApiError) {
@@ -701,7 +811,7 @@ export async function decideSalesSubmission(
 }
 
 export async function submitMySale(companyId: string, formData: FormData) {
-  const pagePath = page(companyId, "me");
+  const pagePath = employeePortalPage(companyId, "sales");
   const method = str(formData, "paymentMethod");
   const saleDate = str(formData, "saleDate");
   const notes = optStr(formData, "notes");
@@ -849,7 +959,7 @@ export async function updateMyTargetCompleted(
     path: `/companies/${companyId}/hr/me/target-completed`,
     method: "PATCH",
     body: {},
-    pagePath: page(companyId, "me"),
+    pagePath: employeePortalPage(companyId, "sales"),
     okMessage: (await hrT())("flash.targetRefreshed"),
   });
 }
@@ -979,17 +1089,22 @@ export async function decideAdvance(
   });
 }
 
-export async function upsertEwallet(companyId: string, formData: FormData) {
+export async function upsertEwallet(
+  companyId: string,
+  employeeId: string,
+  formData: FormData,
+) {
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/ewallets`,
     body: {
-      employeeId: str(formData, "employeeId"),
+      employeeId,
       walletCode: optStr(formData, "walletCode"),
       balance: optStr(formData, "balance"),
-      currency: optStr(formData, "currency"),
+      currency: optStr(formData, "currency") || "SAR",
+      memo: optStr(formData, "memo"),
     },
-    pagePath: page(companyId, "employees"),
+    pagePath: `/c/${companyId}/hr/employees/${employeeId}`,
     okMessage: (await hrT())("flash.ewalletSaved"),
   });
 }
@@ -1011,17 +1126,31 @@ export async function createDevice(companyId: string, formData: FormData) {
 }
 
 export async function updateMyProfile(companyId: string, formData: FormData) {
+  const pagePath = employeePortalPage(companyId, "profile");
+  const phoneResult = parsePhoneFromForm(formData);
+  if (!phoneResult.ok) {
+    const tc = await commonT();
+    redirect(
+      flashPath(
+        pagePath,
+        "error",
+        phoneResult.error === "invalidLength"
+          ? tc("phoneInvalidLength")
+          : tc("phoneInvalidFormat"),
+      ),
+    );
+  }
   const iban = optStr(formData, "iban");
   await erpMutate({
     companyId,
     path: `/companies/${companyId}/hr/me`,
     method: "PATCH",
     body: {
-      phone: optStr(formData, "phone"),
+      phone: phoneResult.phone,
       email: optStr(formData, "email"),
       ...(iban ? { iban } : {}),
     },
-    pagePath: page(companyId, "me"),
+    pagePath,
     okMessage: (await hrT())("flash.profileUpdated"),
   });
 }
@@ -1034,8 +1163,39 @@ export async function requestMyAdvance(companyId: string, formData: FormData) {
       amount: str(formData, "amount"),
       reason: str(formData, "reason"),
     },
-    pagePath: page(companyId, "me"),
+    pagePath: employeePortalPage(companyId, "advances"),
     okMessage: (await hrT())("flash.advanceRequested"),
+  });
+}
+
+export async function requestMyWalletWithdrawal(
+  companyId: string,
+  formData: FormData,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/me/wallet-withdrawals`,
+    body: {
+      amount: str(formData, "amount"),
+      reason: optStr(formData, "reason"),
+    },
+    pagePath: employeePortalPage(companyId, "wallet"),
+    okMessage: (await hrT())("flash.walletWithdrawRequested"),
+  });
+}
+
+export async function decideWalletWithdrawal(
+  companyId: string,
+  withdrawalId: string,
+  status: string,
+) {
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/hr/wallet-withdrawals/${withdrawalId}/decision`,
+    method: "PATCH",
+    body: { status },
+    pagePath: page(companyId, "advances"),
+    okMessage: (await hrT())("flash.walletWithdrawMarked", { status }),
   });
 }
 
@@ -1050,7 +1210,7 @@ export async function requestMyLeave(companyId: string, formData: FormData) {
       requestedDays: str(formData, "requestedDays"),
       reason: str(formData, "reason"),
     },
-    pagePath: page(companyId, "me"),
+    pagePath: employeePortalPage(companyId, "leaves"),
     okMessage: (await hrT())("flash.leaveRequested"),
   });
 }

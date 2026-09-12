@@ -13,6 +13,7 @@ import { getAppLocale } from "@/lib/i18n/locale-server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { companyLogoUrl } from "@/lib/company-logo";
+import { formatPhoneDisplay } from "@/lib/phone";
 import { updateCompanyLogo } from "../actions";
 import { saveCompanyTaxSettings } from "./actions";
 
@@ -25,6 +26,7 @@ type CompanyDetail = {
   defaultCurrency: string;
   timezone: string;
   countryCode: string | null;
+  city?: string | null;
   logoAttachmentId?: string | null;
   settings: {
     taxNumber: string | null;
@@ -32,6 +34,7 @@ type CompanyDetail = {
     defaultTaxRate: string;
     emailFromName: string | null;
     emailFromAddress: string | null;
+    settings?: Record<string, unknown> | null;
   } | null;
   subscriptions: Array<{
     status: string;
@@ -74,6 +77,12 @@ export default async function SettingsPage({
   const base = `/c/${companyId}/settings`;
   const saveTax = saveCompanyTaxSettings.bind(null, companyId);
   const logoUrl = companyLogoUrl(companyId, company.logoAttachmentId);
+  const extraSettings =
+    company.settings?.settings &&
+    typeof company.settings.settings === "object" &&
+    !Array.isArray(company.settings.settings)
+      ? (company.settings.settings as Record<string, string | undefined>)
+      : {};
 
   return (
     <div className="space-y-5">
@@ -81,6 +90,15 @@ export default async function SettingsPage({
       <FlashFromSearch searchParams={flash} />
 
       <div className="grid gap-3 sm:grid-cols-3">
+        <Link
+          href={`/c/${companyId}/onboarding`}
+          className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--primary)]"
+        >
+          <p className="font-medium">{t("onboardingTitle")}</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+            {t("onboardingDesc")}
+          </p>
+        </Link>
         <Link
           href={`${base}/business-hours`}
           className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 transition hover:border-[var(--primary)]"
@@ -156,7 +174,7 @@ export default async function SettingsPage({
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title={t("companyCard")}>
+        <Card title={t("companyCard")} description={t("companyCardHint")}>
           <dl className="space-y-3 text-sm">
             <Row label={t("displayName")} value={company.displayName} />
             <Row label={t("legalName")} value={company.legalName} />
@@ -186,6 +204,31 @@ export default async function SettingsPage({
                 company.countryCode,
                 locale,
               )}
+            />
+            <Row label={t("city")} value={company.city ?? "—"} />
+            <Row
+              label={t("addressLine")}
+              value={extraSettings.addressLine ?? "—"}
+            />
+            <Row
+              label={t("commercialRegistrationNumber")}
+              value={extraSettings.commercialRegistrationNumber ?? "—"}
+            />
+            <Row
+              label={t("licenseNumber")}
+              value={extraSettings.licenseNumber ?? "—"}
+            />
+            <Row
+              label={t("unifiedNumber")}
+              value={extraSettings.unifiedNumber ?? "—"}
+            />
+            <Row
+              label={t("ownerPhone")}
+              value={formatPhoneDisplay(extraSettings.ownerPhone)}
+            />
+            <Row
+              label={t("companyPhone")}
+              value={formatPhoneDisplay(extraSettings.companyPhone)}
             />
             <Row
               label={t("plan")}

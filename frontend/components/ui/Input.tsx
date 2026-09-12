@@ -33,6 +33,7 @@ export function Input({
         id={inputId}
         type={type}
         placeholder={resolvedPlaceholder}
+        suppressHydrationWarning
         className={cn(
           "h-10 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-[var(--foreground)] shadow-sm outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20",
           error && "border-[var(--destructive)] focus:ring-[var(--destructive)]/20",

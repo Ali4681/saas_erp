@@ -3,7 +3,7 @@ import { FlashFromSearch } from "@/components/erp/Flash";
 import { CreateFormDialog } from "@/components/erp/CreateFormDialog";
 import { SalesCustomerField } from "@/components/erp/SalesCustomerField";
 import { SalesDocActions } from "@/components/erp/SalesDocActions";
-import { SalesTaxFields } from "@/components/erp/SalesTaxFields";
+import { SalesLineItemFields } from "@/components/erp/SalesLineItemFields";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -15,6 +15,7 @@ import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
+import { InvoiceIssueDueFields } from "@/components/erp/InvoiceIssueDueFields";
 import { InvoicePaymentMethodField } from "@/components/erp/InvoicePaymentMethodField";
 import { PosSaleFields } from "@/components/erp/PosSaleFields";
 import {
@@ -37,8 +38,13 @@ const CURRENCIES = [
   "QAR",
 ];
 
-type Contact = { id: string; name: string };
-type BankAccount = { id: string; name: string };
+type Contact = { id: string; name: string; phone?: string | null };
+type InventoryItem = {
+  id: string;
+  name: string;
+  sku?: string | null;
+  salePrice?: string | null;
+};
 type Invoice = {
   id: string;
   invoiceNumber: string;
@@ -61,15 +67,31 @@ type Invoice = {
   salesQuoteId?: string | null;
   quoteNumber?: string | null;
   quote?: { id: string; quoteNumber: string } | null;
-  contact?: { id?: string; name: string } | null;
+  contact?: { id?: string; name: string; phone?: string | null } | null;
   items?: Array<{
     description: string;
     quantity: string;
     unitPrice: string;
     taxAmount?: string;
     totalAmount?: string;
+    itemId?: string | null;
+  }>;
+  creditNotes?: Array<{
+    id: string;
+    creditNoteNumber: string;
+    status: string;
+    issuedOn: string;
+    reason?: string | null;
+    totalAmount: string;
+    currency: string;
+    items?: Array<{
+      description: string;
+      quantity: string;
+      amount: string;
+    }>;
   }>;
 };
+type BankAccount = { id: string; name: string };
 
 export default async function InvoicesPage({
   params,
@@ -86,7 +108,8 @@ export default async function InvoicesPage({
   const session = await getSession();
   const canWrite = can(session?.user, "sales.write");
 
-  const [invoices, contacts, accounts, company, points] = await Promise.all([
+  const [invoices, contacts, accounts, company, points, inventoryItems] =
+    await Promise.all([
     apiServer<Invoice[]>(`/companies/${companyId}/sales/invoices`, {
       companyId,
     }).catch(() => []),
@@ -112,6 +135,12 @@ export default async function InvoicesPage({
         }>;
       }>
     >(`/companies/${companyId}/sales/pos`, { companyId }).catch(() => []),
+    apiServer<InventoryItem[]>(
+      `/companies/${companyId}/inventory/items?sellableOnly=true`,
+      {
+      companyId,
+    },
+    ).catch(() => []),
   ]);
 
   const create = createInvoice.bind(null, companyId);
@@ -145,13 +174,11 @@ export default async function InvoicesPage({
                 contacts={contacts}
                 label={t("customer")}
               />
-              <Input
-                name="issuedOn"
-                label={t("issuedOn")}
-                type="date"
-                defaultValue={today}
+              <InvoiceIssueDueFields
+                issuedLabel={t("issuedOn")}
+                dueLabel={t("invoices.dueOn")}
+                defaultIssuedOn={today}
               />
-              <Input name="dueOn" label={t("invoices.dueOn")} type="date" />
               <Select
                 name="currency"
                 label={t("currency")}
@@ -181,8 +208,8 @@ export default async function InvoicesPage({
                   { value: "DRAFT", label: t("invoices.draft") },
                 ]}
               />
-              <Input name="description" label={t("lineDescription")} required />
-              <SalesTaxFields
+              <SalesLineItemFields
+                items={inventoryItems}
                 defaultTaxRate={defaultTaxRate}
                 defaultMode={defaultTaxRate > 0 ? "COMPANY" : "NONE"}
               />
@@ -324,6 +351,7 @@ export default async function InvoicesPage({
                         kind="invoice"
                         companyId={companyId}
                         contacts={contacts}
+                        inventoryItems={inventoryItems}
                         defaultTaxRate={defaultTaxRate}
                         canWrite={canWrite}
                         pdfUrl={`/api/sales/invoices/${inv.id}/pdf?companyId=${companyId}`}
@@ -346,6 +374,7 @@ export default async function InvoicesPage({
                           paymentMethod: inv.paymentMethod,
                           contact: inv.contact,
                           items: inv.items,
+                          creditNotes: inv.creditNotes,
                         }}
                       />
                     </td>

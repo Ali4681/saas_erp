@@ -7,6 +7,7 @@ import { SalesPublicController } from './sales-public.controller';
 import { SalesService } from './sales.service';
 import { PosController } from './pos.controller';
 import { PosService } from './pos.service';
+import { PosTerminalService } from './pos-terminal.service';
 import { ZatcaService } from './zatca.service';
 
 @Module({
@@ -16,7 +17,7 @@ import { ZatcaService } from './zatca.service';
     forwardRef(() => CrmModule),
   ],
   controllers: [SalesController, SalesPublicController, PosController],
-  providers: [SalesService, PosService, ZatcaService],
-  exports: [SalesService, PosService, ZatcaService],
+  providers: [SalesService, PosService, PosTerminalService, ZatcaService],
+  exports: [SalesService, PosService, PosTerminalService, ZatcaService],
 })
 export class SalesModule {}

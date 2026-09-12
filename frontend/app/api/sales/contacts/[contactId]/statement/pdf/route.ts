@@ -12,8 +12,8 @@ export async function GET(
     return NextResponse.json({ message: "companyId مطلوب" }, { status: 400 });
   }
 
-  const session = await resolveApiSession();
-  if (!session) {
+  const resolved = await resolveApiSession();
+  if (!resolved.session) {
     return NextResponse.json({ message: "غير مسجّل" }, { status: 401 });
   }
 
@@ -26,7 +26,7 @@ export async function GET(
     }>(
       `/companies/${companyId}/sales/contacts/${contactId}/statement/pdf?theme=${encodeURIComponent(theme)}`,
       {
-        accessToken: session.accessToken,
+        accessToken: resolved.session.accessToken,
         companyId,
       },
     );

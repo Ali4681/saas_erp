@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { nestFetch, ApiError } from "@/lib/api/client";
 import { applySessionCookies } from "@/lib/auth/session";
+import { homePathFor, posHomePathFor } from "@/lib/permissions";
 import type { LoginResponse } from "@/lib/types/auth";
 import { isAppTheme, THEME_COOKIE } from "@/lib/theme";
 
@@ -11,6 +12,8 @@ export async function POST(request: Request) {
       password?: string;
       companyId?: string;
       companySlug?: string;
+      /** `pos` → land on cashier terminal after auth */
+      intent?: "pos" | "company";
     };
 
     if (!body.email || !body.password) {
@@ -40,7 +43,44 @@ export async function POST(request: Request) {
       );
     }
 
-    const res = NextResponse.json({ user: data.user });
+    let landingPath =
+      body.intent === "pos"
+        ? posHomePathFor(data.user)
+        : homePathFor(data.user);
+
+    if (body.intent === "pos" && data.user.companyId) {
+      const canPos = posHomePathFor(data.user).includes("/me/pos");
+      if (!canPos) {
+        return NextResponse.json(
+          {
+            message:
+              "هذا الحساب لا يملك صلاحية نقطة البيع — استخدم تسجيل دخول الشركة",
+          },
+          { status: 403 },
+        );
+      }
+    }
+
+    if (data.user.companyId && body.intent !== "pos") {
+      try {
+        const status = await nestFetch<{
+          onboarding: { completedAt: string | null };
+        }>(`/companies/${data.user.companyId}/onboarding`, {
+          accessToken: data.accessToken,
+          companyId: data.user.companyId,
+        });
+        if (!status.onboarding.completedAt) {
+          const role = data.user.roleCode;
+          if (role !== "CASHIER" && role !== "COMPANY_EMPLOYEE") {
+            landingPath = `/c/${data.user.companyId}/onboarding`;
+          }
+        }
+      } catch {
+        // Keep home; company layout gate still applies on full load.
+      }
+    }
+
+    const res = NextResponse.json({ user: data.user, landingPath });
     applySessionCookies(res, {
       user: data.user,
       accessToken: data.accessToken,

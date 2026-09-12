@@ -439,6 +439,21 @@ enum EmployeeEwalletStatus {
   SUSPENDED
 }
 
+enum EmployeeEwalletTxnKind {
+  CREDIT
+  DEBIT
+}
+
+enum EmployeeEwalletTxnSource {
+  ADVANCE
+  MANUAL
+  OPENING
+  PURCHASE
+  DEDUCTION
+  ADVANCE_REPAY
+  WALLET_WITHDRAW
+}
+
 enum EmployeeIdentityType {
   RESIDENT
   CITIZEN

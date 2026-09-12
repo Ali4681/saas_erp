@@ -1,5 +1,7 @@
 "use server";
 
+import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { erpMutate } from "@/lib/erp/mutate";
 import { optStr, str } from "@/lib/erp/form";
 
@@ -268,5 +270,49 @@ export async function updateCategoryInheritance(
     },
     pagePath: page(companyId, "categories"),
     okMessage: "Category inheritance updated",
+  });
+}
+
+export async function uploadItemImage(
+  companyId: string,
+  itemId: string,
+  formData: FormData,
+) {
+  const t = await getTranslations("inventory");
+  const file = formData.get("file");
+  const pagePath = `/c/${companyId}/inventory/items/${itemId}`;
+  if (!(file instanceof File) || file.size <= 0) {
+    redirect(
+      `${pagePath}?error=${encodeURIComponent(t("itemImageChooseFile"))}`,
+    );
+  }
+  if (!file.type.startsWith("image/")) {
+    redirect(
+      `${pagePath}?error=${encodeURIComponent(t("itemImageInvalidType"))}`,
+    );
+  }
+  const buf = Buffer.from(await file.arrayBuffer());
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/inventory/items/${itemId}/image`,
+    body: {
+      fileName: file.name || `item-${Date.now()}.png`,
+      mimeType: file.type || "image/png",
+      sizeBytes: String(file.size),
+      contentBase64: buf.toString("base64"),
+    },
+    pagePath,
+    okMessage: t("itemImageUploaded"),
+  });
+}
+
+export async function clearItemImage(companyId: string, itemId: string) {
+  const t = await getTranslations("inventory");
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/inventory/items/${itemId}/image`,
+    method: "DELETE",
+    pagePath: `/c/${companyId}/inventory/items/${itemId}`,
+    okMessage: t("itemImageCleared"),
   });
 }

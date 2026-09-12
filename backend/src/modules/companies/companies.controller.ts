@@ -11,19 +11,28 @@ import {
 import {
   IsEmail,
   IsEnum,
+  IsInt,
   IsNumberString,
   IsObject,
   IsOptional,
   IsString,
+  Max,
+  Min,
   MinLength,
 } from 'class-validator';
-import { CompanyBusinessCategory } from '../../generated/prisma/client';
+import { Type } from 'class-transformer';
+import {
+  CompanyBusinessCategory,
+  ServiceRequestStatus,
+} from '../../generated/prisma/client';
 import {
   CurrentUser,
+  RequireAnyPermission,
   RequirePermissions,
   type AuthUser,
 } from '../../common/auth/auth.decorators';
 import { CompaniesService } from './companies.service';
+import { OnboardingService } from './onboarding.service';
 
 class CreateCompanyBody {
   @IsString()
@@ -97,6 +106,43 @@ class CreateCompanyBody {
   @IsOptional()
   @IsString()
   logoContentBase64?: string;
+
+  /** Establishment identity collected at signup / company creation. */
+  @IsOptional()
+  @IsString()
+  taxNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  commercialRegistrationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  licenseNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  unifiedNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine?: string;
+
+  @IsOptional()
+  @IsString()
+  activityDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  ownerPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  companyPhone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  companyEmail?: string;
 }
 
 class UpdateCompanyBody {
@@ -218,14 +264,119 @@ class DepartmentsQuery {
   branchId?: string;
 }
 
+class ServiceRequestsQuery {
+  @IsOptional()
+  @IsEnum(ServiceRequestStatus)
+  status?: ServiceRequestStatus;
+}
+
+class SaveOnboardingStepBody {
+  @IsObject()
+  data!: Record<string, unknown>;
+}
+
+class CreateServiceRequestBody {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  step!: number;
+
+  @IsString()
+  @MinLength(2)
+  requestType!: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+class UpdateServiceRequestBody {
+  @IsEnum(ServiceRequestStatus)
+  status!: ServiceRequestStatus;
+}
+
 @Controller('companies')
 export class CompaniesController {
-  constructor(private readonly companies: CompaniesService) {}
+  constructor(
+    private readonly companies: CompaniesService,
+    private readonly onboarding: OnboardingService,
+  ) {}
 
   @Get()
   @RequirePermissions('companies.read')
   list() {
     return this.companies.list();
+  }
+
+  /** Platform inbox — must be registered before :id */
+  @Get('service-requests')
+  @RequirePermissions('companies.read')
+  listServiceRequests(@Query() query: ServiceRequestsQuery) {
+    return this.onboarding.listServiceRequests({ status: query.status });
+  }
+
+  @Patch('service-requests/:requestId')
+  @RequirePermissions('companies.write')
+  updateServiceRequest(
+    @Param('requestId') requestId: string,
+    @Body() body: UpdateServiceRequestBody,
+  ) {
+    return this.onboarding.updateServiceRequestStatus(requestId, body.status);
+  }
+
+  @Get(':id/onboarding')
+  @RequirePermissions('companies.read')
+  getOnboarding(@Param('id') id: string) {
+    return this.onboarding.getStatus(id);
+  }
+
+  @Patch(':id/onboarding/steps/:step')
+  @RequirePermissions('companies.write')
+  saveOnboardingStep(
+    @Param('id') id: string,
+    @Param('step') stepRaw: string,
+    @Body() body: SaveOnboardingStepBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const step = Number(stepRaw);
+    return this.onboarding.saveStep(id, step, body.data ?? {}, user.userId);
+  }
+
+  @Post(':id/onboarding/steps/:step/skip')
+  @RequirePermissions('companies.write')
+  skipOnboardingStep(
+    @Param('id') id: string,
+    @Param('step') stepRaw: string,
+  ) {
+    return this.onboarding.skipStep(id, Number(stepRaw));
+  }
+
+  @Post(':id/onboarding/complete')
+  @RequirePermissions('companies.write')
+  completeOnboarding(@Param('id') id: string) {
+    return this.onboarding.complete(id);
+  }
+
+  @Post(':id/onboarding/service-requests')
+  @RequirePermissions('companies.write')
+  createServiceRequest(
+    @Param('id') id: string,
+    @Body() body: CreateServiceRequestBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.onboarding.createServiceRequest(id, {
+      step: body.step,
+      requestType: body.requestType,
+      note: body.note,
+      userId: user.userId,
+    });
+  }
+
+  @Get(':id/logo')
+  @RequireAnyPermission('hr.self', 'companies.read', 'attachments.read')
+  async getLogo(@Param('id') id: string) {
+    return this.companies.getLogoFile(id);
   }
 
   @Get(':id')

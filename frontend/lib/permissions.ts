@@ -20,7 +20,9 @@ const ROLE_LABELS_AR: Record<string, string> = {
   EMPLOYEE_VIEWER: "موظف / مشاهدة",
   COMPANY_EMPLOYEE: "موظف (خدمة ذاتية)",
   B2B_ACCOUNT_MANAGER: "مدير حسابات شركات",
+  CASHIER: "كاشير",
   POS_SUPERVISOR: "مشرف كاشير",
+  SHIFT_SUPERVISOR: "مشرف وردية",
   MARKETING_SPECIALIST: "أخصائي تسويق",
   guest: "زائر",
   user: "مستخدم",
@@ -35,7 +37,9 @@ const ROLE_LABELS_EN: Record<string, string> = {
   EMPLOYEE_VIEWER: "Employee / viewer",
   COMPANY_EMPLOYEE: "Employee (self-service)",
   B2B_ACCOUNT_MANAGER: "B2B account manager",
+  CASHIER: "Cashier",
   POS_SUPERVISOR: "POS supervisor",
+  SHIFT_SUPERVISOR: "Shift supervisor",
   MARKETING_SPECIALIST: "Marketing specialist",
   guest: "Guest",
   user: "User",
@@ -73,12 +77,70 @@ export function canAny(
   return required.some((code) => set.has(code));
 }
 
+/** Regular employee self-service role (not HR admin). */
+export function isCompanyEmployee(user: AuthUser | null | undefined): boolean {
+  return roleKey(user) === "COMPANY_EMPLOYEE";
+}
+
+/** Dedicated cashier role — employee portal + POS access. */
+export function isCashierPortalUser(user: AuthUser | null | undefined): boolean {
+  return roleKey(user) === "CASHIER";
+}
+
+export function employeePortalBase(companyId: string): string {
+  return `/c/${companyId}/me`;
+}
+
+export function isEmployeePortalPath(
+  pathname: string,
+  companyId: string,
+): boolean {
+  const base = employeePortalBase(companyId);
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+/**
+ * Who may open employee-portal routes under `/c/{id}/me/*`.
+ * - COMPANY_EMPLOYEE: full self-service portal
+ * - CASHIER: full self-service portal (same as employee) + POS
+ * - sales.write (non-cashier): POS terminal (+ customer display) only
+ */
+export function canUseEmployeePortalPath(
+  user: AuthUser | null | undefined,
+  pathname: string,
+  companyId: string,
+): boolean {
+  if (!user || !isEmployeePortalPath(pathname, companyId)) return false;
+  if (user.isPlatformAdmin) return true;
+  if (isCompanyEmployee(user) || isCashierPortalUser(user)) return true;
+
+  const base = employeePortalBase(companyId);
+  const posBase = `${base}/pos`;
+  const onPos =
+    pathname === posBase || pathname.startsWith(`${posBase}/`);
+  if (!onPos) return false;
+
+  return can(user, "sales.write");
+}
+
+/** Default landing after company login (not POS-specific). */
 export function homePathFor(user: AuthUser): string {
   if (user.isPlatformAdmin) {
     return "/platform";
   }
   if (user.companyId) {
+    if (isCashierPortalUser(user) || isCompanyEmployee(user)) {
+      return employeePortalBase(user.companyId);
+    }
     return `/c/${user.companyId}`;
   }
   return "/login";
+}
+
+/** Landing after dedicated cashier POS login. */
+export function posHomePathFor(user: AuthUser): string {
+  if (user.companyId && (isCashierPortalUser(user) || can(user, "sales.write"))) {
+    return `${employeePortalBase(user.companyId)}/pos`;
+  }
+  return homePathFor(user);
 }

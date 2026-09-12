@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 import { erpMutate } from "@/lib/erp/mutate";
 import { optStr, str } from "@/lib/erp/form";
+import { parsePhoneFromForm } from "@/lib/phone";
 
 function page(companyId: string, segment: string) {
   return `/c/${companyId}/sales/${segment}`;
@@ -19,6 +20,17 @@ export async function createContactInline(
   | { ok: false; error: string }
 > {
   try {
+    const phoneResult = parsePhoneFromForm(formData);
+    if (!phoneResult.ok) {
+      const tc = await getTranslations("common");
+      return {
+        ok: false,
+        error:
+          phoneResult.error === "invalidLength"
+            ? tc("phoneInvalidLength")
+            : tc("phoneInvalidFormat"),
+      };
+    }
     const contact = await apiServer<{ id: string; name: string }>(
       `/companies/${companyId}/crm/contacts`,
       {
@@ -30,7 +42,7 @@ export async function createContactInline(
           name: str(formData, "name"),
           companyName: optStr(formData, "companyName"),
           email: optStr(formData, "email"),
-          phone: optStr(formData, "phone"),
+          phone: phoneResult.phone,
           taxNumber: optStr(formData, "taxNumber"),
           companyRegNumber: optStr(formData, "companyRegNumber"),
           creditLimit: optStr(formData, "creditLimit"),
@@ -69,6 +81,7 @@ export async function createQuote(companyId: string, formData: FormData) {
           quantity: str(formData, "quantity") || "1",
           unitPrice: str(formData, "unitPrice") || "0",
           taxAmount: optStr(formData, "taxAmount") ?? "0",
+          itemId: optStr(formData, "itemId"),
         },
       ],
     },
@@ -100,6 +113,7 @@ export async function updateQuote(
           quantity: str(formData, "quantity") || "1",
           unitPrice: str(formData, "unitPrice") || "0",
           taxAmount: optStr(formData, "taxAmount") ?? "0",
+          itemId: optStr(formData, "itemId"),
         },
       ],
     },
@@ -180,7 +194,7 @@ export async function createInvoice(companyId: string, formData: FormData) {
     body: {
       contactId: str(formData, "contactId"),
       issuedOn,
-      dueOn: optStr(formData, "dueOn"),
+      dueOn: optStr(formData, "dueOn") || issuedOn,
       currency: optStr(formData, "currency") ?? "SAR",
       status: str(formData, "status") || "ISSUED",
       saleChannel: optStr(formData, "saleChannel") ?? "POS",
@@ -194,6 +208,7 @@ export async function createInvoice(companyId: string, formData: FormData) {
           quantity: str(formData, "quantity") || "1",
           unitPrice: str(formData, "unitPrice") || "0",
           taxAmount: optStr(formData, "taxAmount") ?? "0",
+          itemId: optStr(formData, "itemId"),
         },
       ],
     },
@@ -227,7 +242,7 @@ export async function issueHeldInvoice(companyId: string, invoiceId: string, for
     body: {
       paymentMethod,
       paymentSplits,
-      dueOn: optStr(formData, "dueOn"),
+      dueOn: optStr(formData, "dueOn") || new Date().toISOString().slice(0, 10),
     },
     pagePath: page(companyId, "invoices"),
     okMessage: t("flash.invoiceIssued"),
@@ -249,7 +264,7 @@ export async function updateInvoice(
     body: {
       contactId: str(formData, "contactId"),
       issuedOn,
-      dueOn: optStr(formData, "dueOn"),
+      dueOn: optStr(formData, "dueOn") || issuedOn,
       currency: optStr(formData, "currency") ?? "SAR",
       saleChannel: optStr(formData, "saleChannel") ?? "POS",
       items: [
@@ -258,6 +273,7 @@ export async function updateInvoice(
           quantity: str(formData, "quantity") || "1",
           unitPrice: str(formData, "unitPrice") || "0",
           taxAmount: optStr(formData, "taxAmount") ?? "0",
+          itemId: optStr(formData, "itemId"),
         },
       ],
     },

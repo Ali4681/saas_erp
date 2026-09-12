@@ -34,7 +34,7 @@ export class CompaniesService {
   }
 
   async get(id: string) {
-    return this.prisma.company.findFirstOrThrow({
+    const company = await this.prisma.company.findFirstOrThrow({
       where: { id, deletedAt: null },
       include: {
         settings: true,
@@ -43,8 +43,46 @@ export class CompaniesService {
           include: { plan: true },
           take: 1,
         },
+        memberships: {
+          where: {
+            status: 'ACTIVE',
+          },
+          include: {
+            user: {
+              select: { id: true, email: true, fullName: true },
+            },
+            role: { select: { code: true } },
+          },
+          orderBy: { joinedAt: 'asc' },
+          take: 20,
+        },
       },
     });
+
+    const bag =
+      company.settings?.settings &&
+      typeof company.settings.settings === 'object' &&
+      !Array.isArray(company.settings.settings)
+        ? (company.settings.settings as Record<string, unknown>)
+        : {};
+    const ownerMembership =
+      company.memberships.find((m) => m.role.code === 'COMPANY_OWNER') ??
+      company.memberships[0] ??
+      null;
+    const owner = ownerMembership?.user ?? null;
+    const ownerEmail =
+      (typeof bag.ownerEmail === 'string' && bag.ownerEmail.trim()) ||
+      owner?.email ||
+      null;
+
+    const { memberships: _memberships, ...rest } = company;
+    return {
+      ...rest,
+      owner: owner
+        ? { id: owner.id, email: owner.email, fullName: owner.fullName }
+        : null,
+      ownerEmail,
+    };
   }
 
   async update(
@@ -93,6 +131,30 @@ export class CompaniesService {
     return this.prisma.company.update({ where: { id: companyId }, data: { logoAttachmentId: attachment.id }, include: { settings: true } });
   }
 
+  /** Company logo file — any tenant member with hr.self or companies.read may fetch. */
+  async getLogoFile(companyId: string) {
+    const company = await this.requireCompany(companyId);
+    if (!company.logoAttachmentId) {
+      throw new NotFoundException('Company logo not set');
+    }
+    const attachment = await this.prisma.attachment.findFirst({
+      where: { id: company.logoAttachmentId, companyId },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Company logo not found');
+    }
+    try {
+      const body = await this.storage.getObject(attachment.storageKey);
+      return {
+        fileName: attachment.fileName,
+        mimeType: attachment.mimeType,
+        contentBase64: body.toString('base64'),
+      };
+    } catch {
+      throw new NotFoundException('Company logo content unavailable');
+    }
+  }
+
   async softDelete(id: string) {
     await this.requireCompany(id);
     this.tenant.setBypass(true);
@@ -133,6 +195,20 @@ export class CompaniesService {
   ) {
     this.tenant.setCompanyId(companyId);
     await this.requireCompany(companyId);
+    const existing = await this.prisma.companySettings.findUnique({
+      where: { companyId },
+    });
+    const mergedSettings =
+      input.settings !== undefined
+        ? {
+            ...(typeof existing?.settings === 'object' &&
+            existing.settings &&
+            !Array.isArray(existing.settings)
+              ? (existing.settings as Record<string, unknown>)
+              : {}),
+            ...input.settings,
+          }
+        : undefined;
     return this.prisma.companySettings.upsert({
       where: { companyId },
       create: {
@@ -145,7 +221,7 @@ export class CompaniesService {
             : undefined,
         emailFromName: input.emailFromName ?? undefined,
         emailFromAddress: input.emailFromAddress ?? undefined,
-        settings: (input.settings ?? {}) as Prisma.InputJsonValue,
+        settings: (mergedSettings ?? input.settings ?? {}) as Prisma.InputJsonValue,
       },
       update: {
         taxNumber: input.taxNumber,
@@ -157,8 +233,8 @@ export class CompaniesService {
         emailFromName: input.emailFromName,
         emailFromAddress: input.emailFromAddress,
         settings:
-          input.settings !== undefined
-            ? (input.settings as Prisma.InputJsonValue)
+          mergedSettings !== undefined
+            ? (mergedSettings as Prisma.InputJsonValue)
             : undefined,
       },
     });
@@ -183,6 +259,15 @@ export class CompaniesService {
     logoMimeType?: string;
     logoSizeBytes?: string;
     logoContentBase64?: string;
+    taxNumber?: string;
+    commercialRegistrationNumber?: string;
+    licenseNumber?: string;
+    unifiedNumber?: string;
+    addressLine?: string;
+    activityDescription?: string;
+    ownerPhone?: string;
+    companyPhone?: string;
+    companyEmail?: string;
   }) {
     const slug = input.slug.trim().toLowerCase();
     const existing = await this.prisma.company.findUnique({ where: { slug } });
@@ -192,31 +277,27 @@ export class CompaniesService {
 
     const ownerEmail = input.ownerEmail?.trim().toLowerCase() || '';
     const ownerPassword = input.ownerPassword?.trim() || '';
-    const createOwner = Boolean(ownerEmail && ownerPassword);
+    const existingOwnerUser = ownerEmail
+      ? await this.prisma.user.findUnique({ where: { email: ownerEmail } })
+      : null;
 
-    if (ownerEmail && !ownerPassword) {
-      throw new BadRequestException(
-        'ownerPassword is required when ownerEmail is provided',
-      );
-    }
     if (ownerPassword && !ownerEmail) {
       throw new BadRequestException(
         'ownerEmail is required when ownerPassword is provided',
       );
     }
-    if (createOwner && ownerPassword.length < 8) {
+    if (ownerEmail && !ownerPassword && !existingOwnerUser) {
+      throw new BadRequestException(
+        'ownerPassword is required when creating a new owner login',
+      );
+    }
+    if (ownerEmail && ownerPassword && !existingOwnerUser && ownerPassword.length < 8) {
       throw new BadRequestException(
         'Owner password must be at least 8 characters',
       );
     }
-    if (createOwner) {
-      const existingUser = await this.prisma.user.findUnique({
-        where: { email: ownerEmail },
-      });
-      if (existingUser) {
-        throw new BadRequestException('Owner email is already registered');
-      }
-    }
+
+    const attachOwner = Boolean(ownerEmail && (ownerPassword || existingOwnerUser));
 
     const taxRate = Number(input.defaultTaxRate ?? 15);
     if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) {
@@ -234,7 +315,7 @@ export class CompaniesService {
     }
 
     let ownerRole: { id: string } | null = null;
-    if (createOwner) {
+    if (attachOwner) {
       const role = await this.prisma.role.findUnique({
         where: { code: 'COMPANY_OWNER' },
       });
@@ -247,9 +328,10 @@ export class CompaniesService {
     const startsAt = new Date();
     const endsAt = new Date(startsAt);
     endsAt.setMonth(endsAt.getMonth() + 1);
-    const passwordHash = createOwner
-      ? await bcrypt.hash(ownerPassword, 12)
-      : null;
+    const passwordHash =
+      attachOwner && ownerPassword && !existingOwnerUser
+        ? await bcrypt.hash(ownerPassword, 12)
+        : null;
     const ownerFullName =
       input.ownerFullName?.trim() || input.displayName.trim();
 
@@ -272,6 +354,29 @@ export class CompaniesService {
             settings: {
               create: {
                 defaultTaxRate,
+                taxNumber: input.taxNumber?.trim() || undefined,
+                emailFromAddress: input.companyEmail?.trim() || undefined,
+                emailFromName: input.displayName?.trim() || undefined,
+                settings: {
+                  commercialRegistrationNumber:
+                    input.commercialRegistrationNumber?.trim() || null,
+                  licenseNumber: input.licenseNumber?.trim() || null,
+                  unifiedNumber: input.unifiedNumber?.trim() || null,
+                  addressLine: input.addressLine?.trim() || null,
+                  activityDescription:
+                    input.activityDescription?.trim() || null,
+                  ownerPhone: input.ownerPhone?.trim() || null,
+                  companyPhone: input.companyPhone?.trim() || null,
+                  officialEmail: input.companyEmail?.trim() || null,
+                  ownerEmail: ownerEmail || null,
+                  onboarding: {
+                    currentStep: 1,
+                    completedSteps: [],
+                    skippedSteps: [],
+                    completedAt: null,
+                    serviceRequestIds: [],
+                  },
+                },
               },
             },
           },
@@ -291,35 +396,82 @@ export class CompaniesService {
         });
 
         let owner: unknown = null;
-        if (createOwner && passwordHash && ownerRole) {
-          const user = await tx.user.create({
-            data: {
-              fullName: ownerFullName,
-              email: ownerEmail,
-              passwordHash,
-              status: 'ACTIVE',
-            },
-          });
+        if (attachOwner && ownerRole) {
+          let userId: string;
+          if (existingOwnerUser) {
+            userId = existingOwnerUser.id;
+            if (ownerPassword) {
+              const hash = await bcrypt.hash(ownerPassword, 12);
+              await tx.user.update({
+                where: { id: userId },
+                data: {
+                  passwordHash: hash,
+                  status: 'ACTIVE',
+                  ...(input.ownerFullName?.trim()
+                    ? { fullName: ownerFullName }
+                    : {}),
+                },
+              });
+            }
+          } else if (passwordHash) {
+            const user = await tx.user.create({
+              data: {
+                fullName: ownerFullName,
+                email: ownerEmail,
+                passwordHash,
+                status: 'ACTIVE',
+              },
+            });
+            userId = user.id;
+          } else {
+            userId = '';
+          }
 
-          owner = await tx.companyUser.create({
-            data: {
-              companyId: company.id,
-              userId: user.id,
-              roleId: ownerRole.id,
-              status: 'ACTIVE',
-            },
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  fullName: true,
-                  email: true,
-                  status: true,
+          if (userId) {
+            const existingMembership = await tx.companyUser.findUnique({
+              where: {
+                companyId_userId: {
+                  companyId: company.id,
+                  userId,
                 },
               },
-              role: true,
-            },
-          });
+            });
+            owner = existingMembership
+              ? await tx.companyUser.update({
+                  where: { id: existingMembership.id },
+                  data: { roleId: ownerRole.id, status: 'ACTIVE' },
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        status: true,
+                      },
+                    },
+                    role: true,
+                  },
+                })
+              : await tx.companyUser.create({
+                  data: {
+                    companyId: company.id,
+                    userId,
+                    roleId: ownerRole.id,
+                    status: 'ACTIVE',
+                  },
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                        status: true,
+                      },
+                    },
+                    role: true,
+                  },
+                });
+          }
         }
 
         return {

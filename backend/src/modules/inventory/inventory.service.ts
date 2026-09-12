@@ -12,6 +12,7 @@ import { DocumentNumberService } from '../../common/documents/document-number.se
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { AutomationEngine } from '../automation/automation.engine';
+import { PlatformService } from '../platform/platform.service';
 
 const OUTBOUND_TYPES = new Set<StockMovementType>([
   'SALE_ISSUE',
@@ -27,6 +28,7 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContextService,
     private readonly docNumbers: DocumentNumberService,
+    private readonly platform: PlatformService,
     @Inject(forwardRef(() => AutomationEngine))
     private readonly automation: AutomationEngine,
   ) {}
@@ -116,6 +118,96 @@ export class InventoryService {
       where: { status: 'ACTIVE' },
       orderBy: { name: 'asc' },
       take: 200,
+    });
+  }
+
+  async getItem(companyId: string, itemId: string) {
+    this.tenant.setCompanyId(companyId);
+    const item = await this.prisma.item.findFirst({
+      where: { id: itemId, companyId },
+      include: {
+        unit: true,
+        category: { select: { id: true, name: true, parentId: true } },
+        parentItem: { select: { id: true, name: true, sku: true } },
+        balances: {
+          include: {
+            warehouse: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    return {
+      ...item,
+      bomComponents: [] as unknown[],
+      marketingName: null,
+      description: null,
+      nature: 'SELLABLE',
+      purchasePrice: item.cost,
+      storageCost: null,
+      wholesalePrice: null,
+      retailPrice: item.salePrice,
+      shelfLocation: null,
+      supplierSku: null,
+      lastSuppliedAt: null,
+      preferredSupplier: null,
+    };
+  }
+
+  async uploadItemImage(input: {
+    companyId: string;
+    itemId: string;
+    uploadedById: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: string | number;
+    contentBase64: string;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const item = await this.prisma.item.findFirst({
+      where: { id: input.itemId, companyId: input.companyId },
+      select: { id: true },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+
+    const mime = (input.mimeType || '').toLowerCase();
+    if (!mime.startsWith('image/')) {
+      throw new BadRequestException('Only image files are allowed');
+    }
+
+    const registered = await this.platform.registerAttachment({
+      companyId: input.companyId,
+      uploadedById: input.uploadedById,
+      entityType: 'item',
+      entityId: input.itemId,
+      fileName: input.fileName || `item-${Date.now()}.png`,
+      mimeType: input.mimeType,
+      sizeBytes: input.sizeBytes,
+      contentBase64: input.contentBase64,
+    });
+
+    return this.prisma.item.update({
+      where: { id: input.itemId },
+      data: { imageAttachmentId: registered.id },
+      select: {
+        id: true,
+        name: true,
+        imageAttachmentId: true,
+      },
+    });
+  }
+
+  async clearItemImage(companyId: string, itemId: string) {
+    this.tenant.setCompanyId(companyId);
+    const item = await this.prisma.item.findFirst({
+      where: { id: itemId, companyId },
+      select: { id: true },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    return this.prisma.item.update({
+      where: { id: itemId },
+      data: { imageAttachmentId: null },
+      select: { id: true, name: true, imageAttachmentId: true },
     });
   }
 

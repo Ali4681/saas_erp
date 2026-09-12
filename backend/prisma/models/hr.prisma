@@ -53,6 +53,7 @@ model Employee {
   advanceAllowanceMonthly Decimal?            @map("advance_allowance_monthly") @db.Decimal(18, 2)
   advanceAllowanceMonth   String?             @map("advance_allowance_month") @db.Char(7)
   insuranceAttachmentId   String?             @map("insurance_attachment_id") @db.Char(36)
+  workContractAttachmentId String?            @map("work_contract_attachment_id") @db.Char(36)
   qiwaContractUrl         String?             @map("qiwa_contract_url") @db.VarChar(500)
   qiwaContractRef         String?             @map("qiwa_contract_ref") @db.VarChar(120)
   /// Badge / biometric id from fingerprint device (maps punch externalRef → employee)
@@ -70,8 +71,10 @@ model Employee {
   payrollItems PayrollItem[]
   businessNotes BusinessNote[]
   salaryAdvances SalaryAdvance[]
+  walletWithdrawals EmployeeWalletWithdrawal[]
   contracts      EmployeeContract[]
   ewallet        EmployeeEwallet?
+  ewalletTransactions EmployeeEwalletTransaction[]
   shiftAssignments EmployeeShiftAssignment[]
   salesSubmissions EmployeeSalesSubmission[]
   qiwaContracts    EmployeeQiwaContract[]
@@ -138,6 +141,29 @@ model SalaryAdvance {
   @@map("salary_advances")
 }
 
+model EmployeeWalletWithdrawal {
+  id           String              @id @default(uuid(7)) @db.Char(36)
+  companyId    String              @map("company_id") @db.Char(36)
+  employeeId   String              @map("employee_id") @db.Char(36)
+  amount       Decimal             @db.Decimal(18, 2)
+  currency     String              @db.Char(3)
+  reason       String?             @db.Text
+  status       SalaryAdvanceStatus @default(PENDING)
+  requestedAt  DateTime            @default(now()) @map("requested_at") @db.DateTime(3)
+  decidedAt    DateTime?           @map("decided_at") @db.DateTime(3)
+  decidedById  String?             @map("decided_by") @db.Char(36)
+  paidAt       DateTime?           @map("paid_at") @db.DateTime(3)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.DateTime(3)
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  decidedBy User?    @relation("WalletWithdrawalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, requestedAt], map: "idx_wallet_withdraw_status")
+  @@index([employeeId, status], map: "idx_wallet_withdraw_employee")
+  @@map("employee_wallet_withdrawals")
+}
+
 model EmployeeEwallet {
   id            String               @id @default(uuid(7)) @db.Char(36)
   companyId     String               @map("company_id") @db.Char(36)
@@ -149,12 +175,37 @@ model EmployeeEwallet {
   createdAt     DateTime             @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt     DateTime             @updatedAt @map("updated_at") @db.DateTime(3)
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  company      Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employee     Employee                     @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  transactions EmployeeEwalletTransaction[]
 
   @@unique([companyId, walletCode], map: "uq_employee_ewallet_code")
   @@index([companyId, status], map: "idx_employee_ewallet_status")
   @@map("employee_ewallets")
+}
+
+model EmployeeEwalletTransaction {
+  id           String                   @id @default(uuid(7)) @db.Char(36)
+  companyId    String                   @map("company_id") @db.Char(36)
+  ewalletId    String                   @map("ewallet_id") @db.Char(36)
+  employeeId   String                   @map("employee_id") @db.Char(36)
+  kind         EmployeeEwalletTxnKind
+  source       EmployeeEwalletTxnSource
+  amount       Decimal                  @db.Decimal(18, 2)
+  balanceAfter Decimal                  @map("balance_after") @db.Decimal(18, 2)
+  memo         String?                  @db.VarChar(280)
+  referenceId  String?                  @map("reference_id") @db.Char(36)
+  createdById  String?                  @map("created_by_id") @db.Char(36)
+  createdAt    DateTime                 @default(now()) @map("created_at") @db.DateTime(3)
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  ewallet   EmployeeEwallet @relation(fields: [ewalletId], references: [id], onDelete: Restrict)
+  employee  Employee        @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy User?           @relation("EwalletTxnCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, employeeId, createdAt], map: "idx_ewallet_txn_employee")
+  @@index([ewalletId, createdAt], map: "idx_ewallet_txn_wallet")
+  @@map("employee_ewallet_transactions")
 }
 
 model AttendanceDevice {

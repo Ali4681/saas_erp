@@ -38,6 +38,7 @@ export function Select({
       ) : null}
       <select
         id={selectId}
+        suppressHydrationWarning
         className={cn(
           "h-10 cursor-pointer rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--ring)] focus:ring-2 focus:ring-[var(--ring)]/20 disabled:cursor-not-allowed disabled:opacity-50",
           "has-[option[value='']:checked]:text-[var(--muted-foreground)]",

@@ -21,10 +21,15 @@ import {
   setEmployeeAdvanceAllowance,
   setEmployeeFinancialSettings,
   updateEmployeeEmploymentCategory,
+  upsertEwallet,
   uploadEmployeeIdentityPhoto,
   uploadEmployeeInsurance,
 } from "../../actions";
 import { AppLoginCredentials } from "../AppLoginCredentials";
+import {
+  EmployeeWalletTxnTable,
+  type EwalletTransaction,
+} from "@/components/erp/EmployeeWalletTxnTable";
 
 type Shift = {
   id: string;
@@ -115,9 +120,30 @@ type EmployeeDetail = {
   profileComplete?: boolean;
   advanceEarnings?: AdvanceEarnings;
   salesProgress?: SalesProgress;
-  ewallet?: { balance: string; currency: string; walletCode: string } | null;
+  ewallet?: {
+    balance: string;
+    currency: string;
+    walletCode: string;
+    status?: string;
+  } | null;
+  ewalletTransactions?: EwalletTransaction[];
   shiftAssignments?: ShiftAssignment[];
   salesSubmissions?: Sale[];
+  salaryAdvances?: Array<{
+    id: string;
+    amount: string;
+    currency: string;
+    status: string;
+    requestedAt: string;
+  }>;
+  leaveRequests?: Array<{
+    id: string;
+    leaveType: string;
+    status: string;
+    startsOn: string;
+    endsOn: string;
+    requestedDays: string | number;
+  }>;
   currency: string;
 };
 
@@ -302,6 +328,10 @@ export default async function EmployeeDetailPage({
           {t("profileIncomplete")}
         </Card>
       ) : null}
+
+      <Card className="border-dashed bg-[var(--muted)]/30 p-4 text-sm text-[var(--muted-foreground)]">
+        {t("employeeDetailHrManageHint")}
+      </Card>
 
       <div className="flex flex-wrap gap-2 border-b border-[var(--border)] pb-2">
         {(
@@ -634,6 +664,87 @@ export default async function EmployeeDetailPage({
             </Card>
           </div>
 
+          <Card className="space-y-4 p-4">
+            <div>
+              <h3 className="text-sm font-semibold">{t("ewallet")}</h3>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                {t("ewalletManageHint")}
+              </p>
+              {employee.ewallet ? (
+                <p className="mt-2 font-semibold">
+                  {formatMoney(
+                    employee.ewallet.balance,
+                    employee.ewallet.currency,
+                  )}
+                  {employee.ewallet.walletCode ? (
+                    <span className="ms-2 font-mono text-xs font-normal text-[var(--muted-foreground)]">
+                      {employee.ewallet.walletCode}
+                    </span>
+                  ) : null}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                  {t("ewalletNone")}
+                </p>
+              )}
+            </div>
+
+            <EmployeeWalletTxnTable
+              transactions={employee.ewalletTransactions ?? []}
+              currency={employee.ewallet?.currency ?? employee.currency ?? "SAR"}
+              labels={{
+                empty: t("ewalletHistoryEmpty"),
+                date: t("ewalletTxnDate"),
+                type: t("ewalletTxnType"),
+                amount: t("ewalletTxnAmount"),
+                balance: t("ewalletTxnBalance"),
+                note: t("ewalletTxnNote"),
+                sourceLabels: {
+                  ADVANCE: t("ewalletTxnAdvance"),
+                  MANUAL: t("ewalletTxnManual"),
+                  OPENING: t("ewalletTxnOpening"),
+                  PURCHASE: t("ewalletTxnPurchase"),
+                  DEDUCTION: t("ewalletTxnDeduction"),
+                  ADVANCE_REPAY: t("ewalletTxnAdvanceRepay"),
+                },
+                kindLabels: {
+                  CREDIT: t("ewalletTxnCredit"),
+                  DEBIT: t("ewalletTxnDebit"),
+                },
+              }}
+            />
+
+            {canWrite ? (
+              <form
+                action={upsertEwallet.bind(null, companyId, employeeId)}
+                className="grid gap-3 border-t border-[var(--border)] pt-4 md:grid-cols-2"
+              >
+                <Input
+                  name="walletCode"
+                  label={t("ewalletCode")}
+                  defaultValue={employee.ewallet?.walletCode ?? ""}
+                  placeholder={`EW-${employee.employeeNumber}`}
+                />
+                <Input
+                  name="balance"
+                  label={t("ewalletBalance")}
+                  defaultValue={employee.ewallet?.balance ?? "0"}
+                />
+                <Input name="currency" type="hidden" defaultValue="SAR" />
+                <div className="md:col-span-2">
+                  <Input
+                    name="memo"
+                    label={t("ewalletMemo")}
+                    placeholder={t("ewalletMemoPlaceholder")}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Button type="submit">{t("ewalletSave")}</Button>
+                </div>
+              </form>
+            ) : null}
+          </Card>
+
           {canWrite ? (
             <Card className="space-y-3 p-4">
               <h3 className="text-sm font-semibold">
@@ -806,6 +917,86 @@ export default async function EmployeeDetailPage({
               </form>
             </Card>
           ) : null}
+
+          <Card className="p-4">
+            <h3 className="mb-3 text-sm font-semibold">{t("myAdvances")}</h3>
+            {!employee.salaryAdvances?.length ? (
+              <EmptyState message={t("emptyAdvances")} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
+                      <th className="px-2 py-2 font-medium">{t("amount")}</th>
+                      <th className="px-2 py-2 font-medium">{t("date")}</th>
+                      <th className="px-2 py-2 font-medium">{t("status")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employee.salaryAdvances.map((a) => (
+                      <tr
+                        key={a.id}
+                        className="border-b border-[var(--border)] last:border-0"
+                      >
+                        <td className="px-2 py-2">
+                          {formatMoney(a.amount, a.currency)}
+                        </td>
+                        <td className="px-2 py-2">
+                          {formatDate(a.requestedAt)}
+                        </td>
+                        <td className="px-2 py-2">
+                          <StatusBadge status={a.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+              {t("employeeRequestsViaPortalHint")}
+            </p>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="mb-3 text-sm font-semibold">{t("myLeaves")}</h3>
+            {!employee.leaveRequests?.length ? (
+              <EmptyState message={t("emptyLeaves")} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] text-start text-[var(--muted-foreground)]">
+                      <th className="px-2 py-2 font-medium">{t("type")}</th>
+                      <th className="px-2 py-2 font-medium">{t("period")}</th>
+                      <th className="px-2 py-2 font-medium">{t("daysCol")}</th>
+                      <th className="px-2 py-2 font-medium">{t("status")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employee.leaveRequests.map((l) => (
+                      <tr
+                        key={l.id}
+                        className="border-b border-[var(--border)] last:border-0"
+                      >
+                        <td className="px-2 py-2">{l.leaveType}</td>
+                        <td className="px-2 py-2">
+                          {formatDate(l.startsOn)} → {formatDate(l.endsOn)}
+                        </td>
+                        <td className="px-2 py-2">{l.requestedDays}</td>
+                        <td className="px-2 py-2">
+                          <StatusBadge status={l.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-[var(--muted-foreground)]">
+              {t("employeeRequestsViaPortalHint")}
+            </p>
+          </Card>
         </div>
       ) : null}
 

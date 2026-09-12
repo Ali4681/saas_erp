@@ -1,0 +1,85 @@
+/** Known inventory/POS category labels (code → locale). */
+const BY_CODE: Record<string, { ar: string; en: string }> = {
+  FOOD: { ar: "أغذية", en: "Food" },
+  BEV: { ar: "مشروبات", en: "Beverages" },
+  PKG: { ar: "تغليف", en: "Packaging" },
+  EQUIP: { ar: "معدات", en: "Equipment" },
+  CLEAN: { ar: "نظافة", en: "Cleaning" },
+  RAW: { ar: "مواد خام", en: "Raw Materials" },
+  MERCH: { ar: "منتجات ترويجية", en: "Merchandise" },
+  SVC: { ar: "خدمات", en: "Services" },
+  SPARE: { ar: "قطع غيار", en: "Spare Parts" },
+  OTHER: { ar: "أخرى", en: "Other" },
+  "FOOD-HOT": { ar: "أطعمة ساخنة", en: "Hot Food" },
+  "FOOD-COLD": { ar: "أطعمة باردة", en: "Cold Food" },
+  "BEV-HOT": { ar: "مشروبات ساخنة", en: "Hot Beverages" },
+  "BEV-COLD": { ar: "مشروبات باردة", en: "Cold Beverages" },
+  "EQUIP-POS": { ar: "معدات نقاط البيع", en: "POS Equipment" },
+  "POS-HOT-DRINKS": { ar: "مشروبات ساخنة", en: "Hot drinks" },
+  "POS-COLD-DRINKS": { ar: "مشروبات باردة", en: "Cold drinks" },
+  "POS-PASTRIES": { ar: "معجنات", en: "Pastries" },
+  "POS-SNACKS": { ar: "وجبات خفيفة", en: "Snacks" },
+  "POS-MEALS": { ar: "الوجبات", en: "Meals" },
+  "POS-MAINS": { ar: "أطباق رئيسية", en: "Mains" },
+  "POS-SANDWICHES": { ar: "سندويتشات", en: "Sandwiches" },
+  "POS-APPETIZERS": { ar: "مقبلات", en: "Appetizers" },
+  "POS-DRINKS": { ar: "مشروبات", en: "Drinks" },
+  "POS-DESSERTS": { ar: "حلويات", en: "Desserts" },
+  "POS-ROSES": { ar: "ورود", en: "Roses" },
+  "POS-GIFTS": { ar: "هدايا", en: "Gifts" },
+  "POS-ARRANGEMENTS": { ar: "تغريسات", en: "Arrangements" },
+  "POS-ACCESSORIES": { ar: "إكسسوارات", en: "Accessories" },
+  "POS-HOT": { ar: "أطباق ساخنة", en: "Hot dishes" },
+  "POS-SALADS": { ar: "سلطات", en: "Salads" },
+  "POS-CEMENT": { ar: "إسمنت وخرسانة", en: "Cement" },
+  "POS-STEEL": { ar: "حديد", en: "Steel" },
+  "POS-PAINTS": { ar: "دهانات", en: "Paints" },
+  "POS-TOOLS": { ar: "أدوات", en: "Tools" },
+  MENU: { ar: "القائمة", en: "Menu" },
+};
+
+/** Fallback when code is missing — match stored English or Arabic name. */
+const BY_NAME: Record<string, { ar: string; en: string }> = {
+  Food: BY_CODE.FOOD,
+  Beverages: BY_CODE.BEV,
+  Packaging: BY_CODE.PKG,
+  Equipment: BY_CODE.EQUIP,
+  Cleaning: BY_CODE.CLEAN,
+  "Raw Materials": BY_CODE.RAW,
+  Merchandise: BY_CODE.MERCH,
+  Services: BY_CODE.SVC,
+  "Spare Parts": BY_CODE.SPARE,
+  Other: BY_CODE.OTHER,
+  "Hot Food": BY_CODE["FOOD-HOT"],
+  "Cold Food": BY_CODE["FOOD-COLD"],
+  "Hot Beverages": BY_CODE["BEV-HOT"],
+  "Cold Beverages": BY_CODE["BEV-COLD"],
+  "POS Equipment": BY_CODE["EQUIP-POS"],
+  Menu: BY_CODE.MENU,
+  أغذية: BY_CODE.FOOD,
+  مشروبات: BY_CODE.BEV,
+  تغليف: BY_CODE.PKG,
+  معدات: BY_CODE.EQUIP,
+  نظافة: BY_CODE.CLEAN,
+  "مواد خام": BY_CODE.RAW,
+  "منتجات ترويجية": BY_CODE.MERCH,
+  خدمات: BY_CODE.SVC,
+  "قطع غيار": BY_CODE.SPARE,
+  أخرى: BY_CODE.OTHER,
+  "مشروبات ساخنة": BY_CODE["POS-HOT-DRINKS"],
+  "مشروبات باردة": BY_CODE["POS-COLD-DRINKS"],
+  معجنات: BY_CODE["POS-PASTRIES"],
+  "وجبات خفيفة": BY_CODE["POS-SNACKS"],
+  القائمة: BY_CODE.MENU,
+};
+
+export function localizedCategoryName(
+  category: { code?: string | null; name: string },
+  locale: string,
+): string {
+  const isAr = locale.toLowerCase().startsWith("ar");
+  const code = (category.code ?? "").toUpperCase();
+  const pair = BY_CODE[code] ?? BY_NAME[category.name];
+  if (pair) return isAr ? pair.ar : pair.en;
+  return category.name;
+}

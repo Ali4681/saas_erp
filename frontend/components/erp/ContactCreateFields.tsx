@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { PhoneWithDialCodeField } from "@/components/erp/PhoneWithDialCodeField";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
@@ -87,8 +88,9 @@ export function ContactCreateFields({
         type="email"
         defaultValue={defaults?.email ?? ""}
       />
-      <Input
+      <PhoneWithDialCodeField
         name="phone"
+        dialCodeName="phoneDialCode"
         label={t("phone")}
         defaultValue={defaults?.phone ?? ""}
       />

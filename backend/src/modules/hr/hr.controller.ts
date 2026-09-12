@@ -589,6 +589,15 @@ class EwalletBody {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(280)
+  memo?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  markAsPurchaseOperator?: boolean;
 }
 
 class CreateDeviceBody {
@@ -890,6 +899,23 @@ export class HrController {
     );
   }
 
+  @Patch('employees/:employeeId/work-contract-attachment')
+  @RequirePermissions('hr.write')
+  setWorkContractAttachment(
+    @Param('companyId') companyId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() body: { attachmentId: string },
+  ) {
+    if (!body.attachmentId?.trim()) {
+      throw new BadRequestException('attachmentId is required');
+    }
+    return this.hr.setEmployeeWorkContractAttachment(
+      companyId,
+      employeeId,
+      body.attachmentId.trim(),
+    );
+  }
+
   @Get('employees/:employeeId')
   @RequirePermissions('hr.read')
   getEmployee(
@@ -1157,8 +1183,14 @@ export class HrController {
     @Param('companyId') companyId: string,
     @Param('payrollRunId') payrollRunId: string,
     @Body() body: UpdatePayrollStatusBody,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.hr.updatePayrollStatus(companyId, payrollRunId, body.status);
+    return this.hr.updatePayrollStatus(
+      companyId,
+      payrollRunId,
+      body.status,
+      user.userId,
+    );
   }
 
   @Get('contracts')
@@ -1235,6 +1267,39 @@ export class HrController {
     return this.hr.decideAdvance(
       companyId,
       advanceId,
+      body.status as 'APPROVED' | 'REJECTED' | 'PAID' | 'CANCELLED',
+      user.userId,
+    );
+  }
+
+  @Get('wallet-withdrawals')
+  @RequirePermissions('hr.read')
+  listWalletWithdrawals(
+    @Param('companyId') companyId: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    return this.hr.listWalletWithdrawals(companyId, employeeId);
+  }
+
+  @Patch('wallet-withdrawals/:withdrawalId/decision')
+  @RequirePermissions('hr.write')
+  decideWalletWithdrawal(
+    @Param('companyId') companyId: string,
+    @Param('withdrawalId') withdrawalId: string,
+    @Body() body: DecideAdvanceBody,
+    @CurrentUser() user: AuthUser,
+  ) {
+    if (!['APPROVED', 'REJECTED', 'PAID', 'CANCELLED'].includes(body.status)) {
+      return this.hr.decideWalletWithdrawal(
+        companyId,
+        withdrawalId,
+        'REJECTED',
+        user.userId,
+      );
+    }
+    return this.hr.decideWalletWithdrawal(
+      companyId,
+      withdrawalId,
       body.status as 'APPROVED' | 'REJECTED' | 'PAID' | 'CANCELLED',
       user.userId,
     );
@@ -1339,12 +1404,17 @@ export class HrController {
   }
 
   @Post('ewallets')
-  @RequirePermissions('purchasing.write')
+  @RequireAnyPermission('hr.write', 'purchasing.write')
   upsertEwallet(
     @Param('companyId') companyId: string,
     @Body() body: EwalletBody,
+    @CurrentUser() user: AuthUser,
   ) {
-    return this.hr.upsertEwallet({ companyId, ...body });
+    return this.hr.upsertEwallet({
+      companyId,
+      ...body,
+      createdById: user.userId,
+    });
   }
 
   @Get('devices')
@@ -1378,7 +1448,7 @@ export class HrController {
   }
 
   @Get('me')
-  @RequireAnyPermission('hr.self', 'hr.read')
+  @RequirePermissions('hr.self')
   myProfile(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1387,7 +1457,7 @@ export class HrController {
   }
 
   @Patch('me')
-  @RequireAnyPermission('hr.self', 'hr.read')
+  @RequirePermissions('hr.self')
   updateMyProfile(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1397,7 +1467,7 @@ export class HrController {
   }
 
   @Post('me/advances')
-  @RequireAnyPermission('hr.self', 'hr.read')
+  @RequirePermissions('hr.self')
   myAdvance(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1411,8 +1481,23 @@ export class HrController {
     );
   }
 
+  @Post('me/wallet-withdrawals')
+  @RequirePermissions('hr.self')
+  myWalletWithdrawal(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: MyAdvanceBody,
+  ) {
+    return this.hr.myRequestWalletWithdrawal(
+      companyId,
+      user.userId,
+      body.amount,
+      body.reason,
+    );
+  }
+
   @Post('me/leaves')
-  @RequireAnyPermission('hr.self', 'hr.read')
+  @RequirePermissions('hr.self')
   myLeave(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1422,7 +1507,7 @@ export class HrController {
   }
 
   @Post('me/sales')
-  @RequireAnyPermission('hr.self', 'hr.read')
+  @RequirePermissions('hr.self')
   mySalesSubmit(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1432,7 +1517,7 @@ export class HrController {
   }
 
   @Get('me/sales')
-  @RequireAnyPermission('hr.self', 'hr.read')
+  @RequirePermissions('hr.self')
   mySalesList(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -1440,8 +1525,19 @@ export class HrController {
     return this.hr.listMySales(companyId, user.userId);
   }
 
+  @Get('me/report')
+  @RequirePermissions('hr.self')
+  myReport(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.hr.myPersonalReport(companyId, user.userId, from, to);
+  }
+
   @Patch('me/target-completed')
-  @RequireAnyPermission('hr.self', 'hr.read')
+  @RequirePermissions('hr.self')
   myTargetCompleted(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,

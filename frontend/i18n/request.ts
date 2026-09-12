@@ -8,6 +8,7 @@ import {
   LOCALE_COOKIE,
   type AppLocale,
 } from "./config";
+import "./message-watch";
 
 const messageCache = new Map<AppLocale, Promise<Record<string, unknown>>>();
 
@@ -36,6 +37,9 @@ const MODULE_FILES = [
   "attachments",
   "audit",
   "platform",
+  "onboarding",
+  "employeePortal",
+  "pos",
 ] as const;
 
 async function readJsonFile(relativePath: string): Promise<unknown | null> {

@@ -64,12 +64,15 @@ type CompanyDetail = {
   timezone: string;
   countryCode: string | null;
   city: string | null;
+  ownerEmail?: string | null;
+  owner?: { id: string; email: string | null; fullName: string } | null;
   settings: {
     taxNumber: string | null;
     invoicePrefix: string;
     defaultTaxRate: string;
     emailFromName: string | null;
     emailFromAddress: string | null;
+    settings?: Record<string, unknown> | null;
   } | null;
   subscriptions: Array<{
     id: string;
@@ -137,6 +140,27 @@ export default async function PlatformCompanyDetailPage({
   const setLocale = updateCompanyLocale.bind(null, companyId);
   const currencyOptions = lookupSelectOptions(locales.currencies);
   const timezoneOptions = lookupSelectOptions(locales.timezones);
+  const extraSettings =
+    company.settings?.settings &&
+    typeof company.settings.settings === "object" &&
+    !Array.isArray(company.settings.settings)
+      ? (company.settings.settings as Record<string, unknown>)
+      : {};
+  const ownerLoginEmail =
+    company.ownerEmail?.trim() ||
+    company.owner?.email?.trim() ||
+    (typeof extraSettings.ownerEmail === "string" &&
+    extraSettings.ownerEmail.trim()
+      ? extraSettings.ownerEmail.trim()
+      : null) ||
+    null;
+  const companyEmail =
+    (typeof extraSettings.officialEmail === "string" &&
+    extraSettings.officialEmail.trim()
+      ? extraSettings.officialEmail.trim()
+      : null) ||
+    company.settings?.emailFromAddress?.trim() ||
+    null;
 
   return (
     <div className="space-y-5">
@@ -147,14 +171,9 @@ export default async function PlatformCompanyDetailPage({
           slug: company.slug,
         })}
         actions={
-          <>
-            <Button href="/platform/companies" variant="primary">
-              {t("allCompanies")}
-            </Button>
-            <Button href={`/c/${companyId}/audit`} variant="secondary">
-              {t("auditLog")}
-            </Button>
-          </>
+          <Button href="/platform/companies" variant="primary">
+            {t("allCompanies")}
+          </Button>
         }
       />
       <FlashFromSearch searchParams={flash} />
@@ -195,6 +214,18 @@ export default async function PlatformCompanyDetailPage({
                       company.city,
                     )
                   : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[var(--color-muted)]">{t("ownerLoginEmail")}</dt>
+              <dd className="mt-1" dir="ltr">
+                {ownerLoginEmail ?? "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[var(--color-muted)]">{t("companyEmail")}</dt>
+              <dd className="mt-1" dir="ltr">
+                {companyEmail ?? "—"}
               </dd>
             </div>
             <div>

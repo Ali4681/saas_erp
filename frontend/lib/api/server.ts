@@ -1,5 +1,4 @@
 import {
-  clearSessionCookies,
   readSessionFromCookies,
   setSessionCookies,
 } from "@/lib/auth/session";
@@ -39,11 +38,10 @@ async function refreshSession(
     }
     return session;
   } catch {
-    try {
-      await clearSessionCookies();
-    } catch {
-      /* ignore */
-    }
+    // Do NOT clear cookies here. Concurrent Server Actions / Route Handlers
+    // can race on refresh; wiping cookies mid-flight makes the next action
+    // hit middleware as logged-out and returns HTML →
+    // "An unexpected response was received from the server".
     return null;
   }
 }

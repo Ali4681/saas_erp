@@ -57,6 +57,17 @@ npm run seed
 | `sales@demo-co.local` | COMPANY_ADMIN |
 | `viewer@demo-co.local` | EMPLOYEE_VIEWER |
 | `support@demo-co.local` | EMPLOYEE_VIEWER |
+| `cashier@demo-co.local` | CASHIER (`/me/pos`, POS `MAIN`) |
+| `b2b@demo-co.local` | B2B_ACCOUNT_MANAGER |
+
+### POS terminal (demo)
+
+| Setting | Value |
+|---------|--------|
+| Point of sale | `MAIN` |
+| Cashier user | `cashier@demo-co.local` |
+| Supervisor PIN | `1234` (returns / discount overrides when cashier lacks permission) |
+| Cashier permissions | Conservative defaults (`returns: false` so PIN is required for returns) |
 
 ## Role → permissions
 

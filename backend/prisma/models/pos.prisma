@@ -9,6 +9,8 @@ model PointOfSale {
   name            String       @db.VarChar(140)
   status          RecordStatus @default(ACTIVE)
   locationNote    String?      @map("location_note") @db.VarChar(240)
+  templateCode    String?      @map("template_code") @db.VarChar(40)
+  layoutJson      Json?        @map("layout_json")
   createdAt       DateTime     @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt       DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
 
@@ -17,6 +19,7 @@ model PointOfSale {
   cashiers PosCashier[]
   invoices SalesInvoice[]
   shiftSessions CashierShiftSession[]
+  auditEvents PosAuditEvent[]
 
   @@unique([companyId, code], map: "uq_point_of_sale_code")
   @@index([companyId, status], map: "idx_point_of_sale_status")
@@ -32,6 +35,7 @@ model PosCashier {
   userId        String       @map("user_id") @db.Char(36)
   displayName   String?      @map("display_name") @db.VarChar(140)
   status        RecordStatus @default(ACTIVE)
+  permissionsJson Json?      @map("permissions_json")
   createdAt     DateTime     @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt     DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
 
@@ -40,9 +44,29 @@ model PosCashier {
   employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   invoices    SalesInvoice[]
+  auditEvents PosAuditEvent[]
 
   @@unique([pointOfSaleId, employeeId], map: "uq_pos_cashier_employee")
   @@unique([pointOfSaleId, userId], map: "uq_pos_cashier_user")
   @@index([companyId, status], map: "idx_pos_cashier_company_status")
   @@map("pos_cashiers")
+}
+
+model PosAuditEvent {
+  id            String   @id @default(uuid(7)) @db.Char(36)
+  companyId     String   @map("company_id") @db.Char(36)
+  pointOfSaleId String?  @map("point_of_sale_id") @db.Char(36)
+  posCashierId  String?  @map("pos_cashier_id") @db.Char(36)
+  userId        String   @map("user_id") @db.Char(36)
+  action        String   @db.VarChar(80)
+  payloadJson   Json?    @map("payload_json")
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  pointOfSale PointOfSale? @relation(fields: [pointOfSaleId], references: [id], onDelete: SetNull)
+  cashier     PosCashier?  @relation(fields: [posCashierId], references: [id], onDelete: SetNull)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, createdAt], map: "idx_pos_audit_company_created")
+  @@map("pos_audit_events")
 }

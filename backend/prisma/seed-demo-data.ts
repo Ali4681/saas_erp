@@ -316,7 +316,14 @@ export async function seedDemoCompanyData(ctx: Ctx) {
       defaultTaxRate: '15.00',
       emailFromName: 'Demo Co Billing',
       emailFromAddress: 'billing@demo-co.local',
-      settings: { seedVersion: 'v3-ops-hr-finance', locale: 'ar-SA' },
+      settings: {
+        seedVersion: 'v4-pos-supervisor-pin',
+        locale: 'ar-SA',
+        posTerminal: {
+          supervisorPin: '1234',
+          exchangeRates: { SAR: 1, USD: 3.75, EUR: 4.1, AED: 1.02 },
+        },
+      },
     },
     create: {
       companyId,
@@ -326,7 +333,14 @@ export async function seedDemoCompanyData(ctx: Ctx) {
       defaultTaxRate: '15.00',
       emailFromName: 'Demo Co Billing',
       emailFromAddress: 'billing@demo-co.local',
-      settings: { seedVersion: 'v3-ops-hr-finance', locale: 'ar-SA' },
+      settings: {
+        seedVersion: 'v4-pos-supervisor-pin',
+        locale: 'ar-SA',
+        posTerminal: {
+          supervisorPin: '1234',
+          exchangeRates: { SAR: 1, USD: 3.75, EUR: 4.1, AED: 1.02 },
+        },
+      },
     },
   });
 
@@ -556,31 +570,50 @@ export async function seedDemoCompanyData(ctx: Ctx) {
   const mainWh = warehouses.find((w) => w.code === 'MAIN') ?? warehouses[0]!;
 
   const itemCatSpecs = [
-    ['FOOD', 'Food'],
-    ['BEV', 'Beverages'],
-    ['PKG', 'Packaging'],
-    ['EQUIP', 'Equipment'],
-    ['CLEAN', 'Cleaning'],
-    ['RAW', 'Raw Materials'],
-    ['MERCH', 'Merchandise'],
-    ['SVC', 'Services'],
-    ['SPARE', 'Spare Parts'],
-    ['OTHER', 'Other'],
+    ['FOOD', 'أغذية'],
+    ['BEV', 'مشروبات'],
+    ['PKG', 'تغليف'],
+    ['EQUIP', 'معدات'],
+    ['CLEAN', 'نظافة'],
+    ['RAW', 'مواد خام'],
+    ['MERCH', 'منتجات ترويجية'],
+    ['SVC', 'خدمات'],
+    ['SPARE', 'قطع غيار'],
+    ['OTHER', 'أخرى'],
   ] as const;
   const itemCategories: any[] = [];
   for (const [code, name] of itemCatSpecs) {
-    itemCategories.push(
-      await ensure(
-        () =>
-          prisma.itemCategory.findFirst({
-            where: { companyId, codeKey: code },
-          }),
-        () =>
-          prisma.itemCategory.create({
-            data: { companyId, code, codeKey: code, name },
-          }),
-      ),
-    );
+    const existing = await prisma.itemCategory.findFirst({
+      where: { companyId, codeKey: code },
+    });
+    if (existing) {
+      const englishLegacy = new Set([
+        'Food',
+        'Beverages',
+        'Packaging',
+        'Equipment',
+        'Cleaning',
+        'Raw Materials',
+        'Merchandise',
+        'Services',
+        'Spare Parts',
+        'Other',
+      ]);
+      itemCategories.push(
+        englishLegacy.has(existing.name)
+          ? await prisma.itemCategory.update({
+              where: { id: existing.id },
+              data: { name },
+            })
+          : existing,
+      );
+    } else {
+      itemCategories.push(
+        await prisma.itemCategory.create({
+          data: { companyId, code, codeKey: code, name },
+        }),
+      );
+    }
   }
 
   const itemNames = [
@@ -625,34 +658,48 @@ export async function seedDemoCompanyData(ctx: Ctx) {
 
   // Nested categories (main → sub)
   const subCategorySpecs = [
-    ['FOOD', 'FOOD-HOT', 'Hot Food'],
-    ['FOOD', 'FOOD-COLD', 'Cold Food'],
-    ['BEV', 'BEV-HOT', 'Hot Beverages'],
-    ['BEV', 'BEV-COLD', 'Cold Beverages'],
-    ['EQUIP', 'EQUIP-POS', 'POS Equipment'],
+    ['FOOD', 'FOOD-HOT', 'أطعمة ساخنة'],
+    ['FOOD', 'FOOD-COLD', 'أطعمة باردة'],
+    ['BEV', 'BEV-HOT', 'مشروبات ساخنة'],
+    ['BEV', 'BEV-COLD', 'مشروبات باردة'],
+    ['EQUIP', 'EQUIP-POS', 'معدات نقاط البيع'],
   ] as const;
   const subCategories: any[] = [];
   for (const [parentCode, code, name] of subCategorySpecs) {
     const parent = itemCategories.find((c) => c.codeKey === parentCode);
     if (!parent) continue;
-    subCategories.push(
-      await ensure(
-        () =>
-          prisma.itemCategory.findFirst({
-            where: { companyId, codeKey: code },
-          }),
-        () =>
-          prisma.itemCategory.create({
-            data: {
-              companyId,
-              parentId: parent.id,
-              code,
-              codeKey: code,
-              name,
-            },
-          }),
-      ),
-    );
+    const existing = await prisma.itemCategory.findFirst({
+      where: { companyId, codeKey: code },
+    });
+    if (existing) {
+      const englishLegacy = new Set([
+        'Hot Food',
+        'Cold Food',
+        'Hot Beverages',
+        'Cold Beverages',
+        'POS Equipment',
+      ]);
+      subCategories.push(
+        englishLegacy.has(existing.name)
+          ? await prisma.itemCategory.update({
+              where: { id: existing.id },
+              data: { name },
+            })
+          : existing,
+      );
+    } else {
+      subCategories.push(
+        await prisma.itemCategory.create({
+          data: {
+            companyId,
+            parentId: parent.id,
+            code,
+            codeKey: code,
+            name,
+          },
+        }),
+      );
+    }
   }
   summary.itemSubCategories = subCategories.length;
 
@@ -1561,6 +1608,108 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     });
   }
   summary.employees = employees.length;
+
+  // ── POS terminal (MAIN) + cashier assignment + supervisor PIN ────
+  const cashierUser = users.find((u) => u.email === 'cashier@demo-co.local');
+  let cashierEmployee = await prisma.employee.findFirst({
+    where: { companyId, employeeNumber: 'EMP-CASH' },
+  });
+  if (!cashierEmployee && cashierUser) {
+    cashierEmployee = await prisma.employee.create({
+      data: {
+        companyId,
+        userId: cashierUser.id,
+        userKey: cashierUser.id,
+        companyBranchId: branches[0]?.id,
+        companyDepartmentId: departments[0]?.id,
+        employeeNumber: 'EMP-CASH',
+        fullName: 'Dana Alqahtani',
+        email: 'cashier@demo-co.local',
+        phone: '+966550000099',
+        jobTitle: 'Cashier',
+        hireDate: day(-120),
+        employmentStatus: 'ACTIVE',
+        basicSalary: '4500.00',
+        currency: 'SAR',
+      },
+    });
+  } else if (cashierEmployee && cashierUser && cashierEmployee.userId !== cashierUser.id) {
+    cashierEmployee = await prisma.employee.update({
+      where: { id: cashierEmployee.id },
+      data: { userId: cashierUser.id, userKey: cashierUser.id },
+    });
+  }
+
+  const mainPos = await ensure(
+    () =>
+      prisma.pointOfSale.findFirst({
+        where: { companyId, code: 'MAIN' },
+      }),
+    () =>
+      prisma.pointOfSale.create({
+        data: {
+          companyId,
+          code: 'MAIN',
+          name: 'Main POS',
+          status: 'ACTIVE',
+          locationNote: 'Front counter',
+          companyBranchId: branches[0]?.id,
+        },
+      }),
+  );
+
+  const cashierPerms = {
+    priceOverride: false,
+    priceOverrideMaxPct: 0,
+    discounts: false,
+    discountMaxPct: 5,
+    voidBeforeSave: true,
+    returns: false,
+    creditSales: false,
+    giftCards: false,
+    openCashDrawer: false,
+    holdRetrieve: true,
+    holdSeeOthers: false,
+    shiftClose: false,
+    reprint: true,
+    customerAssign: true,
+    multiCurrency: true,
+  };
+
+  if (cashierUser && cashierEmployee) {
+    const existingCashier = await prisma.posCashier.findFirst({
+      where: {
+        companyId,
+        pointOfSaleId: mainPos.id,
+        userId: cashierUser.id,
+      },
+    });
+    if (existingCashier) {
+      await prisma.posCashier.update({
+        where: { id: existingCashier.id },
+        data: {
+          employeeId: cashierEmployee.id,
+          displayName: 'Dana (Cashier)',
+          status: 'ACTIVE',
+          permissionsJson: cashierPerms,
+        },
+      });
+    } else {
+      await prisma.posCashier.create({
+        data: {
+          companyId,
+          pointOfSaleId: mainPos.id,
+          employeeId: cashierEmployee.id,
+          userId: cashierUser.id,
+          displayName: 'Dana (Cashier)',
+          status: 'ACTIVE',
+          permissionsJson: cashierPerms,
+        },
+      });
+    }
+    summary.posCashiers = 1;
+  }
+  summary.pointsOfSale = 1;
 
   for (let i = 0; i < 10; i++) {
     const attendanceDate = day(15 + i);
@@ -3294,6 +3443,28 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     nextSeqs[key] = { prefix: prefixes[key], next: seqFloor };
   }
   bag.docSequences = nextSeqs;
+  const prevPos =
+    bag.posTerminal &&
+    typeof bag.posTerminal === 'object' &&
+    !Array.isArray(bag.posTerminal)
+      ? (bag.posTerminal as Record<string, unknown>)
+      : {};
+  bag.posTerminal = {
+    ...prevPos,
+    supervisorPin: '1234',
+    exchangeRates: {
+      SAR: 1,
+      USD: 3.75,
+      EUR: 4.1,
+      AED: 1.02,
+      ...((prevPos.exchangeRates &&
+      typeof prevPos.exchangeRates === 'object' &&
+      !Array.isArray(prevPos.exchangeRates)
+        ? prevPos.exchangeRates
+        : {}) as Record<string, number>),
+    },
+  };
+  bag.seedVersion = 'v4-pos-supervisor-pin';
   await prisma.companySettings.upsert({
     where: { companyId },
     create: {
@@ -3307,6 +3478,7 @@ export async function seedDemoCompanyData(ctx: Ctx) {
     },
   });
   summary.docSequences = seqFloor;
+  summary.supervisorPin = '1234';
 
   return summary;
 }

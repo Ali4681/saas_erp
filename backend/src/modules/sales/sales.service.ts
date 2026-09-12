@@ -109,7 +109,7 @@ export class SalesService {
     this.tenant.setCompanyId(companyId);
     return this.prisma.salesQuote.findMany({
       include: {
-        contact: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true, phone: true } },
         items: { orderBy: { position: 'asc' } },
       },
       orderBy: { createdAt: 'desc' },
@@ -460,7 +460,7 @@ export class SalesService {
     this.tenant.setCompanyId(companyId);
     const invoices = await this.prisma.salesInvoice.findMany({
       include: {
-        contact: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true, phone: true } },
         items: { orderBy: { position: 'asc' } },
         payments: true,
         pointOfSale: { select: { id: true, code: true, name: true } },
@@ -470,6 +470,26 @@ export class SalesService {
             displayName: true,
             employee: { select: { id: true, fullName: true } },
           },
+        },
+        creditNotes: {
+          where: { status: { not: 'CANCELLED' } },
+          select: {
+            id: true,
+            creditNoteNumber: true,
+            status: true,
+            issuedOn: true,
+            reason: true,
+            totalAmount: true,
+            currency: true,
+            items: {
+              select: {
+                description: true,
+                quantity: true,
+                amount: true,
+              },
+            },
+          },
+          orderBy: { issuedOn: 'desc' },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -835,7 +855,7 @@ export class SalesService {
           invoiceNumber,
           status: paidAtIssue ? 'PAID' : status,
           issuedOn: new Date(input.issuedOn),
-          dueOn: input.dueOn ? new Date(input.dueOn) : undefined,
+          dueOn: new Date(input.dueOn ?? input.issuedOn),
           currency: input.currency ?? 'SAR',
           subtotal: computed.subtotal,
           discountAmount: computed.discountAmount,

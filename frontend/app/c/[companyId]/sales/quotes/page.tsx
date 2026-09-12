@@ -3,7 +3,7 @@ import { FlashFromSearch } from "@/components/erp/Flash";
 import { CreateFormDialog } from "@/components/erp/CreateFormDialog";
 import { SalesCustomerField } from "@/components/erp/SalesCustomerField";
 import { SalesDocActions } from "@/components/erp/SalesDocActions";
-import { SalesTaxFields } from "@/components/erp/SalesTaxFields";
+import { SalesLineItemFields } from "@/components/erp/SalesLineItemFields";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -35,7 +35,13 @@ const CURRENCIES = [
   "QAR",
 ];
 
-type Contact = { id: string; name: string };
+type Contact = { id: string; name: string; phone?: string | null };
+type InventoryItem = {
+  id: string;
+  name: string;
+  sku?: string | null;
+  salePrice?: string | null;
+};
 type Quote = {
   id: string;
   quoteNumber: string;
@@ -46,13 +52,14 @@ type Quote = {
   taxAmount?: string;
   totalAmount: string;
   currency: string;
-  contact?: { id?: string; name: string } | null;
+  contact?: { id?: string; name: string; phone?: string | null } | null;
   items?: Array<{
     description: string;
     quantity: string;
     unitPrice: string;
     taxAmount?: string;
     totalAmount?: string;
+    itemId?: string | null;
   }>;
 };
 
@@ -70,7 +77,7 @@ export default async function QuotesPage({
   const session = await getSession();
   const canWrite = can(session?.user, "sales.write");
 
-  const [quotes, contacts, company] = await Promise.all([
+  const [quotes, contacts, company, inventoryItems] = await Promise.all([
     apiServer<Quote[]>(`/companies/${companyId}/sales/quotes`, {
       companyId,
     }).catch(() => []),
@@ -81,6 +88,12 @@ export default async function QuotesPage({
       defaultCurrency?: string;
       settings?: { defaultTaxRate?: string } | null;
     }>(`/companies/${companyId}`, { companyId }).catch(() => null),
+    apiServer<InventoryItem[]>(
+      `/companies/${companyId}/inventory/items?sellableOnly=true`,
+      {
+      companyId,
+    },
+    ).catch(() => []),
   ]);
 
   const create = createQuote.bind(null, companyId);
@@ -125,13 +138,8 @@ export default async function QuotesPage({
               showPlaceholderOption={false}
               options={CURRENCIES.map((c) => ({ value: c, label: c }))}
             />
-            <Input
-              name="description"
-              label={t("lineDescription")}
-              required
-              className="md:col-span-2"
-            />
-            <SalesTaxFields
+            <SalesLineItemFields
+              items={inventoryItems}
               defaultTaxRate={defaultTaxRate}
               defaultMode={defaultTaxRate > 0 ? "COMPANY" : "NONE"}
             />
@@ -180,6 +188,7 @@ export default async function QuotesPage({
                         kind="quote"
                         companyId={companyId}
                         contacts={contacts}
+                        inventoryItems={inventoryItems}
                         defaultTaxRate={defaultTaxRate}
                         canWrite={canWrite}
                         pdfUrl={`/api/sales/quotes/${q.id}/pdf?companyId=${companyId}`}

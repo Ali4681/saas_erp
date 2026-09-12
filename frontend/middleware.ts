@@ -1,6 +1,11 @@
 import { COOKIE_ACCESS, COOKIE_USER } from "@/lib/auth/cookie-names";
 import type { AuthUser } from "@/lib/types/auth";
-import { homePathFor } from "@/lib/permissions";
+import {
+  homePathFor,
+  isCashierPortalUser,
+  isCompanyEmployee,
+  posHomePathFor,
+} from "@/lib/permissions";
 import {
   defaultLocale,
   isAppLocale,
@@ -17,16 +22,35 @@ import type { NextRequest } from "next/server";
 function isAuthPage(pathname: string) {
   return (
     pathname === "/login" ||
+    pathname === "/login/pos" ||
     pathname === "/admin/login" ||
     pathname.startsWith("/bff/auth/login") ||
     pathname.startsWith("/bff/auth/admin-login")
   );
 }
 
+function isPosRoute(pathname: string) {
+  return /\/c\/[^/]+\/me\/pos(?:\/|$)/.test(pathname);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const access = request.cookies.get(COOKIE_ACCESS)?.value;
   const userRaw = request.cookies.get(COOKIE_USER)?.value;
+  const isServerAction = Boolean(
+    request.headers.get("next-action") ||
+      request.headers.get("Next-Action"),
+  );
+
+  /**
+   * Server Actions must receive an unmodified `NextResponse.next()`.
+   * Redirects, Set-Cookie, or request-header rewrites corrupt the RSC
+   * flight payload → "An unexpected response was received from the server".
+   * Auth is enforced inside the action / layout instead.
+   */
+  if (isServerAction) {
+    return NextResponse.next();
+  }
 
   const isPublicBff =
     pathname.startsWith("/bff/auth/") && pathname !== "/bff/auth/me";
@@ -60,6 +84,22 @@ export function middleware(request: NextRequest) {
     return res;
   };
 
+  /**
+   * Attach x-pathname for RSC layouts — but ONLY on safe GET/HEAD.
+   * Rewriting `request.headers` on POST breaks the body stream under Turbopack.
+   */
+  const passthrough = () => {
+    const method = request.method.toUpperCase();
+    if (method !== "GET" && method !== "HEAD") {
+      return withPreferenceCookies(NextResponse.next());
+    }
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", pathname);
+    return withPreferenceCookies(
+      NextResponse.next({ request: { headers: requestHeaders } }),
+    );
+  };
+
   if (isLocaleApi || isThemeApi) {
     return withPreferenceCookies(NextResponse.next());
   }
@@ -87,7 +127,10 @@ export function middleware(request: NextRequest) {
       login.searchParams.set("next", pathname);
       return withPreferenceCookies(NextResponse.redirect(login));
     }
-    const login = new URL("/login", request.url);
+    const login = new URL(
+      isPosRoute(pathname) ? "/login/pos" : "/login",
+      request.url,
+    );
     login.searchParams.set("next", pathname);
     return withPreferenceCookies(NextResponse.redirect(login));
   }
@@ -104,9 +147,34 @@ export function middleware(request: NextRequest) {
     return withPreferenceCookies(NextResponse.redirect(login));
   }
 
+  if (pathname === "/login/pos") {
+    return withPreferenceCookies(
+      NextResponse.redirect(new URL(posHomePathFor(user), request.url)),
+    );
+  }
+
   if (pathname === "/login" || pathname === "/admin/login" || pathname === "/") {
     return withPreferenceCookies(
       NextResponse.redirect(new URL(homePathFor(user), request.url)),
+    );
+  }
+
+  // Employee portal shortcut: /me → /c/{companyId}/me (employees only)
+  if (pathname === "/me" || pathname.startsWith("/me/")) {
+    if (!user.companyId) {
+      return withPreferenceCookies(
+        NextResponse.redirect(new URL(homePathFor(user), request.url)),
+      );
+    }
+    if (!isCompanyEmployee(user) && !isCashierPortalUser(user)) {
+      return withPreferenceCookies(
+        NextResponse.redirect(new URL(`/c/${user.companyId}`, request.url)),
+      );
+    }
+    return withPreferenceCookies(
+      NextResponse.redirect(
+        new URL(`/c/${user.companyId}${pathname}`, request.url),
+      ),
     );
   }
 
@@ -142,14 +210,17 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  return withPreferenceCookies(NextResponse.next());
+  return passthrough();
 }
 
 export const config = {
   matcher: [
     "/",
     "/login",
+    "/login/pos",
     "/admin/login",
+    "/me",
+    "/me/:path*",
     "/platform/:path*",
     "/c/:path*",
     "/bff/auth/me",

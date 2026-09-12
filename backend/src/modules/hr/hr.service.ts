@@ -33,6 +33,7 @@ import {
   displayShiftName,
 } from '../governance/standard-shifts';
 import { PlatformService } from '../platform/platform.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SalesService } from '../sales/sales.service';
 import { UsersService } from '../users/users.service';
 
@@ -79,6 +80,7 @@ export class HrService {
     private readonly platform: PlatformService,
     private readonly sales: SalesService,
     private readonly users: UsersService,
+    private readonly notifications: NotificationsService,
     @Inject(forwardRef(() => AutomationEngine))
     private readonly automation: AutomationEngine,
   ) {}
@@ -99,6 +101,39 @@ export class HrService {
           }`,
         );
       });
+  }
+
+  private portalActionUrl(companyId: string, segment: string) {
+    return `/c/${companyId}/me/${segment}`;
+  }
+
+  private async notifyPortalUser(
+    companyId: string,
+    userId: string | null | undefined,
+    input: {
+      type: string;
+      title: string;
+      body: string;
+      segment: string;
+    },
+  ) {
+    if (!userId) return;
+    try {
+      await this.notifications.createAndPush({
+        companyId,
+        userId,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        actionUrl: this.portalActionUrl(companyId, input.segment),
+      });
+    } catch (error) {
+      this.logger.warn(
+        `portal notify ${input.type} → ${userId}: ${
+          error instanceof Error ? error.message : 'unknown'
+        }`,
+      );
+    }
   }
 
   private encryptIban(iban?: string) {
@@ -331,16 +366,208 @@ export class HrService {
     employeeId: string,
     base: Record<string, unknown>,
   ) {
-    const [advanceEarnings, salesProgress] = await Promise.all([
-      this.computeAdvanceEarnings(companyId, employeeId),
-      this.computeMonthlySalesProgress(companyId, employeeId),
-    ]);
+    const [advanceEarnings, salesProgress, ewalletTransactions] =
+      await Promise.all([
+        this.computeAdvanceEarnings(companyId, employeeId),
+        this.computeMonthlySalesProgress(companyId, employeeId),
+        this.listEwalletTransactions(companyId, employeeId, 20),
+      ]);
     return {
       ...base,
       advanceEarnings,
       salesProgress,
       targetCompletedPercent: salesProgress.targetCompletedPercent,
+      ewalletTransactions,
     };
+  }
+
+  private serializeEwalletTransaction(row: {
+    id: string;
+    kind: string;
+    source: string;
+    amount: Prisma.Decimal;
+    balanceAfter: Prisma.Decimal;
+    memo: string | null;
+    referenceId: string | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: row.id,
+      kind: row.kind,
+      source: row.source,
+      amount: row.amount.toString(),
+      balanceAfter: row.balanceAfter.toString(),
+      memo: row.memo,
+      referenceId: row.referenceId,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  private listEwalletTransactions(
+    companyId: string,
+    employeeId: string,
+    take = 20,
+  ) {
+    this.tenant.setCompanyId(companyId);
+    return this.prisma.employeeEwalletTransaction
+      .findMany({
+        where: { companyId, employeeId },
+        orderBy: { createdAt: 'desc' },
+        take,
+      })
+      .then((rows) => rows.map((row) => this.serializeEwalletTransaction(row)));
+  }
+
+  private async applyEwalletDelta(input: {
+    companyId: string;
+    employeeId: string;
+    delta: number;
+    source:
+      | 'ADVANCE'
+      | 'MANUAL'
+      | 'OPENING'
+      | 'PURCHASE'
+      | 'DEDUCTION'
+      | 'ADVANCE_REPAY'
+      | 'WALLET_WITHDRAW';
+    memo?: string;
+    referenceId?: string;
+    createdById?: string;
+    walletCode?: string;
+    currency?: string;
+  }) {
+    if (Math.abs(input.delta) < 0.001) {
+      return this.prisma.employeeEwallet.findUnique({
+        where: { employeeId: input.employeeId },
+      });
+    }
+
+    const employee = await this.requireEmployee(
+      input.companyId,
+      input.employeeId,
+    );
+    const currency = input.currency ?? employee.currency ?? 'SAR';
+    const code =
+      input.walletCode?.trim() ||
+      `EW-${employee.employeeNumber}`.slice(0, 40);
+
+    let wallet = await this.prisma.employeeEwallet.findUnique({
+      where: { employeeId: input.employeeId },
+    });
+
+    if (!wallet) {
+      if (input.delta < 0) {
+        throw new BadRequestException('Insufficient wallet balance');
+      }
+      wallet = await this.prisma.employeeEwallet.create({
+        data: {
+          companyId: input.companyId,
+          employeeId: input.employeeId,
+          walletCode: code,
+          balance: '0',
+          currency,
+        },
+      });
+    }
+
+    const current = Number(wallet.balance);
+    const next = current + input.delta;
+    if (next < -0.001) {
+      throw new BadRequestException('Insufficient wallet balance');
+    }
+
+    const kind = input.delta >= 0 ? 'CREDIT' : 'DEBIT';
+    const amount = Math.abs(input.delta).toFixed(2);
+    const balanceAfter = next.toFixed(2);
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.employeeEwallet.update({
+        where: { id: wallet.id },
+        data: {
+          balance: balanceAfter,
+          status: 'ACTIVE',
+          ...(input.walletCode ? { walletCode: code } : {}),
+          ...(input.currency ? { currency } : {}),
+        },
+      }),
+      this.prisma.employeeEwalletTransaction.create({
+        data: {
+          companyId: input.companyId,
+          ewalletId: wallet.id,
+          employeeId: input.employeeId,
+          kind,
+          source: input.source,
+          amount,
+          balanceAfter,
+          memo: input.memo?.trim() || null,
+          referenceId: input.referenceId ?? null,
+          createdById: input.createdById ?? null,
+        },
+      }),
+    ]);
+
+    return updated;
+  }
+
+  private creditEwallet(input: {
+    companyId: string;
+    employeeId: string;
+    amount: number;
+    source: 'ADVANCE' | 'MANUAL' | 'OPENING';
+    memo?: string;
+    referenceId?: string;
+    createdById?: string;
+    walletCode?: string;
+    currency?: string;
+  }) {
+    if (!(input.amount > 0)) {
+      throw new BadRequestException('amount must be > 0');
+    }
+    return this.applyEwalletDelta({
+      ...input,
+      delta: input.amount,
+    });
+  }
+
+  /** Debit employee wallet (purchases, payroll deductions, advance settlement). Idempotent when referenceId is set. */
+  async debitEmployeeWallet(input: {
+    companyId: string;
+    employeeId: string;
+    amount: number;
+    source: 'PURCHASE' | 'DEDUCTION' | 'ADVANCE_REPAY' | 'WALLET_WITHDRAW';
+    memo?: string;
+    referenceId?: string;
+    createdById?: string;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const amount = Number(input.amount);
+    if (!(amount > 0)) {
+      return null;
+    }
+    if (input.referenceId) {
+      const existing = await this.prisma.employeeEwalletTransaction.findFirst({
+        where: {
+          companyId: input.companyId,
+          referenceId: input.referenceId,
+          source: input.source,
+        },
+      });
+      if (existing) {
+        return this.prisma.employeeEwallet.findUnique({
+          where: { employeeId: input.employeeId },
+        });
+      }
+    }
+    await this.requireEmployee(input.companyId, input.employeeId);
+    return this.applyEwalletDelta({
+      companyId: input.companyId,
+      employeeId: input.employeeId,
+      delta: -amount,
+      source: input.source,
+      memo: input.memo,
+      referenceId: input.referenceId,
+      createdById: input.createdById,
+    });
   }
 
   async listEmployees(companyId: string) {
@@ -473,6 +700,8 @@ export class HrService {
           orderBy: { saleDate: 'desc' },
           take: 50,
         },
+        salaryAdvances: { orderBy: { requestedAt: 'desc' }, take: 20 },
+        leaveRequests: { orderBy: { createdAt: 'desc' }, take: 20 },
       },
     });
     if (!employee) throw new NotFoundException('Employee not found');
@@ -1431,6 +1660,23 @@ export class HrService {
         endsOn: updated.endsOn.toISOString(),
         approvedById,
       });
+      await this.notifyPortalUser(companyId, updated.employee.userId, {
+        type: 'hr.leave.approved',
+        title: 'اعتماد الإجازة',
+        body: `تم اعتماد طلب إجازتك (${updated.leaveType})`,
+        segment: 'leaves',
+      });
+    } else if (
+      status === 'REJECTED' &&
+      previousStatus !== 'REJECTED' &&
+      previousStatus !== 'CANCELLED'
+    ) {
+      await this.notifyPortalUser(companyId, updated.employee.userId, {
+        type: 'hr.leave.rejected',
+        title: 'رفض الإجازة',
+        body: `تم رفض طلب إجازتك (${updated.leaveType})`,
+        segment: 'leaves',
+      });
     }
 
     return updated;
@@ -1590,19 +1836,41 @@ export class HrService {
     companyId: string,
     payrollRunId: string,
     status: PayrollStatus,
+    decidedById?: string,
   ) {
     this.tenant.setCompanyId(companyId);
     const run = await this.prisma.payrollRun.findFirst({
       where: { id: payrollRunId, companyId },
+      include: { items: true },
     });
     if (!run) {
       throw new NotFoundException('Payroll run not found');
     }
-    return this.prisma.payrollRun.update({
+
+    const updated = await this.prisma.payrollRun.update({
       where: { id: payrollRunId },
       data: { status },
       include: { items: true },
     });
+
+    if (status === 'PAID' && run.status !== 'PAID') {
+      for (const item of run.items) {
+        const walletDebit =
+          Number(item.deductions) + Number(item.advances);
+        if (walletDebit <= 0) continue;
+        await this.debitEmployeeWallet({
+          companyId,
+          employeeId: item.employeeId,
+          amount: walletDebit,
+          source: 'DEDUCTION',
+          memo: `Payroll deductions (${run.periodStart.toISOString().slice(0, 10)} – ${run.periodEnd.toISOString().slice(0, 10)})`,
+          referenceId: `${payrollRunId}:${item.employeeId}`,
+          createdById: decidedById,
+        });
+      }
+    }
+
+    return updated;
   }
 
   // —— Contracts ——
@@ -1891,30 +2159,207 @@ export class HrService {
     });
 
     if (shouldCreditWallet) {
-      const amount = Number(advance.amount);
-      const code = `EW-${advance.employee.employeeNumber}`.slice(0, 40);
-      const wallet = await this.prisma.employeeEwallet.findUnique({
-        where: { employeeId: advance.employeeId },
+      await this.creditEwallet({
+        companyId,
+        employeeId: advance.employeeId,
+        amount: Number(advance.amount),
+        source: 'ADVANCE',
+        memo: 'Salary advance approved',
+        referenceId: advanceId,
+        createdById: decidedById,
+        currency: advance.employee.currency ?? advance.currency ?? 'SAR',
       });
-      if (wallet) {
-        await this.prisma.employeeEwallet.update({
-          where: { employeeId: advance.employeeId },
-          data: {
-            balance: (Number(wallet.balance) + amount).toFixed(2),
-            status: 'ACTIVE',
+    }
+
+    const settlingPaid =
+      status === 'PAID' && advance.status === 'APPROVED';
+    if (settlingPaid) {
+      await this.debitEmployeeWallet({
+        companyId,
+        employeeId: advance.employeeId,
+        amount: Number(advance.amount),
+        source: 'ADVANCE_REPAY',
+        memo: 'Advance settled (marked paid)',
+        referenceId: advanceId,
+        createdById: decidedById,
+      });
+    }
+
+    const amountLabel = `${Number(advance.amount).toFixed(2)} ${advance.currency}`;
+    if (status === 'APPROVED' && advance.status !== 'APPROVED') {
+      await this.notifyPortalUser(companyId, advance.employee.userId, {
+        type: 'hr.advance.approved',
+        title: 'اعتماد السلفة',
+        body: `تم اعتماد طلب سلفة بمبلغ ${amountLabel}`,
+        segment: 'advances',
+      });
+    } else if (status === 'REJECTED') {
+      await this.notifyPortalUser(companyId, advance.employee.userId, {
+        type: 'hr.advance.rejected',
+        title: 'رفض السلفة',
+        body: `تم رفض طلب السلفة (${amountLabel})`,
+        segment: 'advances',
+      });
+    } else if (becomingPaid) {
+      await this.notifyPortalUser(companyId, advance.employee.userId, {
+        type: 'hr.advance.paid',
+        title: 'صرف السلفة',
+        body: `تم تعليم السلفة كمصروفة (${amountLabel})`,
+        segment: 'advances',
+      });
+    }
+
+    return updated;
+  }
+
+  // —— Wallet withdrawals (employee cash-out from e-wallet balance) ——
+  listWalletWithdrawals(companyId: string, employeeId?: string) {
+    this.tenant.setCompanyId(companyId);
+    return this.prisma.employeeWalletWithdrawal.findMany({
+      where: employeeId ? { employeeId } : undefined,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            userId: true,
+            fullName: true,
+            employeeNumber: true,
           },
-        });
-      } else {
-        await this.prisma.employeeEwallet.create({
-          data: {
-            companyId,
-            employeeId: advance.employeeId,
-            walletCode: code,
-            balance: amount.toFixed(2),
-            currency: advance.employee.currency ?? advance.currency ?? 'SAR',
+        },
+      },
+      orderBy: { requestedAt: 'desc' },
+      take: 200,
+    });
+  }
+
+  async requestWalletWithdrawal(input: {
+    companyId: string;
+    employeeId: string;
+    amount: string | number;
+    reason?: string;
+  }) {
+    this.tenant.setCompanyId(input.companyId);
+    const employee = await this.requireEmployee(
+      input.companyId,
+      input.employeeId,
+    );
+    const amount = Number(input.amount);
+    if (!(amount > 0)) {
+      throw new BadRequestException('amount must be > 0');
+    }
+
+    const ewallet = await this.prisma.employeeEwallet.findUnique({
+      where: { employeeId: employee.id },
+    });
+    if (!ewallet || ewallet.status !== 'ACTIVE') {
+      throw new BadRequestException('Employee wallet is not active');
+    }
+
+    const pending = await this.prisma.employeeWalletWithdrawal.findMany({
+      where: {
+        employeeId: employee.id,
+        status: { in: ['PENDING', 'APPROVED'] },
+      },
+    });
+    const reserved = pending.reduce((s, row) => s + Number(row.amount), 0);
+    const balance = Number(ewallet.balance);
+    if (reserved + amount > balance + 0.001) {
+      throw new BadRequestException(
+        `Withdrawal exceeds available wallet balance (balance ${balance.toFixed(2)}, reserved ${reserved.toFixed(2)})`,
+      );
+    }
+
+    return this.prisma.employeeWalletWithdrawal.create({
+      data: {
+        companyId: input.companyId,
+        employeeId: employee.id,
+        amount: amount.toFixed(2),
+        currency: ewallet.currency ?? employee.currency ?? 'SAR',
+        reason: input.reason?.trim() || null,
+      },
+    });
+  }
+
+  async decideWalletWithdrawal(
+    companyId: string,
+    withdrawalId: string,
+    status: 'APPROVED' | 'REJECTED' | 'PAID' | 'CANCELLED',
+    decidedById: string,
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const withdrawal = await this.prisma.employeeWalletWithdrawal.findFirst({
+      where: { id: withdrawalId, companyId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            userId: true,
+            employeeNumber: true,
+            currency: true,
           },
-        });
-      }
+        },
+      },
+    });
+    if (!withdrawal) {
+      throw new NotFoundException('Wallet withdrawal not found');
+    }
+
+    if (
+      withdrawal.employee.userId &&
+      withdrawal.employee.userId === decidedById
+    ) {
+      throw new ForbiddenException(
+        'You cannot decide a wallet withdrawal for yourself',
+      );
+    }
+
+    const becomingPaid =
+      status === 'PAID' && withdrawal.status !== 'PAID';
+
+    const updated = await this.prisma.employeeWalletWithdrawal.update({
+      where: { id: withdrawalId },
+      data: {
+        status,
+        decidedById,
+        decidedAt: new Date(),
+        ...(status === 'PAID' ? { paidAt: new Date() } : {}),
+      },
+    });
+
+    if (becomingPaid) {
+      await this.debitEmployeeWallet({
+        companyId,
+        employeeId: withdrawal.employeeId,
+        amount: Number(withdrawal.amount),
+        source: 'WALLET_WITHDRAW',
+        memo: 'Wallet withdrawal paid',
+        referenceId: withdrawalId,
+        createdById: decidedById,
+      });
+    }
+
+    const amountLabel = `${Number(withdrawal.amount).toFixed(2)} ${withdrawal.currency}`;
+    if (status === 'APPROVED' && withdrawal.status !== 'APPROVED') {
+      await this.notifyPortalUser(companyId, withdrawal.employee.userId, {
+        type: 'hr.wallet_withdraw.approved',
+        title: 'اعتماد سحب المحفظة',
+        body: `تم اعتماد طلب سحب ${amountLabel} من المحفظة`,
+        segment: 'wallet',
+      });
+    } else if (status === 'REJECTED') {
+      await this.notifyPortalUser(companyId, withdrawal.employee.userId, {
+        type: 'hr.wallet_withdraw.rejected',
+        title: 'رفض سحب المحفظة',
+        body: `تم رفض طلب سحب ${amountLabel} من المحفظة`,
+        segment: 'wallet',
+      });
+    } else if (becomingPaid) {
+      await this.notifyPortalUser(companyId, withdrawal.employee.userId, {
+        type: 'hr.wallet_withdraw.paid',
+        title: 'صرف سحب المحفظة',
+        body: `تم صرف ${amountLabel} من محفظتك`,
+        segment: 'wallet',
+      });
     }
 
     return updated;
@@ -1942,31 +2387,104 @@ export class HrService {
     walletCode?: string;
     balance?: string | number;
     currency?: string;
+    memo?: string;
+    markAsPurchaseOperator?: boolean;
+    createdById?: string;
   }) {
     this.tenant.setCompanyId(input.companyId);
     const employee = await this.requireEmployee(
       input.companyId,
       input.employeeId,
     );
-    await this.prisma.employee.update({
-      where: { id: employee.id },
-      data: { isPurchaseOperator: true },
-    });
+
+    if (input.markAsPurchaseOperator) {
+      await this.prisma.employee.update({
+        where: { id: employee.id },
+        data: { isPurchaseOperator: true },
+      });
+    }
+
     const code =
       input.walletCode?.trim() || `EW-${employee.employeeNumber}`.slice(0, 40);
-    return this.prisma.employeeEwallet.upsert({
+    const currency = input.currency ?? employee.currency ?? 'SAR';
+    const wallet = await this.prisma.employeeEwallet.findUnique({
       where: { employeeId: employee.id },
-      create: {
+    });
+
+    if (input.balance == null) {
+      if (wallet) {
+        return this.prisma.employeeEwallet.update({
+          where: { id: wallet.id },
+          data: {
+            ...(input.walletCode ? { walletCode: code } : {}),
+            ...(input.currency ? { currency } : {}),
+            status: 'ACTIVE',
+          },
+        });
+      }
+      return this.prisma.employeeEwallet.create({
+        data: {
+          companyId: input.companyId,
+          employeeId: employee.id,
+          walletCode: code,
+          balance: '0',
+          currency,
+        },
+      });
+    }
+
+    const target = Number(input.balance);
+    if (target < 0) {
+      throw new BadRequestException('balance cannot be negative');
+    }
+
+    if (!wallet) {
+      const created = await this.prisma.employeeEwallet.create({
+        data: {
+          companyId: input.companyId,
+          employeeId: employee.id,
+          walletCode: code,
+          balance: target.toFixed(2),
+          currency,
+        },
+      });
+      if (target > 0) {
+        await this.prisma.employeeEwalletTransaction.create({
+          data: {
+            companyId: input.companyId,
+            ewalletId: created.id,
+            employeeId: employee.id,
+            kind: 'CREDIT',
+            source: 'OPENING',
+            amount: target.toFixed(2),
+            balanceAfter: target.toFixed(2),
+            memo: input.memo?.trim() || 'Opening balance',
+            createdById: input.createdById ?? null,
+          },
+        });
+      }
+      return created;
+    }
+
+    const delta = target - Number(wallet.balance);
+    if (Math.abs(delta) > 0.001) {
+      return this.applyEwalletDelta({
         companyId: input.companyId,
         employeeId: employee.id,
-        walletCode: code,
-        balance: String(input.balance ?? 0),
-        currency: input.currency ?? employee.currency ?? 'SAR',
-      },
-      update: {
+        delta,
+        source: 'MANUAL',
+        memo: input.memo?.trim() || 'Balance adjustment',
+        createdById: input.createdById,
+        walletCode: input.walletCode,
+        currency: input.currency,
+      });
+    }
+
+    return this.prisma.employeeEwallet.update({
+      where: { id: wallet.id },
+      data: {
         ...(input.walletCode ? { walletCode: code } : {}),
-        ...(input.balance != null ? { balance: String(input.balance) } : {}),
-        ...(input.currency ? { currency: input.currency } : {}),
+        ...(input.currency ? { currency } : {}),
         status: 'ACTIVE',
       },
     });
@@ -2114,6 +2632,19 @@ export class HrService {
     return this.prisma.employee.update({
       where: { id: employeeId },
       data: { identityAttachmentId: attachmentId },
+    });
+  }
+
+  async setEmployeeWorkContractAttachment(
+    companyId: string,
+    employeeId: string,
+    attachmentId: string,
+  ) {
+    this.tenant.setCompanyId(companyId);
+    await this.requireEmployee(companyId, employeeId);
+    return this.prisma.employee.update({
+      where: { id: employeeId },
+      data: { workContractAttachmentId: attachmentId },
     });
   }
 
@@ -2383,6 +2914,16 @@ export class HrService {
     });
   }
 
+  async myPersonalReport(
+    companyId: string,
+    userId: string,
+    from: string,
+    to: string,
+  ) {
+    const me = await this.requireLinkedEmployee(companyId, userId);
+    return this.personalReport(companyId, me.id, from, to);
+  }
+
   async attachSaleReceipt(
     companyId: string,
     saleId: string,
@@ -2438,6 +2979,7 @@ export class HrService {
         employee: {
           select: {
             id: true,
+            userId: true,
             salesTargetAmount: true,
             targetPercent: true,
             salesTargetMode: true,
@@ -2525,6 +3067,23 @@ export class HrService {
       ) {
         await this.computeMonthlySalesProgress(companyId, sale.employeeId);
       }
+    }
+
+    const amountLabel = `${Number(sale.amount).toFixed(2)} SAR`;
+    if (status === 'APPROVED') {
+      await this.notifyPortalUser(companyId, sale.employee.userId, {
+        type: 'hr.sale.approved',
+        title: 'اعتماد المبيعة',
+        body: `تم اعتماد مبيعتك بمبلغ ${amountLabel}`,
+        segment: 'sales',
+      });
+    } else if (status === 'REJECTED') {
+      await this.notifyPortalUser(companyId, sale.employee.userId, {
+        type: 'hr.sale.rejected',
+        title: 'رفض المبيعة',
+        body: `تم رفض مبيعتك (${amountLabel})`,
+        segment: 'sales',
+      });
     }
 
     return updated;
@@ -2851,6 +3410,7 @@ export class HrService {
         ewallet: true,
         contracts: { orderBy: { createdAt: 'desc' }, take: 10 },
         salaryAdvances: { orderBy: { requestedAt: 'desc' }, take: 20 },
+        walletWithdrawals: { orderBy: { requestedAt: 'desc' }, take: 20 },
         leaveRequests: { orderBy: { createdAt: 'desc' }, take: 20 },
         shiftAssignments: {
           include: { shift: true },
@@ -2882,6 +3442,21 @@ export class HrService {
   ) {
     const me = await this.requireLinkedEmployee(companyId, userId);
     return this.requestAdvance({
+      companyId,
+      employeeId: me.id,
+      amount,
+      reason,
+    });
+  }
+
+  async myRequestWalletWithdrawal(
+    companyId: string,
+    userId: string,
+    amount: string | number,
+    reason?: string,
+  ) {
+    const me = await this.requireLinkedEmployee(companyId, userId);
+    return this.requestWalletWithdrawal({
       companyId,
       employeeId: me.id,
       amount,

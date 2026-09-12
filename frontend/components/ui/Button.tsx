@@ -60,7 +60,7 @@ export function Button({
   }
   const Comp = asChild ? Slot : "button";
   return (
-    <Comp className={cls} {...rest}>
+    <Comp className={cls} suppressHydrationWarning {...rest}>
       {children}
     </Comp>
   );

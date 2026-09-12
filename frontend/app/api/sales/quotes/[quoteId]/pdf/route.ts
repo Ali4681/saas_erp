@@ -1,4 +1,7 @@
-import { resolveApiSession } from "@/lib/auth/resolve-api-session";
+import {
+  applyResolvedSessionCookies,
+  resolveApiSession,
+} from "@/lib/auth/resolve-api-session";
 import { nestFetch, ApiError } from "@/lib/api/client";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -12,13 +15,17 @@ export async function GET(
     return NextResponse.json({ message: "companyId مطلوب" }, { status: 400 });
   }
 
-  const session = await resolveApiSession();
-  if (!session) {
-    return NextResponse.json({ message: "غير مسجّل" }, { status: 401 });
+  const resolved = await resolveApiSession();
+  if (!resolved?.session) {
+    return applyResolvedSessionCookies(
+      NextResponse.json({ message: "غير مسجّل" }, { status: 401 }),
+      resolved,
+    );
   }
 
   try {
     const theme = req.nextUrl.searchParams.get("theme") ?? "MODERN";
+    const download = req.nextUrl.searchParams.get("download") === "1";
     const pdf = await nestFetch<{
       fileName: string;
       mimeType: string;
@@ -26,23 +33,30 @@ export async function GET(
     }>(
       `/companies/${companyId}/sales/quotes/${quoteId}/pdf?theme=${encodeURIComponent(theme)}`,
       {
-        accessToken: session.accessToken,
+        accessToken: resolved.session.accessToken,
         companyId,
       },
     );
 
     const bytes = Buffer.from(pdf.contentBase64, "base64");
-    return new NextResponse(bytes, {
-      headers: {
-        "Content-Type": pdf.mimeType || "application/pdf",
-        "Content-Disposition": `inline; filename="${pdf.fileName || "quote.pdf"}"`,
-        "Cache-Control": "private, no-store",
-      },
-    });
+    const fileName = pdf.fileName || "quote.pdf";
+    return applyResolvedSessionCookies(
+      new NextResponse(bytes, {
+        headers: {
+          "Content-Type": pdf.mimeType || "application/pdf",
+          "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${fileName}"`,
+          "Cache-Control": "private, no-store",
+        },
+      }),
+      resolved,
+    );
   } catch (error) {
     const message =
       error instanceof ApiError ? error.message : "تعذّر تحميل PDF";
     const status = error instanceof ApiError ? error.status || 502 : 502;
-    return NextResponse.json({ message }, { status });
+    return applyResolvedSessionCookies(
+      NextResponse.json({ message }, { status }),
+      resolved,
+    );
   }
 }

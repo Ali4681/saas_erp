@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -214,6 +215,15 @@ export class InventoryController {
     return this.inventory.listItems(companyId);
   }
 
+  @Get('items/:itemId')
+  @RequirePermissions('inventory.read')
+  getItem(
+    @Param('companyId') companyId: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.inventory.getItem(companyId, itemId);
+  }
+
   @Post('items')
   @RequirePermissions('inventory.write')
   createItem(
@@ -221,6 +231,40 @@ export class InventoryController {
     @Body() body: CreateItemBody,
   ) {
     return this.inventory.createItem({ companyId, ...body });
+  }
+
+  @Post('items/:itemId/image')
+  @RequirePermissions('inventory.write')
+  uploadItemImage(
+    @Param('companyId') companyId: string,
+    @Param('itemId') itemId: string,
+    @CurrentUser() user: AuthUser,
+    @Body()
+    body: {
+      fileName: string;
+      mimeType: string;
+      sizeBytes: string | number;
+      contentBase64: string;
+    },
+  ) {
+    return this.inventory.uploadItemImage({
+      companyId,
+      itemId,
+      uploadedById: user.userId,
+      fileName: body.fileName,
+      mimeType: body.mimeType,
+      sizeBytes: body.sizeBytes,
+      contentBase64: body.contentBase64,
+    });
+  }
+
+  @Delete('items/:itemId/image')
+  @RequirePermissions('inventory.write')
+  clearItemImage(
+    @Param('companyId') companyId: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.inventory.clearItemImage(companyId, itemId);
   }
 
   @Get('warehouses')

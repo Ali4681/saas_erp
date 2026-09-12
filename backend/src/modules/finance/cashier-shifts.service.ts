@@ -85,6 +85,7 @@ export class CashierShiftsService {
     workShiftId?: string;
     currency?: string;
     notes?: string;
+    pointOfSaleId?: string;
   }) {
     this.tenant.setCompanyId(input.companyId);
     const employee = await this.prisma.employee.findFirst({
@@ -114,6 +115,7 @@ export class CashierShiftsService {
         userId: input.userId,
         branchId: input.branchId,
         workShiftId: input.workShiftId,
+        pointOfSaleId: input.pointOfSaleId,
         openingFloat: float.toFixed(2),
         expectedCash: float.toFixed(2),
         currency: input.currency ?? 'SAR',

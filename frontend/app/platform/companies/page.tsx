@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { FlashFromSearch } from "@/components/erp/Flash";
 import { CreateFormDialog } from "@/components/erp/CreateFormDialog";
 import { CountryCityFields } from "@/components/erp/CountryCityFields";
+import { PhoneWithDialCodeField } from "@/components/erp/PhoneWithDialCodeField";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Textarea } from "@/components/ui/Textarea";
 import { apiServer } from "@/lib/api/server";
 import { companyLogoUrl } from "@/lib/company-logo";
 import { getFormatters } from "@/lib/format-server";
@@ -96,6 +98,9 @@ export default async function PlatformCompaniesPage({
               action={createCompany}
               className="grid gap-3 md:grid-cols-2 lg:grid-cols-3"
             >
+              <p className="text-sm font-semibold md:col-span-2 lg:col-span-3">
+                {t("setupSectionAccount")}
+              </p>
               <Input
                 name="displayName"
                 label={t("displayName")}
@@ -124,17 +129,33 @@ export default async function PlatformCompaniesPage({
                 name="ownerEmail"
                 label={t("ownerEmail")}
                 type="email"
-                placeholder="owner@company.com"
+                autoComplete="off"
+                placeholder={t("ownerEmailPh")}
+              />
+              <Input
+                name="companyEmail"
+                label={t("companyEmail")}
+                type="email"
+                autoComplete="off"
+                placeholder="info@company.com"
               />
               <Input
                 name="ownerPassword"
                 label={t("ownerPassword")}
                 type="password"
+                autoComplete="new-password"
                 minLength={8}
                 placeholder={t("ownerPasswordPh")}
               />
               <p className="text-xs text-[var(--muted-foreground)] md:col-span-2 lg:col-span-3">
                 {t("ownerHint")}
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)] md:col-span-2 lg:col-span-3">
+                {t("companyEmailHint")}
+              </p>
+
+              <p className="border-t border-[var(--border)] pt-3 text-sm font-semibold md:col-span-2 lg:col-span-3">
+                {t("setupSectionGeneral")}
               </p>
               <CountryCityFields
                 countries={locales.countries}
@@ -159,6 +180,65 @@ export default async function PlatformCompaniesPage({
                 defaultValue={locales.defaults.timezone}
                 options={timezoneOptions}
               />
+              <div className="md:col-span-2 lg:col-span-3">
+                <Textarea name="addressLine" label={t("addressLine")} />
+              </div>
+              <div className="md:col-span-2 lg:col-span-3">
+                <Textarea
+                  name="activityDescription"
+                  label={t("activityDescription")}
+                />
+              </div>
+
+              <p className="border-t border-[var(--border)] pt-3 text-sm font-semibold md:col-span-2 lg:col-span-3">
+                {t("setupSectionLegal")}
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)] md:col-span-2 lg:col-span-3">
+                {t("setupLegalOptionalHint")}
+              </p>
+              <Input
+                name="commercialRegistrationNumber"
+                label={t("commercialRegistrationNumber")}
+                inputMode="numeric"
+                pattern="[0-9]{10}"
+                maxLength={10}
+                dir="ltr"
+                placeholder="1010xxxxxx"
+              />
+              <Input
+                name="licenseNumber"
+                label={t("licenseNumber")}
+                dir="ltr"
+              />
+              <Input
+                name="unifiedNumber"
+                label={t("unifiedNumber")}
+                inputMode="numeric"
+                pattern="[0-9]{10}"
+                maxLength={10}
+                dir="ltr"
+              />
+              <Input
+                name="taxNumber"
+                label={t("taxNumber")}
+                dir="ltr"
+              />
+              <PhoneWithDialCodeField
+                name="ownerPhone"
+                dialCodeName="ownerPhoneDialCode"
+                label={t("ownerPhone")}
+                className="md:col-span-2 lg:col-span-1"
+              />
+              <PhoneWithDialCodeField
+                name="companyPhone"
+                dialCodeName="companyPhoneDialCode"
+                label={t("companyPhone")}
+                className="md:col-span-2 lg:col-span-1"
+              />
+
+              <p className="border-t border-[var(--border)] pt-3 text-sm font-semibold md:col-span-2 lg:col-span-3">
+                {t("setupSectionSubscription")}
+              </p>
               <Select
                 name="planCode"
                 label={t("planCode")}
