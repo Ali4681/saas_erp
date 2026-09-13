@@ -22,10 +22,7 @@ import {
   Search,
   ShoppingCart,
   Trash2,
-  CreditCard,
   Banknote,
-  Split,
-  Clock,
   RotateCcw,
   Wallet,
 } from "lucide-react";
@@ -301,11 +298,6 @@ export function PosTerminal({
   const searchRef = useRef<HTMLInputElement>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discountPct, setDiscountPct] = useState(0);
-  const [payMode, setPayMode] = useState<"CASH" | "CARD" | "CREDIT" | "MIXED">(
-    "CASH",
-  );
-  const [splitCash, setSplitCash] = useState("");
-  const [splitCard, setSplitCard] = useState("");
   const [showHeld, setShowHeld] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showLayout, setShowLayout] = useState(false);
@@ -538,15 +530,12 @@ export function PosTerminal({
     return pin;
   }
 
-  function checkout(
-    status: "ISSUED" | "ON_HOLD",
-    methodOverride?: "CASH" | "CARD" | "CREDIT" | "MIXED",
-  ) {
+  function checkout(status: "ISSUED" | "ON_HOLD") {
     if (!boot || cart.length === 0) {
       toast.error(t("cartEmpty"));
       return;
     }
-    const method = methodOverride ?? payMode;
+    const method = "CASH";
     const perms = boot.permissions;
     if (status === "ON_HOLD" && !perms.holdRetrieve) {
       toast.error(t("permDenied"));
@@ -555,40 +544,18 @@ export function PosTerminal({
     const maxDisc = Number(perms.discountMaxPct) || 0;
     const needsDiscountOverride =
       discountPct > 0 && (!perms.discounts || discountPct > maxDisc);
-    const needsCreditOverride = method === "CREDIT" && !perms.creditSales;
 
     if (discountPct > 0 && !perms.discounts && !boot.hasSupervisorPin) {
       toast.error(t("permDenied"));
       return;
     }
-    if (method === "CREDIT" && !perms.creditSales && !boot.hasSupervisorPin) {
-      toast.error(t("permDenied"));
-      return;
-    }
-
-    let paymentSplits: Array<{ method: string; amount: number }> | undefined;
-    if (method === "MIXED") {
-      const cash = Number(splitCash) || 0;
-      const card = Number(splitCard) || 0;
-      if (Math.abs(cash + card - totals.total) > 0.05) {
-        toast.error(t("splitMismatch"));
-        return;
-      }
-      paymentSplits = [
-        { method: "CASH", amount: cash },
-        { method: "CARD", amount: card },
-      ];
-    }
 
     const cartSnapshot = [...cart];
     const totalsSnapshot = { ...totals };
-    const paySnapshot = method;
 
     startTransition(async () => {
-      const pin = await ensureOverridePin(
-        needsDiscountOverride || needsCreditOverride,
-      );
-      if ((needsDiscountOverride || needsCreditOverride) && !pin) return;
+      const pin = await ensureOverridePin(needsDiscountOverride);
+      if (needsDiscountOverride && !pin) return;
 
       const tenderNote =
         tenderCurrency !== "SAR" && boot.exchangeRates?.[tenderCurrency]
@@ -599,7 +566,6 @@ export function PosTerminal({
         pointOfSaleId: boot.assignment?.pointOfSale.id,
         contactId: boot.walkInContact.id,
         paymentMethod: method,
-        paymentSplits,
         extraDiscountPct: discountPct || undefined,
         status,
         overridePin: pin ?? undefined,
@@ -628,7 +594,7 @@ export function PosTerminal({
           companyName: companyName || boot.assignment?.pointOfSale.name || "POS",
           logoUrl: companyLogoUrl,
           invoiceNumber: res.data.invoiceNumber,
-          paymentMethod: paySnapshot,
+          paymentMethod: method,
           currency: boot.companyDefaults.currency,
           lines: cartSnapshot,
           totals: totalsSnapshot,
@@ -638,23 +604,8 @@ export function PosTerminal({
       setCart([]);
       lastItemRef.current = null;
       setDiscountPct(0);
-      setSplitCash("");
-      setSplitCard("");
       reload(boot.assignment?.pointOfSale.id);
     });
-  }
-
-  /** Cash/Card = one-tap charge; Credit/Split only select mode. */
-  function selectOrCharge(mode: "CASH" | "CARD" | "CREDIT" | "MIXED") {
-    setPayMode(mode);
-    if (mode === "CASH" || mode === "CARD") {
-      if (cart.length === 0) {
-        toast.error(t("cartEmpty"));
-        return;
-      }
-      if (pending) return;
-      checkout("ISSUED", mode);
-    }
   }
 
   function moveCategory(id: string, dir: -1 | 1) {
@@ -1581,61 +1532,10 @@ export function PosTerminal({
             </div>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                ["CASH", Banknote, t("payCash")],
-                ["CARD", CreditCard, t("payCard")],
-                ["CREDIT", Clock, t("payCredit")],
-                ["MIXED", Split, t("paySplit")],
-              ] as const
-            ).map(([mode, Icon, label]) => (
-              <button
-                key={mode}
-                type="button"
-                disabled={pending}
-                onClick={() => selectOrCharge(mode)}
-                className={cn(
-                  "flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-medium disabled:opacity-50",
-                  payMode === mode
-                    ? "border-transparent text-white"
-                    : "border-[var(--border)]",
-                )}
-                style={
-                  payMode === mode ? { backgroundColor: accent } : undefined
-                }
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2.5 text-sm font-medium">
+            <Banknote className="h-4 w-4 text-[var(--muted-foreground)]" />
+            {t("payCash")}
           </div>
-          <p className="text-[11px] text-[var(--muted-foreground)]">
-            {t("quickPayHint")}
-          </p>
-
-          {payMode === "CARD" || payMode === "MIXED" ? (
-            <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">
-              {boot.paymentProvider?.message || t("cardManualHint")}
-            </p>
-          ) : null}
-
-          {payMode === "MIXED" ? (
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                label={t("payCash")}
-                type="number"
-                value={splitCash}
-                onChange={(e) => setSplitCash(e.target.value)}
-              />
-              <Input
-                label={t("payCard")}
-                type="number"
-                value={splitCard}
-                onChange={(e) => setSplitCard(e.target.value)}
-              />
-            </div>
-          ) : null}
 
           <label className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
             <input
