@@ -42,6 +42,7 @@ import {
   posOpenDrawer,
   posOpenShift,
   posSaveLayout,
+  posTerminalBootstrap,
   posTerminalCheckout,
   posTerminalIssueHeld,
   posTerminalVoidHeld,
@@ -333,23 +334,16 @@ export function PosTerminal({
   function reload(pointOfSaleId?: string) {
     startTransition(async () => {
       try {
-        const q = pointOfSaleId
-          ? `?pointOfSaleId=${encodeURIComponent(pointOfSaleId)}`
-          : "";
-        const res = await fetch(
-          `/api/companies/${encodeURIComponent(companyId)}/sales/pos/terminal/bootstrap${q}`,
-          { cache: "no-store", credentials: "same-origin" },
-        );
-        if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as {
-            message?: string;
-          } | null;
-          const msg = body?.message || "Failed to load POS terminal";
+        // Must use Server Action (cookies → Nest Bearer). Browser fetch to
+        // `/api/companies/...` hits Nest directly behind Nginx and returns 401.
+        const result = await posTerminalBootstrap(companyId, pointOfSaleId);
+        if (result.error || !result.data) {
+          const msg = result.error || "Failed to load POS terminal";
           setError(msg);
           toast.error(msg);
           return;
         }
-        const data = (await res.json()) as PosBootstrap;
+        const data = result.data;
         setBoot(data);
         setError(null);
         if (data?.layout) {
