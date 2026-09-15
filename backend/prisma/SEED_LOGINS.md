@@ -69,6 +69,15 @@ npm run seed
 | Supervisor PIN | `1234` (returns / discount overrides when cashier lacks permission) |
 | Cashier permissions | Conservative defaults (`returns: false` so PIN is required for returns) |
 
+### Fix / recreate cashier link (employee + POS)
+
+```bash
+cd backend
+npx tsx scripts/ensure-cashier-employee.ts
+# optional:
+# COMPANY_SLUG=demo-co CASHIER_EMAIL=cashier@demo-co.local CASHIER_PASSWORD=Admin123! npx tsx scripts/ensure-cashier-employee.ts
+```
+
 ## Role → permissions
 
 ### PLATFORM_SUPER_ADMIN

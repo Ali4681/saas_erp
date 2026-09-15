@@ -21,6 +21,8 @@ const ROLE_LABELS_AR: Record<string, string> = {
   COMPANY_EMPLOYEE: "موظف (خدمة ذاتية)",
   B2B_ACCOUNT_MANAGER: "مدير حسابات شركات",
   CASHIER: "كاشير",
+  SALES_REP: "مندوب مبيعات",
+  POS_MARKETER: "مسوق",
   POS_SUPERVISOR: "مشرف كاشير",
   SHIFT_SUPERVISOR: "مشرف وردية",
   MARKETING_SPECIALIST: "أخصائي تسويق",
@@ -38,6 +40,8 @@ const ROLE_LABELS_EN: Record<string, string> = {
   COMPANY_EMPLOYEE: "Employee (self-service)",
   B2B_ACCOUNT_MANAGER: "B2B account manager",
   CASHIER: "Cashier",
+  SALES_REP: "Sales rep",
+  POS_MARKETER: "Marketer",
   POS_SUPERVISOR: "POS supervisor",
   SHIFT_SUPERVISOR: "Shift supervisor",
   MARKETING_SPECIALIST: "Marketing specialist",
@@ -82,9 +86,45 @@ export function isCompanyEmployee(user: AuthUser | null | undefined): boolean {
   return roleKey(user) === "COMPANY_EMPLOYEE";
 }
 
-/** Dedicated cashier role — employee portal + POS access. */
+/** Roles that use the employee portal + POS only (not full ERP). */
+export const POS_PORTAL_ROLE_CODES = [
+  "CASHIER",
+  "SALES_REP",
+  "POS_MARKETER",
+] as const;
+
+export function isPosPortalRoleCode(code: string | null | undefined): boolean {
+  if (!code) return false;
+  const upper = code.toUpperCase();
+  if ((POS_PORTAL_ROLE_CODES as readonly string[]).includes(upper)) {
+    return true;
+  }
+  // Company-prefixed custom clones e.g. C019FD70C_CASHIER
+  return POS_PORTAL_ROLE_CODES.some(
+    (r) => upper.endsWith(`_${r}`) || upper === r,
+  );
+}
+
+/** Dedicated cashier / POS portal roles — employee portal + POS access. */
 export function isCashierPortalUser(user: AuthUser | null | undefined): boolean {
-  return roleKey(user) === "CASHIER";
+  return isPosPortalRoleCode(roleKey(user));
+}
+
+/** Fine-grained POS ops (or full sales.write). */
+export const POS_ROLE_OPS = [
+  "pos.invoice_create",
+  "pos.quick_invoice",
+  "pos.quote_create",
+  "pos.quote_delete",
+  "pos.quote_convert",
+  "pos.invoice_send_whatsapp",
+  "pos.quote_send_whatsapp",
+] as const;
+
+export function canAccessPos(user: AuthUser | null | undefined): boolean {
+  if (!user) return false;
+  if (user.isPlatformAdmin) return true;
+  return can(user, "sales.write") || canAny(user, ...POS_ROLE_OPS);
 }
 
 export function employeePortalBase(companyId: string): string {
@@ -102,8 +142,8 @@ export function isEmployeePortalPath(
 /**
  * Who may open employee-portal routes under `/c/{id}/me/*`.
  * - COMPANY_EMPLOYEE: full self-service portal
- * - CASHIER: full self-service portal (same as employee) + POS
- * - sales.write (non-cashier): POS terminal (+ customer display) only
+ * - CASHIER / SALES_REP / POS_MARKETER: full self-service portal + POS
+ * - sales.write or pos.* (non-portal): POS terminal (+ customer display) only
  */
 export function canUseEmployeePortalPath(
   user: AuthUser | null | undefined,
@@ -120,7 +160,7 @@ export function canUseEmployeePortalPath(
     pathname === posBase || pathname.startsWith(`${posBase}/`);
   if (!onPos) return false;
 
-  return can(user, "sales.write");
+  return canAccessPos(user);
 }
 
 /** Default landing after company login (not POS-specific). */
@@ -139,7 +179,7 @@ export function homePathFor(user: AuthUser): string {
 
 /** Landing after dedicated cashier POS login. */
 export function posHomePathFor(user: AuthUser): string {
-  if (user.companyId && (isCashierPortalUser(user) || can(user, "sales.write"))) {
+  if (user.companyId && (isCashierPortalUser(user) || canAccessPos(user))) {
     return `${employeePortalBase(user.companyId)}/pos`;
   }
   return homePathFor(user);

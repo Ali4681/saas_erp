@@ -22,7 +22,9 @@ import {
   Search,
   ShoppingCart,
   Trash2,
+  CreditCard,
   Banknote,
+  Split,
   RotateCcw,
   Wallet,
 } from "lucide-react";
@@ -38,16 +40,27 @@ import {
   posLookupInvoice,
   posOpenDrawer,
   posOpenShift,
+  posQuickCustomer,
   posSaveLayout,
   posTerminalBootstrap,
+  posTerminalCancelQuote,
   posTerminalCheckout,
+  posTerminalCheckoutQuote,
+  posTerminalConvertQuote,
+  posTerminalGetQuote,
   posTerminalIssueHeld,
+  posTerminalListQuotes,
+  posTerminalUpdateQuote,
   posTerminalVoidHeld,
+  posValidateCoupon,
   posVerifyPin,
   type PosBootstrap,
   type PosLookupInvoice,
+  type PosRecentQuote,
   type PosTerminalLayout,
 } from "@/app/c/[companyId]/me/pos/actions";
+import { buildWhatsAppUrl } from "@/lib/phone";
+import { resolvePosRoleOps } from "@/lib/pos-permissions";
 
 type CartLine = {
   key: string;
@@ -76,6 +89,31 @@ function money(n: number) {
   });
 }
 
+function roundMoney2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+/** Clamp one split side to [0, total] and return the complementary amount. */
+function balanceSplitAmount(
+  raw: string,
+  total: number,
+): { primary: string; rest: string } | null {
+  if (raw.trim() === "") return { primary: "", rest: "" };
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const cap = roundMoney2(Math.max(0, total));
+  if (n > cap) {
+    return { primary: String(cap), rest: "0" };
+  }
+  if (n < 0) {
+    return { primary: "0", rest: String(cap) };
+  }
+  return {
+    primary: raw,
+    rest: String(roundMoney2(Math.max(0, cap - n))),
+  };
+}
+
 function productImageUrl(
   companyId: string,
   imageAttachmentId: string | null | undefined,
@@ -97,6 +135,8 @@ function printThermalReceipt(opts: {
   invoiceNumber: string;
   paymentMethod: string;
   currency: string;
+  cashierName?: string | null;
+  customerName?: string | null;
   lines: CartLine[];
   totals: { subtotal: number; tax: number; discount: number; total: number };
   autoPrint: boolean;
@@ -137,6 +177,7 @@ function printThermalReceipt(opts: {
     .totals { margin-top: 8px; border-top: 1px dashed #333; padding-top: 6px; }
     .totals div { display: flex; justify-content: space-between; gap: 8px; }
     .total { font-weight: 700; font-size: 13px; margin-top: 4px; }
+    .meta { margin-top: 6px; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -144,6 +185,10 @@ function printThermalReceipt(opts: {
     ${logoSrc ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="" />` : ""}
     <h1>${escapeHtml(opts.companyName)}</h1>
     <div>${escapeHtml(opts.invoiceNumber)}</div>
+  </div>
+  <div class="meta">
+    ${opts.cashierName ? `<div>Cashier: ${escapeHtml(opts.cashierName)}</div>` : ""}
+    ${opts.customerName ? `<div>Customer: ${escapeHtml(opts.customerName)}</div>` : ""}
   </div>
   <table>${rows}</table>
   <div class="totals">
@@ -283,10 +328,18 @@ export function PosTerminal({
   companyId,
   companyName,
   companyLogoUrl,
+  initialDocMode = "invoice",
+  browseOnly = false,
+  lockDocMode = false,
+  initialEditQuoteId = null,
 }: {
   companyId: string;
   companyName?: string | null;
   companyLogoUrl?: string | null;
+  initialDocMode?: "invoice" | "quote";
+  browseOnly?: boolean;
+  lockDocMode?: boolean;
+  initialEditQuoteId?: string | null;
 }) {
   const t = useTranslations("pos");
   const locale = useLocale();
@@ -298,6 +351,28 @@ export function PosTerminal({
   const searchRef = useRef<HTMLInputElement>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discountPct, setDiscountPct] = useState(0);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountAmount: number;
+  } | null>(null);
+  const [customerMode, setCustomerMode] = useState<"walkin" | "named">(
+    "walkin",
+  );
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [selectedContact, setSelectedContact] = useState<{
+    id: string;
+    name: string;
+    phone: string | null;
+  } | null>(null);
+  const [payMode, setPayMode] = useState<"CASH" | "CARD" | "MIXED">("CASH");
+  const [docMode, setDocMode] = useState<"invoice" | "quote">(initialDocMode);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [quotesOpen, setQuotesOpen] = useState(false);
+  const [recentQuotes, setRecentQuotes] = useState<PosRecentQuote[]>([]);
+  const [splitCash, setSplitCash] = useState("");
+  const [splitCard, setSplitCard] = useState("");
   const [showHeld, setShowHeld] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showLayout, setShowLayout] = useState(false);
@@ -425,16 +500,42 @@ export function PosTerminal({
 
   const totals = useMemo(() => {
     let subtotal = 0;
+    for (const line of cart) {
+      subtotal += line.unitPrice * line.quantity;
+    }
+    const pctDiscount = subtotal * (discountPct / 100);
+    const couponDiscount = appliedCoupon?.discountAmount ?? 0;
+    const discount = Math.min(pctDiscount + couponDiscount, Math.max(0, subtotal));
+    // Discount on net first, then VAT on the reduced taxable base.
     let tax = 0;
     for (const line of cart) {
       const lineNet = line.unitPrice * line.quantity;
-      subtotal += lineNet;
-      tax += lineNet * (line.taxRate / 100);
+      const share = subtotal > 0 ? lineNet / subtotal : 0;
+      const lineTaxable = Math.max(0, lineNet - discount * share);
+      tax += lineTaxable * (line.taxRate / 100);
     }
-    const discount = subtotal * (discountPct / 100);
-    const total = Math.max(0, subtotal - discount + tax);
+    const taxable = Math.max(0, subtotal - discount);
+    const total = Math.max(0, taxable + tax);
     return { subtotal, tax, discount, total };
-  }, [cart, discountPct]);
+  }, [cart, discountPct, appliedCoupon]);
+
+  // Keep split tender balanced when the cart total changes.
+  useEffect(() => {
+    if (payMode !== "MIXED") return;
+    if (splitCash.trim() === "" && splitCard.trim() === "") return;
+    if (splitCash.trim() !== "") {
+      const balanced = balanceSplitAmount(splitCash, totals.total);
+      if (!balanced) return;
+      setSplitCash(balanced.primary);
+      setSplitCard(balanced.rest);
+      return;
+    }
+    const balanced = balanceSplitAmount(splitCard, totals.total);
+    if (!balanced) return;
+    setSplitCard(balanced.primary);
+    setSplitCash(balanced.rest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only rebalance on total/mode
+  }, [totals.total, payMode]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
@@ -452,7 +553,19 @@ export function PosTerminal({
     channel.close();
   }, [cart, totals, companyId, boot?.companyDefaults.currency]);
 
+  useEffect(() => {
+    setAppliedCoupon(null);
+  }, [cart]);
+
+  useEffect(() => {
+    setDocMode(initialDocMode);
+  }, [initialDocMode]);
+
   function addProduct(p: PosBootstrap["products"][number]) {
+    if (browseOnly) {
+      toast.info(t("browseOnlyHint"));
+      return;
+    }
     setCart((prev) => {
       const existing = prev.find((l) => l.itemId === p.id && !l.note);
       let next: CartLine[];
@@ -530,15 +643,124 @@ export function PosTerminal({
     return pin;
   }
 
-  function checkout(status: "ISSUED" | "ON_HOLD") {
+  function resetCustomerAndCoupon() {
+    setCustomerMode("walkin");
+    setCustomerName("");
+    setCustomerPhone("");
+    setSelectedContact(null);
+    setCouponInput("");
+    setAppliedCoupon(null);
+    setDiscountPct(0);
+    setEditingQuoteId(null);
+  }
+
+  async function saveNamedCustomer(): Promise<{
+    id: string;
+    name: string;
+    phone: string | null;
+  } | null> {
+    const name = customerName.trim();
+    if (name.length < 2) {
+      toast.error(t("customerNameRequired"));
+      return null;
+    }
+    const res = await posQuickCustomer(companyId, {
+      name,
+      phone: customerPhone.trim() || undefined,
+      pointOfSaleId: boot?.assignment?.pointOfSale.id,
+    });
+    if (res.error || !res.data) {
+      toast.error(res.error || t("customerNameRequired"));
+      return null;
+    }
+    setSelectedContact(res.data);
+    setCustomerName(res.data.name);
+    setCustomerPhone(res.data.phone ?? "");
+    toast.success(t("customerSaved"));
+    return res.data;
+  }
+
+  async function applyCouponCode() {
+    if (!boot) return;
+    const code = couponInput.trim();
+    if (!code) return;
+
+    // Named customer is optional — coupons work for walk-in too.
+    let contactId: string | undefined;
+    if (customerMode === "named") {
+      let contact = selectedContact;
+      if (!contact) {
+        contact = await saveNamedCustomer();
+        if (!contact) return;
+      }
+      contactId = contact.id;
+    }
+
+    let subtotal = 0;
+    for (const line of cart) {
+      subtotal += line.unitPrice * line.quantity;
+    }
+
+    const res = await posValidateCoupon(companyId, {
+      code,
+      orderAmount: subtotal,
+      contactId,
+      pointOfSaleId: boot.assignment?.pointOfSale.id,
+    });
+    if (res.error || !res.data) {
+      toast.error(res.error || t("couponInvalid"));
+      setAppliedCoupon(null);
+      return;
+    }
+    setAppliedCoupon({
+      code: res.data.code,
+      discountAmount: res.data.discountAmount,
+    });
+    setCouponInput(res.data.code);
+    toast.success(
+      t("couponApplied", {
+        code: res.data.code,
+        amount: money(res.data.discountAmount),
+      }),
+    );
+  }
+
+  function checkout(
+    status: "ISSUED" | "ON_HOLD",
+    methodOverride?: "CASH" | "CARD" | "MIXED",
+  ) {
     if (!boot || cart.length === 0) {
       toast.error(t("cartEmpty"));
       return;
     }
-    const method = "CASH";
+    const roleOps = boot.roleOps
+      ? resolvePosRoleOps(null, boot.roleOps)
+      : {
+          invoiceCreate: true,
+          quickInvoice: true,
+          quoteCreate: true,
+          quoteDelete: true,
+          quoteConvert: true,
+          invoiceSendWhatsapp: true,
+          quoteSendWhatsapp: true,
+        };
+    if (docMode === "quote" && status === "ISSUED") {
+      if (!roleOps.quoteCreate) {
+        toast.error(t("permDenied"));
+        return;
+      }
+    } else if (status === "ISSUED" && !roleOps.invoiceCreate) {
+      toast.error(t("permDenied"));
+      return;
+    }
+    const method = methodOverride ?? payMode;
     const perms = boot.permissions;
     if (status === "ON_HOLD" && !perms.holdRetrieve) {
       toast.error(t("permDenied"));
+      return;
+    }
+    if (docMode === "quote" && status === "ON_HOLD") {
+      toast.error(t("quoteNoHold"));
       return;
     }
     const maxDisc = Number(perms.discountMaxPct) || 0;
@@ -550,10 +772,88 @@ export function PosTerminal({
       return;
     }
 
+    let paymentSplits: Array<{ method: string; amount: number }> | undefined;
+    if (docMode === "invoice" && method === "MIXED") {
+      const cash = Number(splitCash) || 0;
+      const card = Number(splitCard) || 0;
+      if (Math.abs(cash + card - totals.total) > 0.05) {
+        toast.error(t("splitMismatch"));
+        return;
+      }
+      paymentSplits = [
+        { method: "CASH", amount: cash },
+        { method: "CARD", amount: card },
+      ];
+    }
+
     const cartSnapshot = [...cart];
     const totalsSnapshot = { ...totals };
+    const paySnapshot = method;
+    const cashierName =
+      boot.assignment?.cashier?.displayName?.trim() || null;
+    const couponSnapshot = appliedCoupon;
+    const phoneForWa = customerPhone.trim() || selectedContact?.phone || "";
 
     startTransition(async () => {
+      let contactId = boot.walkInContact.id;
+      let receiptCustomer: string | null = null;
+
+      if (customerMode === "named") {
+        let contact = selectedContact;
+        if (!contact) {
+          contact = await saveNamedCustomer();
+          if (!contact) return;
+        }
+        contactId = contact.id;
+        receiptCustomer = contact.name;
+      }
+
+      const lines = cartSnapshot.map((l) => ({
+        itemId: l.itemId,
+        description: l.name,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        note: l.note || undefined,
+        taxAmount: (l.unitPrice * l.quantity * l.taxRate) / 100,
+      }));
+
+      if (docMode === "quote") {
+        const quoteBody = {
+          pointOfSaleId: boot.assignment?.pointOfSale.id,
+          contactId,
+          lines,
+        };
+        const res = editingQuoteId
+          ? await posTerminalUpdateQuote(companyId, editingQuoteId, quoteBody)
+          : await posTerminalCheckoutQuote(companyId, quoteBody);
+        if (res.error) {
+          toast.error(res.error);
+          return;
+        }
+        const number = res.data?.quoteNumber ?? "";
+        toast.success(
+          editingQuoteId
+            ? t("quoteUpdatedOk", { number })
+            : t("quoteOk", { number }),
+        );
+        if (roleOps.quoteSendWhatsapp && phoneForWa) {
+          const url = buildWhatsAppUrl(
+            phoneForWa,
+            t("whatsappQuoteText", {
+              number,
+              total: money(totalsSnapshot.total),
+              currency: boot.companyDefaults.currency,
+            }),
+          );
+          if (url) window.open(url, "_blank", "noopener,noreferrer");
+        }
+        setCart([]);
+        lastItemRef.current = null;
+        resetCustomerAndCoupon();
+        reload(boot.assignment?.pointOfSale.id);
+        return;
+      }
+
       const pin = await ensureOverridePin(needsDiscountOverride);
       if (needsDiscountOverride && !pin) return;
 
@@ -564,21 +864,16 @@ export function PosTerminal({
 
       const res = await posTerminalCheckout(companyId, {
         pointOfSaleId: boot.assignment?.pointOfSale.id,
-        contactId: boot.walkInContact.id,
+        contactId,
         paymentMethod: method,
+        paymentSplits,
         extraDiscountPct: discountPct || undefined,
+        couponCode: couponSnapshot?.code || undefined,
         status,
-        overridePin: pin ?? undefined,
+        // Checkout DTO accepts overrideCode only (supervisor PIN for discount).
         overrideCode: pin ?? undefined,
         notes: tenderNote,
-        lines: cartSnapshot.map((l) => ({
-          itemId: l.itemId,
-          description: l.name,
-          quantity: l.quantity,
-          unitPrice: l.unitPrice,
-          note: l.note || undefined,
-          taxAmount: (l.unitPrice * l.quantity * l.taxRate) / 100,
-        })),
+        lines,
       });
       if (res.error) {
         toast.error(res.error);
@@ -594,19 +889,114 @@ export function PosTerminal({
           companyName: companyName || boot.assignment?.pointOfSale.name || "POS",
           logoUrl: companyLogoUrl,
           invoiceNumber: res.data.invoiceNumber,
-          paymentMethod: method,
+          paymentMethod: paySnapshot,
           currency: boot.companyDefaults.currency,
+          cashierName,
+          customerName: receiptCustomer,
           lines: cartSnapshot,
           totals: totalsSnapshot,
           autoPrint,
         });
+        if (roleOps.invoiceSendWhatsapp && phoneForWa) {
+          const url = buildWhatsAppUrl(
+            phoneForWa,
+            t("whatsappInvoiceText", {
+              number: res.data.invoiceNumber,
+              total: money(totalsSnapshot.total),
+              currency: boot.companyDefaults.currency,
+            }),
+          );
+          if (url) window.open(url, "_blank", "noopener,noreferrer");
+        }
       }
       setCart([]);
       lastItemRef.current = null;
-      setDiscountPct(0);
+      setSplitCash("");
+      setSplitCard("");
+      resetCustomerAndCoupon();
       reload(boot.assignment?.pointOfSale.id);
     });
   }
+
+  function selectOrCharge(mode: "CASH" | "CARD" | "MIXED") {
+    setPayMode(mode);
+    if (docMode !== "invoice") return;
+    if (mode === "MIXED") {
+      // Start empty; typing one side fills the other to match the total.
+      setSplitCash("");
+      setSplitCard("");
+      return;
+    }
+    if (mode === "CASH" || mode === "CARD") {
+      if (cart.length === 0) {
+        toast.error(t("cartEmpty"));
+        return;
+      }
+      if (pending) return;
+      checkout("ISSUED", mode);
+    }
+  }
+
+  async function loadQuotesPanel() {
+    setQuotesOpen(true);
+    const res = await posTerminalListQuotes(companyId);
+    if (res.error) {
+      toast.error(res.error);
+      setRecentQuotes([]);
+      return;
+    }
+    setRecentQuotes(res.data ?? []);
+  }
+
+  async function loadQuoteForEdit(quoteId: string) {
+    const res = await posTerminalGetQuote(companyId, quoteId);
+    if (res.error || !res.data) {
+      toast.error(res.error || t("permDenied"));
+      return;
+    }
+    const q = res.data;
+    const lines: CartLine[] = [];
+    for (const item of q.items) {
+      if (!item.itemId) continue;
+      const qty = Number(item.quantity) || 0;
+      const unit = Number(item.unitPrice) || 0;
+      const taxAmt = Number(item.taxAmount) || 0;
+      const taxRate =
+        qty > 0 && unit > 0 ? (taxAmt / (unit * qty)) * 100 : 15;
+      lines.push({
+        key: `${item.itemId}-${item.id}`,
+        itemId: item.itemId,
+        name: item.description,
+        unitPrice: unit,
+        quantity: qty,
+        taxRate,
+        note: "",
+      });
+    }
+    if (!lines.length) {
+      toast.error(t("retrieveToCartNoItems"));
+      return;
+    }
+    setCart(lines);
+    setDocMode("quote");
+    setEditingQuoteId(q.id);
+    setCustomerMode("named");
+    setCustomerName(q.contact.name);
+    setCustomerPhone(q.contact.phone ?? "");
+    setSelectedContact({
+      id: q.contact.id,
+      name: q.contact.name,
+      phone: q.contact.phone ?? null,
+    });
+    setQuotesOpen(false);
+    toast.success(t("quoteLoadedOk"));
+  }
+
+  useEffect(() => {
+    if (!boot || !initialEditQuoteId || browseOnly) return;
+    void loadQuoteForEdit(initialEditQuoteId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once when terminal opens with quote id
+  }, [boot?.assignment?.pointOfSale.id, initialEditQuoteId]);
 
   function moveCategory(id: string, dir: -1 | 1) {
     setLayoutDraft((prev) => {
@@ -707,6 +1097,22 @@ export function PosTerminal({
               className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--card)] pe-3 ps-9 text-sm outline-none focus:border-[var(--primary)]"
             />
           </div>
+          {boot.assignment?.cashier?.displayName ? (
+            <div className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm">
+              <span className="text-[var(--muted-foreground)]">
+                {t("cashierLabel")}:{" "}
+              </span>
+              <span className="font-semibold">
+                {boot.assignment.cashier.displayName}
+              </span>
+            </div>
+          ) : null}
+          {browseOnly ? (
+            <p className="w-full text-sm text-[var(--muted-foreground)]">
+              {t("browseOnlyHint")}
+            </p>
+          ) : (
+            <>
           <Button
             type="button"
             variant="secondary"
@@ -715,6 +1121,18 @@ export function PosTerminal({
             <Pause className="me-1 h-4 w-4" />
             {t("held")} ({boot.heldInvoices.length})
           </Button>
+          {(boot.roleOps?.quoteCreate ||
+            boot.roleOps?.quoteDelete ||
+            boot.roleOps?.quoteConvert ||
+            boot.roleOps?.quoteSendWhatsapp) && (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void loadQuotesPanel()}
+            >
+              {t("quotes")}
+            </Button>
+          )}
           <Button
             type="button"
             variant="secondary"
@@ -760,6 +1178,8 @@ export function PosTerminal({
             <Monitor className="me-1 h-4 w-4" />
             {t("customerDisplay")}
           </Button>
+            </>
+          )}
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -1323,6 +1743,161 @@ export function PosTerminal({
           </div>
         ) : null}
 
+        {quotesOpen ? (
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold">{t("quotesTitle")}</p>
+              <button
+                type="button"
+                className="text-xs text-[var(--muted-foreground)]"
+                onClick={() => setQuotesOpen(false)}
+              >
+                {t("close")}
+              </button>
+            </div>
+            {recentQuotes.length === 0 ? (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                {t("quotesEmpty")}
+              </p>
+            ) : (
+              recentQuotes.map((q) => (
+                <div
+                  key={q.id}
+                  className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] p-2 last:mb-0"
+                >
+                  <div>
+                    <p className="font-mono text-sm font-medium">
+                      {q.quoteNumber}
+                    </p>
+                    <p className="text-xs text-[var(--muted-foreground)]">
+                      {q.contact.name} · {money(Number(q.totalAmount))}{" "}
+                      {boot.companyDefaults.currency}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {boot.roleOps?.quoteCreate ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={pending || browseOnly}
+                        onClick={() => {
+                          startTransition(async () => {
+                            await loadQuoteForEdit(q.id);
+                          });
+                        }}
+                      >
+                        {t("editQuote")}
+                      </Button>
+                    ) : null}
+                    {boot.roleOps?.quoteSendWhatsapp && q.contact.phone ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          const url = buildWhatsAppUrl(
+                            q.contact.phone!,
+                            t("whatsappQuoteText", {
+                              number: q.quoteNumber,
+                              total: money(Number(q.totalAmount)),
+                              currency: boot.companyDefaults.currency,
+                            }),
+                          );
+                          if (url)
+                            window.open(url, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        {t("sendWhatsapp")}
+                      </Button>
+                    ) : null}
+                    {boot.roleOps?.quoteConvert ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => {
+                          startTransition(async () => {
+                            const res = await posTerminalConvertQuote(
+                              companyId,
+                              q.id,
+                            );
+                            if (res.error) {
+                              toast.error(res.error);
+                              return;
+                            }
+                            toast.success(t("quoteConvertedOk"));
+                            const phone =
+                              res.data?.contact?.phone || q.contact.phone;
+                            const roleOps = boot.roleOps
+                              ? resolvePosRoleOps(null, boot.roleOps)
+                              : resolvePosRoleOps(null, null);
+                            if (
+                              roleOps.invoiceSendWhatsapp &&
+                              phone &&
+                              window.confirm(t("quoteConvertWhatsapp"))
+                            ) {
+                              const url = buildWhatsAppUrl(
+                                phone,
+                                t("whatsappInvoiceText", {
+                                  number:
+                                    res.data?.invoiceNumber ??
+                                    res.data?.id ??
+                                    "",
+                                  total: money(
+                                    Number(
+                                      res.data?.totalAmount ?? q.totalAmount,
+                                    ),
+                                  ),
+                                  currency: boot.companyDefaults.currency,
+                                }),
+                              );
+                              if (url)
+                                window.open(
+                                  url,
+                                  "_blank",
+                                  "noopener,noreferrer",
+                                );
+                            }
+                            void loadQuotesPanel();
+                            reload(boot.assignment?.pointOfSale.id);
+                          });
+                        }}
+                      >
+                        {t("convertQuote")}
+                      </Button>
+                    ) : null}
+                    {boot.roleOps?.quoteDelete ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={pending}
+                        onClick={() => {
+                          startTransition(async () => {
+                            const res = await posTerminalCancelQuote(
+                              companyId,
+                              q.id,
+                            );
+                            if (res.error) {
+                              toast.error(res.error);
+                              return;
+                            }
+                            toast.success(t("quoteDeletedOk"));
+                            void loadQuotesPanel();
+                          });
+                        }}
+                      >
+                        {t("deleteQuote")}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
+
         <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
             <button
@@ -1358,6 +1933,7 @@ export function PosTerminal({
         </div>
       </section>
 
+      {!browseOnly ? (
       <aside className="flex w-full shrink-0 flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] lg:w-[22rem] xl:w-[24rem]">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
           <div className="flex items-center gap-2">
@@ -1366,6 +1942,9 @@ export function PosTerminal({
               <p className="text-sm font-semibold">{t("cartTitle")}</p>
               <p className="text-xs text-[var(--muted-foreground)]">
                 {boot.assignment?.pointOfSale.name ?? t("noPos")}
+                {boot.assignment?.cashier?.displayName
+                  ? ` · ${boot.assignment.cashier.displayName}`
+                  : ""}
               </p>
             </div>
           </div>
@@ -1462,6 +2041,126 @@ export function PosTerminal({
         </div>
 
         <div className="space-y-3 border-t border-[var(--border)] p-4">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)]">
+              {t("customerSection")}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={cn(
+                  "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium",
+                  customerMode === "walkin"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                    : "border-[var(--border)]",
+                )}
+                onClick={() => {
+                  setCustomerMode("walkin");
+                  setSelectedContact(null);
+                  if (appliedCoupon) {
+                    setAppliedCoupon(null);
+                    setCouponInput("");
+                  }
+                }}
+              >
+                {t("customerWalkIn")}
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium",
+                  customerMode === "named"
+                    ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                    : "border-[var(--border)]",
+                )}
+                onClick={() => setCustomerMode("named")}
+              >
+                {t("customerNamed")}
+              </button>
+            </div>
+            {customerMode === "named" ? (
+              <div className="grid gap-2">
+                <Input
+                  label={t("customerName")}
+                  value={customerName}
+                  onChange={(e) => {
+                    setCustomerName(e.target.value);
+                    setSelectedContact(null);
+                  }}
+                />
+                <Input
+                  label={t("customerPhone")}
+                  value={customerPhone}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value);
+                    setSelectedContact(null);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => {
+                    void saveNamedCustomer();
+                  }}
+                >
+                  {t("customerSave")}
+                </Button>
+                {selectedContact ? (
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    {selectedContact.name}
+                    {selectedContact.phone ? ` · ${selectedContact.phone}` : ""}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <Input
+                  label={t("couponCode")}
+                  value={couponInput}
+                  onChange={(e) => {
+                    setCouponInput(e.target.value.toUpperCase());
+                    setAppliedCoupon(null);
+                  }}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={pending || !couponInput.trim()}
+                onClick={() => {
+                  void applyCouponCode();
+                }}
+              >
+                {t("couponApply")}
+              </Button>
+            </div>
+            {appliedCoupon ? (
+              <div className="flex items-center justify-between text-xs text-amber-700 dark:text-amber-300">
+                <span>
+                  {t("couponApplied", {
+                    code: appliedCoupon.code,
+                    amount: money(appliedCoupon.discountAmount),
+                  })}
+                </span>
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => {
+                    setAppliedCoupon(null);
+                    setCouponInput("");
+                  }}
+                >
+                  {t("couponClear")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+
           {boot.permissions.discounts || boot.hasSupervisorPin ? (
             <Input
               label={t("discountPct")}
@@ -1532,10 +2231,128 @@ export function PosTerminal({
             </div>
           ) : null}
 
-          <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2.5 text-sm font-medium">
-            <Banknote className="h-4 w-4 text-[var(--muted-foreground)]" />
-            {t("payCash")}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={cn(
+                "flex-1 rounded-lg border px-2 py-2 text-xs font-medium",
+                docMode === "invoice"
+                  ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                  : "border-[var(--border)]",
+              )}
+              onClick={() => {
+                if (lockDocMode) return;
+                setDocMode("invoice");
+                setEditingQuoteId(null);
+              }}
+              disabled={
+                lockDocMode
+                  ? docMode !== "invoice"
+                  : !boot.roleOps?.invoiceCreate && !!boot.roleOps
+              }
+            >
+              {t("docInvoice")}
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "flex-1 rounded-lg border px-2 py-2 text-xs font-medium",
+                docMode === "quote"
+                  ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                  : "border-[var(--border)]",
+              )}
+              onClick={() => {
+                if (lockDocMode) return;
+                setDocMode("quote");
+              }}
+              disabled={
+                lockDocMode
+                  ? docMode !== "quote"
+                  : !boot.roleOps?.quoteCreate && !!boot.roleOps
+              }
+            >
+              {t("docQuote")}
+            </button>
           </div>
+
+          {docMode === "invoice" ? (
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                ["CASH", Banknote, t("payCash")],
+                ["CARD", CreditCard, t("payCard")],
+                ["MIXED", Split, t("paySplit")],
+              ] as const
+            ).map(([mode, Icon, label]) => (
+              <button
+                key={mode}
+                type="button"
+                disabled={pending}
+                onClick={() => selectOrCharge(mode)}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-medium disabled:opacity-50",
+                  payMode === mode
+                    ? "border-transparent text-white"
+                    : "border-[var(--border)]",
+                )}
+                style={
+                  payMode === mode ? { backgroundColor: accent } : undefined
+                }
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+          ) : (
+            <p className="text-[11px] text-[var(--muted-foreground)]">
+              {t("quoteModeHint")}
+            </p>
+          )}
+          {docMode === "invoice" ? (
+          <p className="text-[11px] text-[var(--muted-foreground)]">
+            {t("quickPayHintNoCredit")}
+          </p>
+          ) : null}
+
+          {docMode === "invoice" && (payMode === "CARD" || payMode === "MIXED") ? (
+            <p className="text-[11px] leading-4 text-[var(--muted-foreground)]">
+              {boot.paymentProvider?.message || t("cardManualHint")}
+            </p>
+          ) : null}
+
+          {docMode === "invoice" && payMode === "MIXED" ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label={t("payCash")}
+                type="number"
+                min={0}
+                max={totals.total}
+                step="0.01"
+                value={splitCash}
+                onChange={(e) => {
+                  const balanced = balanceSplitAmount(e.target.value, totals.total);
+                  if (!balanced) return;
+                  setSplitCash(balanced.primary);
+                  setSplitCard(balanced.rest);
+                }}
+              />
+              <Input
+                label={t("payCard")}
+                type="number"
+                min={0}
+                max={totals.total}
+                step="0.01"
+                value={splitCard}
+                onChange={(e) => {
+                  const balanced = balanceSplitAmount(e.target.value, totals.total);
+                  if (!balanced) return;
+                  setSplitCard(balanced.primary);
+                  setSplitCash(balanced.rest);
+                }}
+              />
+            </div>
+          ) : null}
 
           <label className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
             <input
@@ -1553,9 +2370,13 @@ export function PosTerminal({
               onClick={() => checkout("ISSUED")}
               className="h-12 text-base"
             >
-              {t("charge")}
+              {docMode === "quote"
+                ? editingQuoteId
+                  ? t("updateQuote")
+                  : t("createQuote")
+                : t("charge")}
             </Button>
-            {boot.permissions.holdRetrieve ? (
+            {docMode === "invoice" && boot.permissions.holdRetrieve ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -1587,6 +2408,7 @@ export function PosTerminal({
           </div>
         </div>
       </aside>
+      ) : null}
     </div>
   );
 }

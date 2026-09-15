@@ -21,11 +21,16 @@ import {
 import { Type } from 'class-transformer';
 import {
   CurrentUser,
+  RequireAnyPermission,
   RequirePermissions,
   type AuthUser,
 } from '../../common/auth/auth.decorators';
 import { PosService } from './pos.service';
 import { PosTerminalService } from './pos-terminal.service';
+import {
+  POS_TERMINAL_ACCESS,
+  resolvePosRoleOps,
+} from './pos-role-ops';
 
 class CreatePosBody {
   @IsString()
@@ -88,8 +93,9 @@ class UpdateCashierBody {
 }
 
 class TerminalLineBody {
+  @IsOptional()
   @IsString()
-  itemId!: string;
+  itemId?: string;
 
   @IsString()
   description!: string;
@@ -111,6 +117,63 @@ class TerminalLineBody {
   @Type(() => Number)
   @IsNumber()
   taxAmount?: number;
+}
+
+class QuickLineBody {
+  @IsOptional()
+  @IsString()
+  itemId?: string;
+
+  @IsString()
+  @MinLength(1)
+  description!: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  quantity!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  unitPrice!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  taxAmount?: number;
+}
+
+class QuickCheckoutBody {
+  @IsOptional()
+  @IsString()
+  pointOfSaleId?: string;
+
+  @IsOptional()
+  @IsString()
+  contactId?: string;
+
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
+
+  @IsIn(['CASH', 'CARD', 'MIXED'])
+  paymentMethod!: 'CASH' | 'CARD' | 'MIXED';
+
+  @IsOptional()
+  @IsArray()
+  paymentSplits?: Array<{ method: string; amount: number | string }>;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QuickLineBody)
+  lines!: QuickLineBody[];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 class CheckoutBody {
@@ -140,6 +203,10 @@ class CheckoutBody {
 
   @IsOptional()
   @IsString()
+  couponCode?: string;
+
+  @IsOptional()
+  @IsString()
   overrideCode?: string;
 
   @IsOptional()
@@ -149,6 +216,62 @@ class CheckoutBody {
   @IsOptional()
   @IsIn(['ISSUED', 'ON_HOLD'])
   status?: 'ISSUED' | 'ON_HOLD';
+}
+
+class QuoteCheckoutBody {
+  @IsOptional()
+  @IsString()
+  pointOfSaleId?: string;
+
+  @IsOptional()
+  @IsString()
+  contactId?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TerminalLineBody)
+  lines!: TerminalLineBody[];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  expiresOn?: string;
+}
+
+class ValidatePosCouponBody {
+  @IsString()
+  @MinLength(1)
+  code!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  orderAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  contactId?: string;
+
+  @IsOptional()
+  @IsString()
+  pointOfSaleId?: string;
+}
+
+class QuickPosCustomerBody {
+  @IsString()
+  @MinLength(2)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  pointOfSaleId?: string;
 }
 
 class IssueHeldBody {
@@ -321,13 +444,21 @@ export class PosController {
   }
 
   @Get('terminal/bootstrap')
-  @RequirePermissions('sales.write')
-  bootstrap(
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
+  async bootstrap(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
     @Query('pointOfSaleId') pointOfSaleId?: string,
   ) {
-    return this.terminal.bootstrap(companyId, user.userId, pointOfSaleId);
+    const boot = await this.terminal.bootstrap(
+      companyId,
+      user.userId,
+      pointOfSaleId,
+    );
+    return {
+      ...boot,
+      roleOps: resolvePosRoleOps(user),
+    };
   }
 
   @Get('terminal/permission-templates')
@@ -343,7 +474,7 @@ export class PosController {
   }
 
   @Patch('terminal/exchange-rates')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write', 'pos.invoice_create')
   patchExchangeRates(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -357,7 +488,7 @@ export class PosController {
   }
 
   @Post('terminal/settings/supervisor-pin')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write')
   setSupervisorPin(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -367,7 +498,7 @@ export class PosController {
   }
 
   @Post('terminal/verify-pin')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   verifyPin(
     @Param('companyId') companyId: string,
     @Body() body: SupervisorPinBody,
@@ -376,7 +507,7 @@ export class PosController {
   }
 
   @Get('terminal/invoices/lookup')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   lookupInvoice(
     @Param('companyId') companyId: string,
     @Query('q') q?: string,
@@ -385,7 +516,7 @@ export class PosController {
   }
 
   @Post('terminal/returns')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   createReturn(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -395,7 +526,7 @@ export class PosController {
   }
 
   @Get('terminal/shift/summary')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   shiftSummary(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -405,7 +536,7 @@ export class PosController {
   }
 
   @Post('terminal/shift/open')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   openShift(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -415,7 +546,7 @@ export class PosController {
   }
 
   @Post('terminal/shift/close')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   closeShift(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -437,7 +568,7 @@ export class PosController {
   }
 
   @Post('terminal/checkout')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write', 'pos.invoice_create')
   checkout(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -446,8 +577,113 @@ export class PosController {
     return this.terminal.checkout(companyId, user.userId, body);
   }
 
+  @Post('terminal/quick-checkout')
+  @RequireAnyPermission('sales.write', 'pos.quick_invoice')
+  quickCheckout(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: QuickCheckoutBody,
+  ) {
+    return this.terminal.quickCheckout(companyId, user.userId, body);
+  }
+
+  @Post('terminal/quote')
+  @RequireAnyPermission('sales.write', 'pos.quote_create')
+  checkoutQuote(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: QuoteCheckoutBody,
+  ) {
+    return this.terminal.checkoutQuote(companyId, user.userId, body);
+  }
+
+  @Get('terminal/quotes')
+  @RequireAnyPermission(
+    'sales.write',
+    'pos.quote_create',
+    'pos.quote_delete',
+    'pos.quote_convert',
+    'pos.quote_send_whatsapp',
+  )
+  listQuotes(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.terminal.listRecentQuotes(companyId, user.userId);
+  }
+
+  @Get('terminal/documents')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
+  listDocuments(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.terminal.listPosDocuments(companyId, user.userId);
+  }
+
+  @Post('terminal/quotes/:quoteId/cancel')
+  @RequireAnyPermission('sales.write', 'pos.quote_delete')
+  cancelQuote(
+    @Param('companyId') companyId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.terminal.cancelPosQuote(companyId, user.userId, quoteId);
+  }
+
+  @Post('terminal/quotes/:quoteId/convert')
+  @RequireAnyPermission('sales.write', 'pos.quote_convert')
+  convertQuote(
+    @Param('companyId') companyId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.terminal.convertPosQuote(companyId, user.userId, quoteId);
+  }
+
+  @Get('terminal/quotes/:quoteId')
+  @RequireAnyPermission('sales.write', 'pos.quote_create')
+  getQuote(
+    @Param('companyId') companyId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.terminal.getPosQuote(companyId, user.userId, quoteId);
+  }
+
+  @Patch('terminal/quotes/:quoteId')
+  @RequireAnyPermission('sales.write', 'pos.quote_create')
+  updateQuote(
+    @Param('companyId') companyId: string,
+    @Param('quoteId') quoteId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: QuoteCheckoutBody,
+  ) {
+    return this.terminal.updatePosQuote(companyId, user.userId, quoteId, body);
+  }
+
+  @Post('terminal/coupons/validate')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
+  validateCoupon(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: ValidatePosCouponBody,
+  ) {
+    return this.terminal.validatePosCoupon(companyId, user.userId, body);
+  }
+
+  @Post('terminal/customers/quick')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
+  quickCustomer(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: QuickPosCustomerBody,
+  ) {
+    return this.terminal.quickPosCustomer(companyId, user.userId, body);
+  }
+
   @Post('terminal/held/:invoiceId/issue')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write', 'pos.invoice_create')
   issueHeld(
     @Param('companyId') companyId: string,
     @Param('invoiceId') invoiceId: string,
@@ -458,7 +694,7 @@ export class PosController {
   }
 
   @Post('terminal/held/:invoiceId/void')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   voidHeld(
     @Param('companyId') companyId: string,
     @Param('invoiceId') invoiceId: string,
@@ -468,7 +704,7 @@ export class PosController {
   }
 
   @Post('terminal/drawer/open')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission(...POS_TERMINAL_ACCESS)
   openDrawer(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -478,7 +714,7 @@ export class PosController {
   }
 
   @Post('terminal/layout')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write')
   saveLayout(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,
@@ -488,7 +724,7 @@ export class PosController {
   }
 
   @Post('terminal/templates/apply')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write')
   applyTemplate(
     @Param('companyId') companyId: string,
     @CurrentUser() user: AuthUser,

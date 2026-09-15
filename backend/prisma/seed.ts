@@ -54,9 +54,21 @@ const ROLE_CODES = [
   },
   {
     code: 'CASHIER',
-    name: 'Cashier',
+    name: 'كاشير',
     scope: 'TENANT' as const,
     financialProfile: 'CASHIER' as const,
+  },
+  {
+    code: 'SALES_REP',
+    name: 'مندوب مبيعات',
+    scope: 'TENANT' as const,
+    financialProfile: 'SALES_DELIVERY' as const,
+  },
+  {
+    code: 'POS_MARKETER',
+    name: 'مسوق',
+    scope: 'TENANT' as const,
+    financialProfile: 'NONE' as const,
   },
   {
     code: 'SHIFT_SUPERVISOR',
@@ -146,6 +158,13 @@ const PERMISSIONS = [
   ['sales', 'read'],
   ['sales', 'write'],
   ['sales', 'discount_override'],
+  ['pos', 'invoice_create'],
+  ['pos', 'quick_invoice'],
+  ['pos', 'quote_create'],
+  ['pos', 'quote_delete'],
+  ['pos', 'quote_convert'],
+  ['pos', 'invoice_send_whatsapp'],
+  ['pos', 'quote_send_whatsapp'],
   ['purchasing', 'read'],
   ['purchasing', 'write'],
   ['inventory', 'read'],
@@ -224,6 +243,23 @@ const PHASE9_WRITE = [
 const PHASE10_READ = ['reports.read'] as const;
 const PHASE10_WRITE = ['retention.run'] as const;
 
+const POS_PERMISSION_CODES = [
+  'pos.invoice_create',
+  'pos.quick_invoice',
+  'pos.quote_create',
+  'pos.quote_delete',
+  'pos.quote_convert',
+  'pos.invoice_send_whatsapp',
+  'pos.quote_send_whatsapp',
+] as const;
+
+const POS_PORTAL_BASE = [
+  'companies.read',
+  'attachments.read',
+  'hr.self',
+  ...POS_PERMISSION_CODES,
+] as const;
+
 const ROLE_PERMISSION_MAP: Record<string, string[]> = {
   PLATFORM_SUPER_ADMIN: PERMISSIONS.map(
     ([module, action]) => `${module}.${action}`,
@@ -253,6 +289,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'sales.read',
     'sales.write',
     'sales.discount_override',
+    ...POS_PERMISSION_CODES,
     'purchasing.read',
     'purchasing.write',
     'inventory.read',
@@ -289,6 +326,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'sales.read',
     'sales.write',
     'sales.discount_override',
+    ...POS_PERMISSION_CODES,
     'purchasing.read',
     'purchasing.write',
     'inventory.read',
@@ -342,6 +380,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'crm.coupons',
     'sales.read',
     'sales.write',
+    ...POS_PERMISSION_CODES,
     'purchasing.read',
     'purchasing.write',
     'inventory.read',
@@ -402,15 +441,9 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     ...PHASE9_READ,
     'reports.read',
   ],
-  CASHIER: [
-    'companies.read',
-    'finance.read',
-    'finance.write',
-    'sales.read',
-    'sales.write',
-    'attachments.read',
-    'hr.self',
-  ],
+  CASHIER: [...POS_PORTAL_BASE],
+  SALES_REP: [...POS_PORTAL_BASE],
+  POS_MARKETER: [...POS_PORTAL_BASE],
   SHIFT_SUPERVISOR: [
     'companies.read',
     'finance.read',
@@ -423,6 +456,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'crm.loyalty',
     'sales.write',
     'sales.discount_override',
+    ...POS_PERMISSION_CODES,
     'attachments.read',
   ],
   SALES_DELIVERY_REP: [
@@ -430,6 +464,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'finance.read',
     'sales.read',
     'sales.write',
+    ...POS_PERMISSION_CODES,
     'crm.read',
     'attachments.read',
     'hr.self',
@@ -479,6 +514,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'sales.read',
     'sales.write',
     'sales.discount_override',
+    ...POS_PERMISSION_CODES,
     'crm.read',
     'crm.loyalty',
     'inventory.read',
@@ -497,6 +533,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'crm.b2b',
     'sales.read',
     'sales.write',
+    ...POS_PERMISSION_CODES,
     'reports.read',
   ],
   POS_SUPERVISOR: [
@@ -507,6 +544,7 @@ const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     'sales.read',
     'sales.write',
     'sales.discount_override',
+    ...POS_PERMISSION_CODES,
     'finance.read',
     'finance.write',
     'attachments.read',
@@ -1416,21 +1454,24 @@ async function main() {
     const role = await prisma.role.findUniqueOrThrow({
       where: { code: roleCode },
     });
+    const permissionIds: string[] = [];
     for (const permissionCode of permissionCodes) {
       const permission = await prisma.permission.findUniqueOrThrow({
         where: { code: permissionCode },
       });
-      await prisma.rolePermission.upsert({
-        where: {
-          roleId_permissionId: {
-            roleId: role.id,
-            permissionId: permission.id,
-          },
-        },
-        update: {},
-        create: { roleId: role.id, permissionId: permission.id },
-      });
+      permissionIds.push(permission.id);
     }
+    await prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({ where: { roleId: role.id } });
+      if (permissionIds.length) {
+        await tx.rolePermission.createMany({
+          data: permissionIds.map((permissionId) => ({
+            roleId: role.id,
+            permissionId,
+          })),
+        });
+      }
+    });
   }
 
   const plans = [

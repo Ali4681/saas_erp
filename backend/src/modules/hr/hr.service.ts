@@ -1252,15 +1252,23 @@ export class HrService {
               attendanceBadgeId: input.attendanceBadgeId?.trim() || null,
             }
           : {}),
-        ...(input.targetPercent != null
-          ? { targetPercent: String(input.targetPercent) }
+        ...(input.targetPercent !== undefined
+          ? {
+              targetPercent:
+                input.targetPercent === null || input.targetPercent === ""
+                  ? null
+                  : String(input.targetPercent),
+            }
           : {}),
         ...(input.targetCompletedPercent != null
           ? { targetCompletedPercent: String(input.targetCompletedPercent) }
           : {}),
         ...(input.salesTargetMode !== undefined
           ? {
-              salesTargetMode: input.salesTargetMode,
+              salesTargetMode:
+                input.salesTargetMode === null || input.salesTargetMode === ""
+                  ? null
+                  : input.salesTargetMode,
             }
           : {}),
         ...(input.salesTargetAmount !== undefined
@@ -2839,6 +2847,25 @@ export class HrService {
       if (['DRAFT', 'CANCELLED', 'PAID'].includes(invoice.status)) {
         throw new BadRequestException(
           'Invoice must be issued/open with a remaining balance',
+        );
+      }
+      const alreadyCounted = await this.prisma.employeeSalesSubmission.findFirst(
+        {
+          where: {
+            companyId: input.companyId,
+            salesInvoiceId: invoice.id,
+          },
+          select: { id: true, status: true },
+        },
+      );
+      if (alreadyCounted) {
+        throw new BadRequestException(
+          'This invoice is already linked to an employee sale and cannot be submitted again',
+        );
+      }
+      if (invoice.saleChannel === 'POS' || invoice.pointOfSaleId) {
+        throw new BadRequestException(
+          'POS invoices are recorded automatically — do not submit them again from the portal',
         );
       }
       const balance = Number(invoice.balanceDue);

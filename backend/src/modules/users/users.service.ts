@@ -277,6 +277,18 @@ export class UsersService {
   private async resolveTenantRole(companyId: string, roleCode: string) {
     const raw = roleCode.trim().toUpperCase();
     const prefix = `C${companyId.replace(/-/g, '').slice(0, 8).toUpperCase()}_`;
+
+    // Prefer exact system TENANT role (CASHIER, COMPANY_EMPLOYEE, …)
+    const systemRole = await this.prisma.role.findFirst({
+      where: {
+        scope: 'TENANT',
+        isSystem: true,
+        code: raw,
+      },
+    });
+    if (systemRole) return systemRole;
+
+    // Company custom role: exact code or prefixed short code
     const candidates = [raw];
     if (!raw.startsWith(prefix) && !RESERVED_SYSTEM.has(raw)) {
       candidates.push(`${prefix}${raw}`.slice(0, 50));
@@ -284,11 +296,8 @@ export class UsersService {
     return this.prisma.role.findFirst({
       where: {
         scope: 'TENANT',
+        isSystem: false,
         code: { in: candidates },
-        OR: [
-          { isSystem: true },
-          { isSystem: false, code: { startsWith: prefix } },
-        ],
       },
     });
   }
@@ -301,4 +310,17 @@ const RESERVED_SYSTEM = new Set([
   'OPERATIONS_MANAGER',
   'EMPLOYEE_VIEWER',
   'COMPANY_EMPLOYEE',
+  'CASHIER',
+  'SALES_REP',
+  'POS_MARKETER',
+  'SHIFT_SUPERVISOR',
+  'SALES_DELIVERY_REP',
+  'WAREHOUSE_KEEPER',
+  'WAREHOUSE_MANAGER',
+  'PROCUREMENT_MANAGER',
+  'TREASURY_CUSTODIAN',
+  'BRANCH_MANAGER',
+  'B2B_ACCOUNT_MANAGER',
+  'POS_SUPERVISOR',
+  'MARKETING_SPECIALIST',
 ]);

@@ -21,6 +21,8 @@
   "systemHeading": "System roles",
   "systemBadge": "System",
   "systemMeta": "{perms} permissions · {users} users",
+  "systemEditHint": "You can edit system role permissions (e.g. Cashier, Sales rep). They cannot be deleted. Users must sign in again after changes to refresh their session.",
+  "editSystemDescription": "Update name, financial profile, or permission matrix for this system role",
   "formName": "Job title / role name",
   "formNamePh": "e.g. Cashier, Shift supervisor",
   "formCode": "Role code (English)",
@@ -48,17 +50,20 @@
   "loadFailed": "Failed to load ({status})",
   "invalidPerms": "Invalid permissions response",
   "loadError": "Could not load permissions",
-  "actionRead": "View",
-  "actionWrite": "Edit / create",
+  "actionRead": "View module",
+  "actionWrite": "Edit / create in module",
   "actionRun": "Run",
   "modules": {
     "companies": "Company & settings",
     "users": "Users & roles",
+    "plans": "Plans",
+    "subscriptions": "Subscriptions",
     "audit": "Audit log",
     "integrations": "Integrations",
     "finance": "Finance",
     "crm": "CRM",
-    "sales": "Sales",
+    "sales": "Sales (admin screens)",
+    "pos": "Cashier / POS",
     "purchasing": "Purchasing",
     "inventory": "Inventory",
     "hr": "Human resources",
@@ -71,6 +76,40 @@
     "integration_center": "Integration center",
     "messaging": "Messaging",
     "notifications": "Notifications",
-    "reports": "Reports"
+    "reports": "Reports",
+    "tracking": "Tracking",
+    "retention": "Data retention"
+  },
+  "operations": {
+    "read": "View",
+    "write": "Edit / create",
+    "run": "Run",
+    "approve": "Approve",
+    "backdate": "Backdate posting",
+    "period_lock": "Period lock",
+    "break_glass": "Emergency break-glass",
+    "b2b": "B2B accounts",
+    "loyalty": "Loyalty",
+    "coupons": "Coupons",
+    "discount_override": "Discount override",
+    "self": "Employee self-service",
+    "sales_cash": {
+      "approve": "Approve sales cash"
+    },
+    "qiwa": {
+      "manage": "Manage Qiwa contracts",
+      "approve": "Approve Qiwa contracts"
+    },
+    "transfer": "Stock transfer",
+    "import": "Import items",
+    "pos": {
+      "invoice_create": "Create invoice",
+      "quick_invoice": "Quick invoice",
+      "quote_create": "Create quotation",
+      "quote_delete": "Delete quotation",
+      "quote_convert": "Convert quotation to invoice",
+      "invoice_send_whatsapp": "Send invoice via WhatsApp",
+      "quote_send_whatsapp": "Send quotation via WhatsApp"
+    }
   }
 }

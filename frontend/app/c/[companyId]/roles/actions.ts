@@ -32,6 +32,31 @@ export async function createRole(companyId: string, formData: FormData) {
   });
 }
 
+/** Create a job-title role from the employees form, then return there. */
+export async function createRoleFromEmployees(
+  companyId: string,
+  formData: FormData,
+) {
+  const permissionCodes = formData
+    .getAll("permissionCodes")
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+
+  await erpMutate({
+    companyId,
+    path: `/companies/${companyId}/roles`,
+    body: {
+      code: str(formData, "code"),
+      name: str(formData, "name"),
+      description: optStr(formData, "description"),
+      financialProfile: optStr(formData, "financialProfile") ?? "NONE",
+      permissionCodes,
+    },
+    pagePath: `/c/${companyId}/hr/employees`,
+    okMessage: "تم إنشاء المسمى الوظيفي",
+  });
+}
+
 export async function updateRole(
   companyId: string,
   roleId: string,

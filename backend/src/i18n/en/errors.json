@@ -45,7 +45,7 @@
     "codeTaken": "Role code is already used in this company",
     "notFound": "Role not found",
     "customNotFound": "Custom role not found in this company",
-    "cannotModifySystem": "Cannot modify system role permissions",
+    "cannotModifySystem": "Platform roles cannot be modified",
     "useCompanyEndpoint": "Use the company roles endpoint",
     "cannotDeleteLinked": "Cannot delete role: linked to {count} users. Reassign users first.",
     "blockedPermissions": "Permissions not allowed for company roles: {codes}",

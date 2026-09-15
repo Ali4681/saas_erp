@@ -27,11 +27,18 @@ const RESERVED_CODES = new Set([
   'EMPLOYEE_VIEWER',
   'COMPANY_EMPLOYEE',
   'CASHIER',
+  'SALES_REP',
+  'POS_MARKETER',
   'SHIFT_SUPERVISOR',
   'SALES_DELIVERY_REP',
   'WAREHOUSE_KEEPER',
+  'WAREHOUSE_MANAGER',
+  'PROCUREMENT_MANAGER',
   'TREASURY_CUSTODIAN',
   'BRANCH_MANAGER',
+  'B2B_ACCOUNT_MANAGER',
+  'POS_SUPERVISOR',
+  'MARKETING_SPECIALIST',
 ]);
 
 /** Stable short prefix so custom role codes stay unique per company. */
@@ -189,7 +196,7 @@ export class RolesService {
     },
   ) {
     this.tenant.setCompanyId(companyId);
-    const role = await this.requireCompanyCustomRole(companyId, roleId);
+    const role = await this.requireEditableCompanyRole(companyId, roleId);
 
     if (input.parentRoleId) {
       if (input.parentRoleId === role.id) {
@@ -217,7 +224,8 @@ export class RolesService {
         input.financialProfile,
       );
     }
-    if (input.parentRoleId !== undefined) {
+    // Parent hierarchy only for custom company roles
+    if (!role.isSystem && input.parentRoleId !== undefined) {
       data.parentRoleId = input.parentRoleId || null;
     }
 
@@ -252,14 +260,15 @@ export class RolesService {
   async updateRolePermissions(roleId: string, permissionCodes: string[]) {
     const role = await this.prisma.role.findUnique({ where: { id: roleId } });
     if (!role) throw i18nNotFound('errors.roles.notFound');
-    if (role.isSystem) {
+    if (role.scope === 'PLATFORM') {
       throw i18nBadRequest('errors.roles.cannotModifySystem');
     }
-    const prefixMatch = /^C[0-9A-F]{8}_/i.exec(role.code);
-    if (!prefixMatch) {
-      throw i18nBadRequest('errors.roles.useCompanyEndpoint');
+    if (!role.isSystem) {
+      const prefixMatch = /^C[0-9A-F]{8}_/i.exec(role.code);
+      if (!prefixMatch) {
+        throw i18nBadRequest('errors.roles.useCompanyEndpoint');
+      }
     }
-    // companyId unknown from prefix alone — update permissions directly
     const permissionIds = await this.resolvePermissionIds(
       permissionCodes,
       true,
@@ -291,6 +300,25 @@ export class RolesService {
     }
     await this.prisma.role.delete({ where: { id: role.id } });
     return { ok: true, id: role.id };
+  }
+
+  /** Custom company role or editable TENANT system role. */
+  private async requireEditableCompanyRole(companyId: string, roleId: string) {
+    const prefix = companyRolePrefix(companyId);
+    const role = await this.prisma.role.findFirst({
+      where: {
+        id: roleId,
+        scope: 'TENANT',
+        OR: [
+          { isSystem: true },
+          { isSystem: false, code: { startsWith: prefix } },
+        ],
+      },
+    });
+    if (!role) {
+      throw i18nNotFound('errors.roles.notFound');
+    }
+    return role;
   }
 
   private async requireCompanyCustomRole(companyId: string, roleId: string) {

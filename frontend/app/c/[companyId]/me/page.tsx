@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { getSession } from "@/lib/auth/session";
 import { fetchMyProfile } from "@/lib/hr/my-profile";
 import {
-  can,
+  canAccessPos,
   employeePortalBase,
   isCashierPortalUser,
 } from "@/lib/permissions";
@@ -31,7 +31,7 @@ export default async function EmployeePortalHomePage({
   const base = employeePortalBase(companyId);
   const me = await fetchMyProfile(companyId);
   const showPos =
-    can(session?.user, "sales.write") || isCashierPortalUser(session?.user);
+    canAccessPos(session?.user) || isCashierPortalUser(session?.user);
 
   const links = [
     ...(showPos

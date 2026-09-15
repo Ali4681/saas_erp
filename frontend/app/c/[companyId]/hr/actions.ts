@@ -207,8 +207,11 @@ export async function createEmployee(companyId: string, formData: FormData) {
   }
 
   try {
-    const salesTargetMode =
-      optStr(formData, "salesTargetMode") ?? "TARGET_FIXED";
+    const loginRoleCode = optStr(formData, "loginRoleCode");
+    const jobTitle = optStr(formData, "jobTitle");
+    // Commission UI submits empty salesTargetMode when hidden (cashier / marketer
+    // without invoice-create). Only persist when the form actually sent a plan.
+    const omitCommission = !optStr(formData, "salesTargetMode");
     const approvalStatus =
       optStr(formData, "approvalStatus") === "APPROVED"
         ? "APPROVED"
@@ -234,7 +237,7 @@ export async function createEmployee(companyId: string, formData: FormData) {
         identityExpiresOn: optStr(formData, "identityExpiresOn"),
         email: optStr(formData, "email"),
         phone: phoneResult.phone,
-        jobTitle: optStr(formData, "jobTitle"),
+        jobTitle,
         hireDate: optStr(formData, "hireDate"),
         employmentCategory: str(formData, "employmentCategory"),
         trialStartsOn: optStr(formData, "trialStartsOn"),
@@ -244,10 +247,15 @@ export async function createEmployee(companyId: string, formData: FormData) {
         shiftWindows,
         allowances,
         basicSalary: optStr(formData, "basicSalary"),
-        salesTargetMode,
-        salesTargetAmount: optStr(formData, "salesTargetAmount"),
-        salesRewardAmount: optStr(formData, "salesRewardAmount"),
-        targetPercent: optStr(formData, "targetPercent"),
+        ...(omitCommission
+          ? {}
+          : {
+              salesTargetMode:
+                optStr(formData, "salesTargetMode") ?? "TARGET_FIXED",
+              salesTargetAmount: optStr(formData, "salesTargetAmount"),
+              salesRewardAmount: optStr(formData, "salesRewardAmount"),
+              targetPercent: optStr(formData, "targetPercent"),
+            }),
         lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
         absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
         iban: normalizeSaudiIban(optStr(formData, "iban")),
@@ -257,6 +265,9 @@ export async function createEmployee(companyId: string, formData: FormData) {
         attendanceBadgeId: optStr(formData, "attendanceBadgeId"),
         approvalStatus,
         createAppLogin,
+        loginRoleCode: createAppLogin
+          ? (optStr(formData, "loginRoleCode") ?? "COMPANY_EMPLOYEE")
+          : undefined,
         currency: "SAR",
       }),
     });
@@ -524,10 +535,19 @@ export async function updateEmployeeCompensation(
           : identityNumberRaw,
         identityExpiresOn: optStr(formData, "identityExpiresOn"),
         basicSalary: optStr(formData, "basicSalary"),
-        salesTargetMode: optStr(formData, "salesTargetMode"),
-        salesTargetAmount: optStr(formData, "salesTargetAmount"),
-        salesRewardAmount: optStr(formData, "salesRewardAmount"),
-        targetPercent: optStr(formData, "targetPercent"),
+        ...(!optStr(formData, "salesTargetMode")
+          ? {
+              salesTargetMode: null,
+              salesTargetAmount: null,
+              salesRewardAmount: null,
+              targetPercent: null,
+            }
+          : {
+              salesTargetMode: optStr(formData, "salesTargetMode"),
+              salesTargetAmount: optStr(formData, "salesTargetAmount"),
+              salesRewardAmount: optStr(formData, "salesRewardAmount"),
+              targetPercent: optStr(formData, "targetPercent"),
+            }),
         lateDiscountAmount: optStr(formData, "lateDiscountAmount"),
         absenceDiscountPerDay: optStr(formData, "absenceDiscountPerDay"),
         iban: normalizeSaudiIban(optStr(formData, "iban")),

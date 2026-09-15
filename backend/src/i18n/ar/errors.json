@@ -45,7 +45,7 @@
     "codeTaken": "رمز الدور مستخدم مسبقاً في هذه الشركة",
     "notFound": "الدور غير موجود",
     "customNotFound": "دور مخصص غير موجود في هذه الشركة",
-    "cannotModifySystem": "لا يمكن تعديل صلاحيات دور نظامي",
+    "cannotModifySystem": "لا يمكن تعديل أدوار المنصة (Platform)",
     "useCompanyEndpoint": "استخدم مسار أدوار الشركة",
     "cannotDeleteLinked": "لا يمكن حذف الدور: مرتبط بـ {count} مستخدم. انقل المستخدمين أولاً.",
     "blockedPermissions": "صلاحيات غير مسموحة لأدوار الشركة: {codes}",

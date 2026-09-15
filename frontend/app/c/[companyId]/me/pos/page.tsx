@@ -1,9 +1,11 @@
-import { getTranslations } from "next-intl/server";
+import { PosCashierHub } from "@/components/erp/PosCashierHub";
+import { companyLogoUrl } from "@/lib/company-logo";
 import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
-import { can } from "@/lib/permissions";
-import { PosTerminal } from "@/components/erp/PosTerminal";
-import { PageHeader } from "@/components/ui/PageHeader";
+import {
+  canAccessPos,
+  isCashierPortalUser,
+} from "@/lib/permissions";
 
 export default async function CashierPosPage({
   params,
@@ -13,15 +15,24 @@ export default async function CashierPosPage({
   const { companyId } = await params;
   const session = await getSession();
   if (!session) redirect("/login/pos");
-  if (!can(session.user, "sales.write")) {
+  if (
+    !canAccessPos(session.user) &&
+    !isCashierPortalUser(session.user)
+  ) {
     redirect(`/c/${companyId}/me`);
   }
-  const t = await getTranslations("pos");
+
+  const logoAttachmentId = session.user.logoAttachmentId ?? null;
 
   return (
-    <div className="space-y-3">
-      <PageHeader title={t("title")} description={t("desc")} />
-      <PosTerminal companyId={companyId} />
-    </div>
+    <PosCashierHub
+      companyId={companyId}
+      companyName={session.user.companyName}
+      companyLogoUrl={
+        logoAttachmentId
+          ? companyLogoUrl(companyId, logoAttachmentId)
+          : `/api/companies/${encodeURIComponent(companyId)}/logo?inline=1`
+      }
+    />
   );
 }

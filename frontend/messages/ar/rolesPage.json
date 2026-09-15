@@ -21,6 +21,8 @@
   "systemHeading": "الأدوار النظامية",
   "systemBadge": "نظامي",
   "systemMeta": "{perms} صلاحية · {users} مستخدم",
+  "systemEditHint": "يمكنك تعديل صلاحيات الأدوار النظامية (مثل كاشير ومندوب). لا يمكن حذفها. بعد الحفظ يجب على المستخدم إعادة تسجيل الدخول لتحديث صلاحياته.",
+  "editSystemDescription": "حدّث الاسم أو الملف المالي أو مصفوفة الصلاحيات لهذا الدور النظامي",
   "formName": "المسمى الوظيفي / اسم الدور",
   "formNamePh": "مثلاً: كاشير، مشرف شفت",
   "formCode": "رمز الدور (إنجليزي)",
@@ -48,17 +50,20 @@
   "loadFailed": "تعذّر التحميل ({status})",
   "invalidPerms": "استجابة صلاحيات غير صالحة",
   "loadError": "تعذّر تحميل الصلاحيات",
-  "actionRead": "عرض",
-  "actionWrite": "تعديل / إنشاء",
+  "actionRead": "عرض القسم",
+  "actionWrite": "تعديل وإنشاء في القسم",
   "actionRun": "تشغيل",
   "modules": {
     "companies": "الشركة والإعدادات",
     "users": "المستخدمون والأدوار",
+    "plans": "الباقات",
+    "subscriptions": "الاشتراكات",
     "audit": "سجل التدقيق",
     "integrations": "التكاملات",
     "finance": "المالية",
     "crm": "العملاء",
-    "sales": "المبيعات",
+    "sales": "المبيعات (الشاشات الإدارية)",
+    "pos": "الكاشير / نقطة البيع",
     "purchasing": "المشتريات",
     "inventory": "المخزون",
     "hr": "الموارد البشرية",
@@ -71,6 +76,40 @@
     "integration_center": "مركز التكامل",
     "messaging": "المراسلة",
     "notifications": "الإشعارات",
-    "reports": "التقارير"
+    "reports": "التقارير",
+    "tracking": "التتبع",
+    "retention": "الاحتفاظ بالبيانات"
+  },
+  "operations": {
+    "read": "عرض",
+    "write": "تعديل / إنشاء",
+    "run": "تشغيل",
+    "approve": "اعتماد",
+    "backdate": "ترحيل بتاريخ سابق",
+    "period_lock": "قفل الفترة",
+    "break_glass": "كسر الحماية الطارئ",
+    "b2b": "حسابات الشركات (B2B)",
+    "loyalty": "الولاء والنقاط",
+    "coupons": "الكوبونات",
+    "discount_override": "تجاوز حد الخصم",
+    "self": "الخدمة الذاتية للموظف",
+    "sales_cash": {
+      "approve": "اعتماد تحصيل المبيعات"
+    },
+    "qiwa": {
+      "manage": "إدارة عقود قوى",
+      "approve": "اعتماد عقود قوى"
+    },
+    "transfer": "تحويل مخزون",
+    "import": "استيراد أصناف",
+    "pos": {
+      "invoice_create": "إنشاء فاتورة",
+      "quick_invoice": "فاتورة سريعة",
+      "quote_create": "إنشاء عرض سعر",
+      "quote_delete": "حذف عرض سعر",
+      "quote_convert": "تحويل عرض السعر إلى فاتورة",
+      "invoice_send_whatsapp": "إرسال الفاتورة عبر واتساب",
+      "quote_send_whatsapp": "إرسال عرض السعر عبر واتساب"
+    }
   }
 }

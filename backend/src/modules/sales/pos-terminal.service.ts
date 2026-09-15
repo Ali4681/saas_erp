@@ -2,12 +2,14 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
 import { PrismaService } from '../../database/prisma.service';
 import { CashierShiftsService } from '../finance/cashier-shifts.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   DEFAULT_POS_CASHIER_PERMISSIONS,
   SUPERVISOR_POS_PERMISSIONS,
@@ -23,10 +25,11 @@ import {
   findPosTemplate,
   type PosTemplateCategory,
 } from './pos-templates';
+import { PricingService } from '../crm/pricing.service';
 import { SalesService } from './sales.service';
 
 type TerminalLine = {
-  itemId: string;
+  itemId?: string;
   description: string;
   quantity: number;
   unitPrice?: number;
@@ -44,11 +47,15 @@ const ALLOWED_CURRENCIES = ['SAR', 'USD', 'EUR', 'AED', 'GBP'] as const;
 
 @Injectable()
 export class PosTerminalService {
+  private readonly logger = new Logger(PosTerminalService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContextService,
     private readonly sales: SalesService,
     private readonly cashierShifts: CashierShiftsService,
+    private readonly pricing: PricingService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   listTemplates() {
@@ -154,7 +161,14 @@ export class PosTerminalService {
               assignment.cashier.id
                 ? {
                     id: assignment.cashier.id,
-                    displayName: assignment.cashier.displayName,
+                    displayName:
+                      assignment.cashier.displayName?.trim() ||
+                      (
+                        assignment.cashier as {
+                          employee?: { fullName?: string | null } | null;
+                        }
+                      ).employee?.fullName ||
+                      null,
                     employeeId: assignment.cashier.employeeId,
                   }
                 : null,
@@ -615,6 +629,7 @@ export class PosTerminalService {
       paymentMethod: 'CASH' | 'CARD' | 'CREDIT' | 'MIXED' | 'GIFT' | 'WALLET';
       paymentSplits?: Array<{ method: string; amount: number | string }>;
       extraDiscountPct?: number;
+      couponCode?: string;
       overrideCode?: string;
       notes?: string;
       status?: 'ISSUED' | 'ON_HOLD';
@@ -661,21 +676,25 @@ export class PosTerminalService {
       throw new ForbiddenException('Gift card / wallet payment permission denied');
     }
 
+    let discountOverrideAuthorized = false;
     if (input.extraDiscountPct && input.extraDiscountPct > 0) {
-      if (!permissions.discounts) {
-        throw new ForbiddenException('Discount permission denied');
-      }
-      if (input.extraDiscountPct > permissions.discountMaxPct) {
-        if (!input.overrideCode) {
-          throw new ForbiddenException(
-            `Discount exceeds cashier cap (${permissions.discountMaxPct}%)`,
-          );
-        }
+      const needsPin =
+        !permissions.discounts ||
+        input.extraDiscountPct > permissions.discountMaxPct;
+      if (needsPin) {
+        await this.requireSupervisorPin(
+          companyId,
+          input.overrideCode,
+          !permissions.discounts
+            ? 'Discount requires supervisor PIN'
+            : `Discount exceeds cashier cap (${permissions.discountMaxPct}%) — supervisor PIN required`,
+        );
+        discountOverrideAuthorized = true;
       }
     }
 
     for (const line of input.lines) {
-      if (line.unitPrice != null) {
+      if (line.itemId && line.unitPrice != null) {
         const item = await this.prisma.item.findFirst({
           where: { id: line.itemId, companyId },
           select: { salePrice: true },
@@ -700,8 +719,9 @@ export class PosTerminalService {
       }
     }
 
-    const contactId =
-      input.contactId || (await this.ensureWalkInContact(companyId)).id;
+    const walkIn = await this.ensureWalkInContact(companyId);
+    const contactId = input.contactId || walkIn.id;
+    const couponCode = input.couponCode?.trim() || undefined;
 
     const issuedOn = new Date().toISOString().slice(0, 10);
     const status = input.status ?? 'ISSUED';
@@ -729,11 +749,13 @@ export class PosTerminalService {
               : 'CASH',
       paymentSplits: input.paymentSplits,
       extraDiscountPct: input.extraDiscountPct,
+      couponCode,
       overrideCode: input.overrideCode,
+      discountOverrideAuthorized,
       pointOfSaleId: assignment.pos.id,
       posCashierId,
       items: input.lines.map((line) => ({
-        itemId: line.itemId,
+        itemId: line.itemId || undefined,
         description: line.note
           ? `${line.description} (${line.note})`.slice(0, 240)
           : line.description.slice(0, 240),
@@ -754,10 +776,705 @@ export class PosTerminalService {
         paymentMethod: input.paymentMethod,
         totalAmount: invoice.totalAmount,
         lineCount: input.lines.length,
+        couponCode: couponCode ?? null,
+        contactId,
       },
     });
 
     return invoice;
+  }
+
+  /**
+   * Quick invoice: optional customer, product lines and/or free-text service
+   * lines. Always issues a paid POS invoice (counts for commission).
+   */
+  async quickCheckout(
+    companyId: string,
+    userId: string,
+    input: {
+      pointOfSaleId?: string;
+      contactId?: string;
+      customerName?: string;
+      customerPhone?: string;
+      paymentMethod: 'CASH' | 'CARD' | 'MIXED';
+      paymentSplits?: Array<{ method: string; amount: number | string }>;
+      lines: Array<{
+        itemId?: string;
+        description: string;
+        quantity: number;
+        unitPrice: number;
+        taxAmount?: number;
+      }>;
+      notes?: string;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(
+      companyId,
+      userId,
+      input.pointOfSaleId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    if (!input.lines?.length) {
+      throw new BadRequestException('At least one line is required');
+    }
+
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId },
+      select: { defaultTaxRate: true },
+    });
+    const defaultTaxRate = Number(settings?.defaultTaxRate ?? 15) || 15;
+
+    const resolvedLines: TerminalLine[] = [];
+    for (const raw of input.lines) {
+      const description = (raw.description ?? '').trim();
+      if (!description) {
+        throw new BadRequestException('Each line needs a description');
+      }
+      const quantity = Number(raw.quantity);
+      if (!(quantity > 0)) {
+        throw new BadRequestException('Quantity must be > 0');
+      }
+
+      let unitPrice = Number(raw.unitPrice);
+      let taxRate = defaultTaxRate;
+      const itemId = raw.itemId?.trim() || undefined;
+
+      if (itemId) {
+        const item = await this.prisma.item.findFirst({
+          where: { id: itemId, companyId, status: 'ACTIVE' },
+          select: { id: true, name: true, salePrice: true, taxRate: true },
+        });
+        if (!item) {
+          throw new BadRequestException(`Product not found: ${itemId}`);
+        }
+        if (!(unitPrice >= 0) || Number.isNaN(unitPrice)) {
+          unitPrice = Number(item.salePrice ?? 0);
+        }
+        taxRate =
+          item.taxRate != null ? Number(item.taxRate) : defaultTaxRate;
+      } else if (!(unitPrice >= 0) || Number.isNaN(unitPrice)) {
+        throw new BadRequestException('Service lines require a unit price');
+      }
+
+      const net = unitPrice * quantity;
+      const taxAmount =
+        raw.taxAmount != null && Number.isFinite(Number(raw.taxAmount))
+          ? Number(raw.taxAmount)
+          : (net * taxRate) / 100;
+
+      resolvedLines.push({
+        itemId,
+        description,
+        quantity,
+        unitPrice,
+        taxAmount,
+      });
+    }
+
+    let contactId = input.contactId?.trim() || undefined;
+    const name = input.customerName?.trim();
+    const phone = input.customerPhone?.trim();
+    if (!contactId && name && name.length >= 2) {
+      const created = await this.quickPosCustomer(companyId, userId, {
+        name,
+        phone: phone || undefined,
+        pointOfSaleId: assignment.pos.id,
+      });
+      contactId = created.id;
+    }
+
+    const invoice = await this.checkout(companyId, userId, {
+      pointOfSaleId: assignment.pos.id,
+      contactId,
+      paymentMethod: input.paymentMethod,
+      paymentSplits: input.paymentSplits,
+      notes: input.notes,
+      status: 'ISSUED',
+      lines: resolvedLines,
+    });
+
+    await this.writeAudit({
+      companyId,
+      userId,
+      pointOfSaleId: assignment.pos.id,
+      posCashierId: assignment.cashier.id || undefined,
+      action: 'QUICK_CHECKOUT',
+      payload: {
+        invoiceId: invoice.id,
+        lineCount: resolvedLines.length,
+      },
+    });
+
+    return invoice;
+  }
+
+  async checkoutQuote(
+    companyId: string,
+    userId: string,
+    input: {
+      pointOfSaleId?: string;
+      contactId?: string;
+      lines: TerminalLine[];
+      notes?: string;
+      expiresOn?: string;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(
+      companyId,
+      userId,
+      input.pointOfSaleId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    if (!input.lines?.length) {
+      throw new BadRequestException('Cart is empty');
+    }
+
+    const walkIn = await this.ensureWalkInContact(companyId);
+    const contactId = input.contactId || walkIn.id;
+    const issuedOn = new Date().toISOString().slice(0, 10);
+
+    const quote = await this.sales.createQuote({
+      companyId,
+      createdById: userId,
+      contactId,
+      issuedOn,
+      expiresOn: input.expiresOn,
+      currency: 'SAR',
+      items: input.lines.map((line) => ({
+        itemId: line.itemId,
+        description: line.note
+          ? `${line.description} (${line.note})`.slice(0, 240)
+          : line.description.slice(0, 240),
+        quantity: String(line.quantity),
+        unitPrice: String(line.unitPrice ?? 0),
+        taxAmount:
+          line.taxAmount != null ? String(line.taxAmount) : undefined,
+      })),
+    });
+
+    const posCashierId =
+      assignment.cashier.id && assignment.cashier.id.length > 0
+        ? assignment.cashier.id
+        : undefined;
+
+    await this.writeAudit({
+      companyId,
+      userId,
+      pointOfSaleId: assignment.pos.id,
+      posCashierId,
+      action: 'CHECKOUT_QUOTE',
+      payload: {
+        quoteId: quote.id,
+        quoteNumber: quote.quoteNumber,
+        totalAmount: quote.totalAmount,
+        lineCount: input.lines.length,
+        contactId,
+        notes: input.notes ?? null,
+      },
+    });
+
+    await this.notifyErpPosQuoteCreated({
+      companyId,
+      actorUserId: userId,
+      quoteId: quote.id,
+      quoteNumber: quote.quoteNumber,
+      totalAmount: String(quote.totalAmount),
+      currency: quote.currency || 'SAR',
+      contactName: quote.contact?.name,
+      cashierName:
+        ('displayName' in assignment.cashier &&
+          assignment.cashier.displayName) ||
+        ('employee' in assignment.cashier &&
+          (assignment.cashier as { employee?: { fullName?: string } }).employee
+            ?.fullName) ||
+        null,
+      posName: assignment.pos.name,
+    });
+
+    return quote;
+  }
+
+  private async notifyErpPosQuoteCreated(input: {
+    companyId: string;
+    actorUserId: string;
+    quoteId: string;
+    quoteNumber: string;
+    totalAmount: string;
+    currency: string;
+    contactName?: string | null;
+    cashierName?: string | null;
+    posName?: string | null;
+  }) {
+    const actor = await this.prisma.user.findUnique({
+      where: { id: input.actorUserId },
+      select: { fullName: true },
+    });
+    const who =
+      input.cashierName?.trim() ||
+      actor?.fullName?.trim() ||
+      'كاشير';
+    const customer = input.contactName?.trim() || 'عميل';
+    const pos = input.posName?.trim() || 'POS';
+    const title = 'عرض سعر من الكاشير';
+    const body = `${who} أنشأ عرض السعر ${input.quoteNumber} للعميل ${customer} بمبلغ ${input.totalAmount} ${input.currency} من ${pos}`;
+
+    const recipients = await this.prisma.companyUser.findMany({
+      where: {
+        companyId: input.companyId,
+        status: 'ACTIVE',
+        userId: { not: input.actorUserId },
+        role: {
+          permissions: {
+            some: {
+              permission: {
+                code: { in: ['sales.write', 'sales.read'] },
+              },
+            },
+          },
+        },
+      },
+      select: { userId: true },
+    });
+
+    const actionUrl = `/c/${input.companyId}/sales/quotes`;
+    for (const m of recipients) {
+      try {
+        await this.notifications.createAndPush({
+          companyId: input.companyId,
+          userId: m.userId,
+          type: 'pos.quote.created',
+          title,
+          body,
+          actionUrl,
+          data: {
+            quoteId: input.quoteId,
+            quoteNumber: input.quoteNumber,
+            actorUserId: input.actorUserId,
+          },
+          sendPush: true,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `pos quote notify → ${m.userId}: ${
+            error instanceof Error ? error.message : 'unknown'
+          }`,
+        );
+      }
+    }
+  }
+
+  async listRecentQuotes(companyId: string, userId: string, limit = 30) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(companyId, userId);
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    const cashierUserIds = await this.posCashierUserIds(companyId);
+    return this.prisma.salesQuote.findMany({
+      where: {
+        companyId,
+        status: { not: 'CANCELLED' },
+        createdById: { in: [...new Set([userId, ...cashierUserIds])] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 100),
+      include: {
+        contact: { select: { id: true, name: true, phone: true } },
+      },
+    });
+  }
+
+  async listPosDocuments(companyId: string, userId: string, limit = 50) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(companyId, userId);
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    const take = Math.min(Math.max(limit, 1), 100);
+    const cashierUserIds = await this.posCashierUserIds(companyId);
+    const creatorIds = [...new Set([userId, ...cashierUserIds])];
+    const posId = assignment.pos.id;
+
+    const [quotes, invoices] = await Promise.all([
+      this.prisma.salesQuote.findMany({
+        where: {
+          companyId,
+          createdById: { in: creatorIds },
+          status: { not: 'CANCELLED' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        include: {
+          contact: { select: { id: true, name: true, phone: true } },
+        },
+      }),
+      this.prisma.salesInvoice.findMany({
+        where: {
+          companyId,
+          OR: [
+            { pointOfSaleId: posId },
+            { saleChannel: 'POS', createdById: { in: creatorIds } },
+          ],
+          status: { not: 'CANCELLED' },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        include: {
+          contact: { select: { id: true, name: true, phone: true } },
+          posCashier: {
+            select: {
+              displayName: true,
+              employee: { select: { fullName: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      quotes: quotes.map((q) => ({
+        id: q.id,
+        number: q.quoteNumber,
+        status: q.status,
+        totalAmount: q.totalAmount,
+        currency: q.currency,
+        createdAt: q.createdAt,
+        issuedOn: q.issuedOn,
+        contact: q.contact,
+      })),
+      invoices: invoices.map((inv) => ({
+        id: inv.id,
+        number: inv.invoiceNumber,
+        status: inv.status,
+        totalAmount: inv.totalAmount,
+        currency: inv.currency,
+        createdAt: inv.createdAt,
+        issuedOn: inv.issuedOn,
+        paymentMethod: inv.paymentMethod,
+        contact: inv.contact,
+        cashierName:
+          inv.posCashier?.displayName ||
+          inv.posCashier?.employee?.fullName ||
+          null,
+      })),
+    };
+  }
+
+  private async posCashierUserIds(companyId: string): Promise<string[]> {
+    const rows = await this.prisma.posCashier.findMany({
+      where: { companyId, status: 'ACTIVE' },
+      select: { userId: true },
+    });
+    return rows.map((r) => r.userId).filter(Boolean);
+  }
+
+  async cancelPosQuote(companyId: string, userId: string, quoteId: string) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(companyId, userId);
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    const updated = await this.sales.updateQuoteStatus(
+      companyId,
+      quoteId,
+      'CANCELLED',
+      userId,
+    );
+    await this.writeAudit({
+      companyId,
+      userId,
+      pointOfSaleId: assignment.pos.id,
+      posCashierId: assignment.cashier.id || undefined,
+      action: 'QUOTE_CANCEL',
+      payload: { quoteId },
+    });
+    return updated;
+  }
+
+  async convertPosQuote(companyId: string, userId: string, quoteId: string) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(companyId, userId);
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    const quote = await this.prisma.salesQuote.findFirst({
+      where: { id: quoteId, companyId },
+    });
+    if (!quote) throw new NotFoundException('Quote not found');
+    if (['CANCELLED', 'CLOSED', 'REJECTED'].includes(quote.status)) {
+      throw new BadRequestException('Cannot convert a cancelled quote');
+    }
+    if (!['APPROVED', 'ACCEPTED', 'SENT'].includes(quote.status)) {
+      await this.sales.updateQuoteStatus(
+        companyId,
+        quoteId,
+        'ACCEPTED',
+        userId,
+      );
+    }
+    const issuedOn = new Date().toISOString().slice(0, 10);
+    const invoice = await this.sales.convertQuoteToInvoice(
+      companyId,
+      quoteId,
+      issuedOn,
+      undefined,
+      {
+        createdById: userId,
+        companyBranchId: assignment.pos.companyBranchId ?? undefined,
+      },
+    );
+    await this.writeAudit({
+      companyId,
+      userId,
+      pointOfSaleId: assignment.pos.id,
+      posCashierId: assignment.cashier.id || undefined,
+      action: 'QUOTE_CONVERT',
+      payload: { quoteId, invoiceId: invoice.id },
+    });
+    await this.prisma.salesInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        saleChannel: 'POS',
+        pointOfSaleId: assignment.pos.id,
+        posCashierId: assignment.cashier.id || null,
+      },
+    });
+    const contact = await this.prisma.crmContact.findFirst({
+      where: { id: quote.contactId, companyId },
+      select: { id: true, name: true, phone: true },
+    });
+    return {
+      ...invoice,
+      saleChannel: 'POS',
+      pointOfSaleId: assignment.pos.id,
+      contact,
+    };
+  }
+
+  async getPosQuote(companyId: string, userId: string, quoteId: string) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(companyId, userId);
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    const quote = await this.prisma.salesQuote.findFirst({
+      where: { id: quoteId, companyId },
+      include: {
+        contact: { select: { id: true, name: true, phone: true } },
+        items: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            itemId: true,
+            description: true,
+            quantity: true,
+            unitPrice: true,
+            taxAmount: true,
+            totalAmount: true,
+          },
+        },
+      },
+    });
+    if (!quote) throw new NotFoundException('Quote not found');
+    if (['CANCELLED', 'CLOSED', 'REJECTED'].includes(quote.status)) {
+      throw new BadRequestException('Cannot edit this quote');
+    }
+    return quote;
+  }
+
+  async updatePosQuote(
+    companyId: string,
+    userId: string,
+    quoteId: string,
+    input: {
+      pointOfSaleId?: string;
+      contactId?: string;
+      lines: TerminalLine[];
+      notes?: string;
+      expiresOn?: string;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(
+      companyId,
+      userId,
+      input.pointOfSaleId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    if (!input.lines?.length) {
+      throw new BadRequestException('Cart is empty');
+    }
+
+    const walkIn = await this.ensureWalkInContact(companyId);
+    const contactId = input.contactId || walkIn.id;
+
+    const quote = await this.sales.updateQuote(companyId, quoteId, {
+      contactId,
+      expiresOn: input.expiresOn,
+      items: input.lines.map((line) => ({
+        itemId: line.itemId,
+        description: line.note
+          ? `${line.description} (${line.note})`.slice(0, 240)
+          : line.description.slice(0, 240),
+        quantity: String(line.quantity),
+        unitPrice: String(line.unitPrice ?? 0),
+        taxAmount:
+          line.taxAmount != null ? String(line.taxAmount) : undefined,
+      })),
+    });
+
+    await this.writeAudit({
+      companyId,
+      userId,
+      pointOfSaleId: assignment.pos.id,
+      posCashierId: assignment.cashier.id || undefined,
+      action: 'QUOTE_UPDATE',
+      payload: {
+        quoteId,
+        quoteNumber: quote.quoteNumber,
+        totalAmount: quote.totalAmount,
+        lineCount: input.lines.length,
+        contactId,
+        notes: input.notes ?? null,
+      },
+    });
+
+    return quote;
+  }
+
+  async validatePosCoupon(
+    companyId: string,
+    userId: string,
+    input: {
+      code: string;
+      orderAmount?: number;
+      contactId?: string;
+      pointOfSaleId?: string;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(
+      companyId,
+      userId,
+      input.pointOfSaleId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    const result = await this.pricing.validateCoupon(
+      companyId,
+      input.code,
+      Number(input.orderAmount) || 0,
+      input.contactId,
+      'POS',
+    );
+    return {
+      code: result.coupon.code,
+      couponType: result.coupon.couponType,
+      discountValue: Number(result.coupon.discountValue),
+      discountAmount: result.discountAmount,
+      maxUsages: result.coupon.maxUsages,
+      usageCount: result.coupon.usageCount,
+    };
+  }
+
+  async quickPosCustomer(
+    companyId: string,
+    userId: string,
+    input: {
+      name: string;
+      phone?: string;
+      pointOfSaleId?: string;
+    },
+  ) {
+    this.tenant.setCompanyId(companyId);
+    const assignment = await this.resolveMyAssignment(
+      companyId,
+      userId,
+      input.pointOfSaleId,
+    );
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You are not assigned as an active cashier on a POS terminal',
+      );
+    }
+    const permissions = await this.resolvePermissions(
+      companyId,
+      'permissionsJson' in assignment.cashier
+        ? assignment.cashier
+        : null,
+      userId,
+    );
+    if (!permissions.customerAssign) {
+      throw new ForbiddenException('Customer assign permission denied');
+    }
+
+    const name = input.name.trim();
+    if (name.length < 2) {
+      throw new BadRequestException('Customer name is required');
+    }
+    const phone = input.phone?.trim() || undefined;
+
+    if (phone) {
+      const existing = await this.prisma.crmContact.findFirst({
+        where: {
+          companyId,
+          phone,
+          contactType: 'CUSTOMER',
+        },
+        select: { id: true, name: true, phone: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (existing) {
+        if (existing.name !== name) {
+          return this.prisma.crmContact.update({
+            where: { id: existing.id },
+            data: { name },
+            select: { id: true, name: true, phone: true },
+          });
+        }
+        return existing;
+      }
+    }
+
+    return this.prisma.crmContact.create({
+      data: {
+        companyId,
+        contactType: 'CUSTOMER',
+        customerTrack: 'B2C',
+        name,
+        phone,
+        source: 'POS',
+        ownerUserId: userId,
+      },
+      select: { id: true, name: true, phone: true },
+    });
   }
 
   async voidHeld(
@@ -1105,6 +1822,7 @@ export class PosTerminalService {
       },
       include: {
         pointOfSale: true,
+        employee: { select: { id: true, fullName: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -1165,7 +1883,7 @@ export class PosTerminalService {
         userId,
         displayName: employee.fullName,
       },
-      include: { pointOfSale: true },
+      include: { pointOfSale: true, employee: { select: { id: true, fullName: true } } },
     });
     return { cashier: ensured, pos: ensured.pointOfSale };
   }

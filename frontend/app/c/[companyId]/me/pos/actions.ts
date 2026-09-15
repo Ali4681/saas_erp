@@ -77,6 +77,15 @@ export type PosBootstrap = {
   hasSupervisorPin?: boolean;
   paymentProvider?: { mode: string; message: string };
   companyDefaults: { taxRate: number; currency: string };
+  roleOps?: {
+    invoiceCreate?: boolean;
+    quickInvoice?: boolean;
+    quoteCreate?: boolean;
+    quoteDelete?: boolean;
+    quoteConvert?: boolean;
+    invoiceSendWhatsapp?: boolean;
+    quoteSendWhatsapp?: boolean;
+  };
 };
 
 export type PosLookupInvoice = {
@@ -155,6 +164,284 @@ export async function posTerminalCheckout(
     return { data };
   } catch (error) {
     return fail(error, "Checkout failed");
+  }
+}
+
+export async function posTerminalQuickCheckout(
+  companyId: string,
+  body: {
+    pointOfSaleId?: string;
+    contactId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    paymentMethod: "CASH" | "CARD" | "MIXED";
+    paymentSplits?: Array<{ method: string; amount: number }>;
+    lines: Array<{
+      itemId?: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      taxAmount?: number;
+    }>;
+    notes?: string;
+  },
+): Promise<
+  ActionResult<{ id: string; invoiceNumber: string; totalAmount: string }>
+> {
+  try {
+    const data = await apiServer<{
+      id: string;
+      invoiceNumber: string;
+      totalAmount: string;
+    }>(`/companies/${companyId}/sales/pos/terminal/quick-checkout`, {
+      method: "POST",
+      companyId,
+      body: JSON.stringify(body),
+    });
+    return { data };
+  } catch (error) {
+    return fail(error, "Quick invoice failed");
+  }
+}
+
+export async function posTerminalCheckoutQuote(
+  companyId: string,
+  body: Record<string, unknown>,
+): Promise<
+  ActionResult<{
+    id: string;
+    quoteNumber: string;
+    totalAmount: string | number;
+    contact?: { id: string; name: string; phone?: string | null } | null;
+  }>
+> {
+  try {
+    const data = await apiServer<{
+      id: string;
+      quoteNumber: string;
+      totalAmount: string | number;
+      contact?: { id: string; name: string; phone?: string | null } | null;
+    }>(`/companies/${companyId}/sales/pos/terminal/quote`, {
+      method: "POST",
+      companyId,
+      body: JSON.stringify(body),
+    });
+    return { data };
+  } catch (error) {
+    return fail(error, "Quote create failed");
+  }
+}
+
+export type PosRecentQuote = {
+  id: string;
+  quoteNumber: string;
+  totalAmount: string | number;
+  status: string;
+  createdAt: string;
+  contact: { id: string; name: string; phone?: string | null };
+};
+
+export async function posTerminalListQuotes(
+  companyId: string,
+): Promise<ActionResult<PosRecentQuote[]>> {
+  try {
+    const data = await apiServer<PosRecentQuote[]>(
+      `/companies/${companyId}/sales/pos/terminal/quotes`,
+      { companyId },
+    );
+    return { data };
+  } catch (error) {
+    return fail(error, "Failed to load quotes");
+  }
+}
+
+export type PosDocumentRow = {
+  id: string;
+  number: string;
+  status: string;
+  totalAmount: string | number;
+  currency: string;
+  createdAt: string;
+  issuedOn?: string | null;
+  contact: { id: string; name: string; phone?: string | null };
+  paymentMethod?: string | null;
+  cashierName?: string | null;
+};
+
+export async function posTerminalListDocuments(
+  companyId: string,
+): Promise<
+  ActionResult<{ quotes: PosDocumentRow[]; invoices: PosDocumentRow[] }>
+> {
+  try {
+    const data = await apiServer<{
+      quotes: PosDocumentRow[];
+      invoices: PosDocumentRow[];
+    }>(`/companies/${companyId}/sales/pos/terminal/documents`, {
+      companyId,
+    });
+    return { data };
+  } catch (error) {
+    return fail(error, "Failed to load documents");
+  }
+}
+
+export async function posTerminalCancelQuote(
+  companyId: string,
+  quoteId: string,
+): Promise<ActionResult<{ id: string }>> {
+  try {
+    const data = await apiServer<{ id: string }>(
+      `/companies/${companyId}/sales/pos/terminal/quotes/${quoteId}/cancel`,
+      { method: "POST", companyId, body: "{}" },
+    );
+    return { data };
+  } catch (error) {
+    return fail(error, "Failed to delete quote");
+  }
+}
+
+export async function posTerminalConvertQuote(
+  companyId: string,
+  quoteId: string,
+): Promise<
+  ActionResult<{
+    id: string;
+    invoiceNumber?: string;
+    totalAmount?: string | number;
+    contact?: { id: string; name: string; phone?: string | null } | null;
+  }>
+> {
+  try {
+    const data = await apiServer<{
+      id: string;
+      invoiceNumber?: string;
+      totalAmount?: string | number;
+      contact?: { id: string; name: string; phone?: string | null } | null;
+    }>(`/companies/${companyId}/sales/pos/terminal/quotes/${quoteId}/convert`, {
+      method: "POST",
+      companyId,
+      body: "{}",
+    });
+    return { data };
+  } catch (error) {
+    return fail(error, "Failed to convert quote");
+  }
+}
+
+export type PosQuoteDetail = {
+  id: string;
+  quoteNumber: string;
+  totalAmount: string | number;
+  status: string;
+  contact: { id: string; name: string; phone?: string | null };
+  items: Array<{
+    id: string;
+    itemId: string | null;
+    description: string;
+    quantity: string | number;
+    unitPrice: string | number;
+    taxAmount: string | number;
+    totalAmount: string | number;
+  }>;
+};
+
+export async function posTerminalGetQuote(
+  companyId: string,
+  quoteId: string,
+): Promise<ActionResult<PosQuoteDetail>> {
+  try {
+    const data = await apiServer<PosQuoteDetail>(
+      `/companies/${companyId}/sales/pos/terminal/quotes/${quoteId}`,
+      { companyId },
+    );
+    return { data };
+  } catch (error) {
+    return fail(error, "Failed to load quote");
+  }
+}
+
+export async function posTerminalUpdateQuote(
+  companyId: string,
+  quoteId: string,
+  body: Record<string, unknown>,
+): Promise<
+  ActionResult<{
+    id: string;
+    quoteNumber: string;
+    totalAmount: string | number;
+  }>
+> {
+  try {
+    const data = await apiServer<{
+      id: string;
+      quoteNumber: string;
+      totalAmount: string | number;
+    }>(`/companies/${companyId}/sales/pos/terminal/quotes/${quoteId}`, {
+      method: "PATCH",
+      companyId,
+      body: JSON.stringify(body),
+    });
+    return { data };
+  } catch (error) {
+    return fail(error, "Failed to update quote");
+  }
+}
+
+export async function posValidateCoupon(
+  companyId: string,
+  body: {
+    code: string;
+    orderAmount?: number;
+    contactId?: string;
+    pointOfSaleId?: string;
+  },
+): Promise<
+  ActionResult<{
+    code: string;
+    couponType: string;
+    discountValue: number;
+    discountAmount: number;
+    maxUsages: number | null;
+    usageCount: number;
+  }>
+> {
+  try {
+    const data = await apiServer<{
+      code: string;
+      couponType: string;
+      discountValue: number;
+      discountAmount: number;
+      maxUsages: number | null;
+      usageCount: number;
+    }>(`/companies/${companyId}/sales/pos/terminal/coupons/validate`, {
+      method: "POST",
+      companyId,
+      body: JSON.stringify(body),
+    });
+    return { data };
+  } catch (error) {
+    return fail(error, "Invalid coupon");
+  }
+}
+
+export async function posQuickCustomer(
+  companyId: string,
+  body: { name: string; phone?: string; pointOfSaleId?: string },
+): Promise<ActionResult<{ id: string; name: string; phone: string | null }>> {
+  try {
+    const data = await apiServer<{
+      id: string;
+      name: string;
+      phone: string | null;
+    }>(`/companies/${companyId}/sales/pos/terminal/customers/quick`, {
+      method: "POST",
+      companyId,
+      body: JSON.stringify(body),
+    });
+    return { data };
+  } catch (error) {
+    return fail(error, "Failed to save customer");
   }
 }
 

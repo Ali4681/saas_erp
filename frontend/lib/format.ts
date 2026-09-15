@@ -14,15 +14,19 @@ export function intlLocaleTag(locale?: string | null): string {
 
 export function formatMoney(
   value: string | number | null | undefined,
-  currency = "SAR",
+  currency: string | null | undefined = "SAR",
   locale?: string | null,
 ): string {
   if (value == null || value === "") return "—";
   const n = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(n)) return String(value);
+  const code =
+    typeof currency === "string" && /^[A-Za-z]{3}$/.test(currency.trim())
+      ? currency.trim().toUpperCase()
+      : "SAR";
   return new Intl.NumberFormat(intlLocaleTag(locale), {
     style: "currency",
-    currency,
+    currency: code,
     maximumFractionDigits: 2,
   }).format(n);
 }
@@ -65,7 +69,7 @@ export function createFormatters(locale?: string | null) {
       formatDate(value, loc),
     formatMoney: (
       value: string | number | null | undefined,
-      currency = "SAR",
+      currency?: string | null,
     ) => formatMoney(value, currency, loc),
     formatNumber: (value: string | number | null | undefined) =>
       formatNumber(value, loc),

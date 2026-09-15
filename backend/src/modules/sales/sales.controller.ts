@@ -16,6 +16,7 @@ import {
 } from '../../generated/prisma/client';
 import {
   CurrentUser,
+  RequireAnyPermission,
   RequirePermissions,
   type AuthUser,
 } from '../../common/auth/auth.decorators';
@@ -275,13 +276,19 @@ export class SalesController {
   constructor(private readonly sales: SalesService) {}
 
   @Get('quotes')
-  @RequirePermissions('sales.read')
+  @RequireAnyPermission(
+    'sales.read',
+    'pos.quote_create',
+    'pos.quote_delete',
+    'pos.quote_convert',
+    'pos.quote_send_whatsapp',
+  )
   listQuotes(@Param('companyId') companyId: string) {
     return this.sales.listQuotes(companyId);
   }
 
   @Post('quotes')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write', 'pos.quote_create')
   createQuote(
     @Param('companyId') companyId: string,
     @Body() body: CreateQuoteBody,
@@ -295,7 +302,7 @@ export class SalesController {
   }
 
   @Patch('quotes/:quoteId/status')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write', 'pos.quote_delete', 'pos.quote_create')
   updateQuoteStatus(
     @Param('companyId') companyId: string,
     @Param('quoteId') quoteId: string,
@@ -311,7 +318,7 @@ export class SalesController {
   }
 
   @Post('quotes/:quoteId/convert')
-  @RequirePermissions('sales.write')
+  @RequireAnyPermission('sales.write', 'pos.quote_convert')
   convertQuote(
     @Param('companyId') companyId: string,
     @Param('quoteId') quoteId: string,

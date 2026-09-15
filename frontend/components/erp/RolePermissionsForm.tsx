@@ -16,6 +16,34 @@ export type PermOption = {
 
 const HIDDEN_MODULES = new Set(["branches"]);
 
+const MODULE_ORDER = [
+  "pos",
+  "sales",
+  "crm",
+  "finance",
+  "inventory",
+  "purchasing",
+  "hr",
+  "users",
+  "companies",
+  "marketing",
+  "reports",
+  "messaging",
+  "notifications",
+  "attachments",
+  "ai",
+  "automation",
+  "work",
+  "notebook",
+  "integration_center",
+  "integrations",
+  "audit",
+  "plans",
+  "subscriptions",
+  "tracking",
+  "retention",
+];
+
 type Props = {
   action: (formData: FormData) => void | Promise<void>;
   permissions: PermOption[];
@@ -104,7 +132,19 @@ export function RolePermissionsForm({
       list.push(p);
       map.set(p.module, list);
     }
-    return [...map.entries()];
+    const entries = [...map.entries()];
+    entries.sort(([a], [b]) => {
+      const ia = MODULE_ORDER.indexOf(a);
+      const ib = MODULE_ORDER.indexOf(b);
+      const ra = ia === -1 ? 999 : ia;
+      const rb = ib === -1 ? 999 : ib;
+      if (ra !== rb) return ra - rb;
+      return a.localeCompare(b);
+    });
+    for (const [, list] of entries) {
+      list.sort((x, y) => x.code.localeCompare(y.code));
+    }
+    return entries;
   }, [visiblePermissions]);
 
   const toggle = (code: string) => {
@@ -136,11 +176,15 @@ export function RolePermissionsForm({
     return t.has(key) ? t(key) : module;
   }
 
-  function actionLabel(action: string) {
-    if (action === "read") return t("actionRead");
-    if (action === "write") return t("actionWrite");
-    if (action === "run") return t("actionRun");
-    return action;
+  function operationLabel(p: PermOption) {
+    const byCode = `operations.${p.code}` as Parameters<typeof t>[0];
+    if (t.has(byCode)) return t(byCode);
+    const byAction = `operations.${p.action}` as Parameters<typeof t>[0];
+    if (t.has(byAction)) return t(byAction);
+    if (p.action === "read") return t("actionRead");
+    if (p.action === "write") return t("actionWrite");
+    if (p.action === "run") return t("actionRun");
+    return p.action.replace(/_/g, " ");
   }
 
   return (
@@ -263,19 +307,16 @@ export function RolePermissionsForm({
                   <ul className="grid gap-2 sm:grid-cols-2">
                     {perms.map((p) => (
                       <li key={p.code}>
-                        <label className="flex cursor-pointer items-start gap-2 text-sm">
+                        <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-transparent px-1.5 py-1.5 text-sm hover:border-[var(--border)] hover:bg-[var(--secondary)]/40">
                           <input
                             type="checkbox"
-                            className="mt-1"
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--primary)]"
                             checked={selected.has(p.code)}
                             onChange={() => toggle(p.code)}
                           />
-                          <span>
-                            <span className="font-medium">
-                              {actionLabel(p.action)}
-                            </span>
-                            <span className="mt-0.5 block font-mono text-[11px] text-[var(--muted-foreground)]">
-                              {p.code}
+                          <span className="min-w-0 leading-snug">
+                            <span className="block font-medium text-[var(--foreground)]">
+                              {operationLabel(p)}
                             </span>
                           </span>
                         </label>

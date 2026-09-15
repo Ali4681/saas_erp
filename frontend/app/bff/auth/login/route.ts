@@ -71,7 +71,12 @@ export async function POST(request: Request) {
         });
         if (!status.onboarding.completedAt) {
           const role = data.user.roleCode;
-          if (role !== "CASHIER" && role !== "COMPANY_EMPLOYEE") {
+          if (
+            role !== "CASHIER" &&
+            role !== "SALES_REP" &&
+            role !== "POS_MARKETER" &&
+            role !== "COMPANY_EMPLOYEE"
+          ) {
             landingPath = `/c/${data.user.companyId}/onboarding`;
           }
         }

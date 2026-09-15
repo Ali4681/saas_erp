@@ -49,6 +49,7 @@ export function LanguageToggle({ className }: { className?: string }) {
         type="button"
         disabled={pending}
         onClick={() => setLocale("ar")}
+        suppressHydrationWarning
         className={cn(
           "rounded-lg px-2.5 py-1.5 transition",
           active === "ar"
@@ -63,6 +64,7 @@ export function LanguageToggle({ className }: { className?: string }) {
         type="button"
         disabled={pending}
         onClick={() => setLocale("en")}
+        suppressHydrationWarning
         className={cn(
           "rounded-lg px-2.5 py-1.5 transition",
           active === "en"

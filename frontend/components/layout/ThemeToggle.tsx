@@ -44,6 +44,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         type="button"
         disabled={pending}
         onClick={() => setNext("light")}
+        suppressHydrationWarning
         className={cn(
           "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 transition",
           theme === "light"
@@ -60,6 +61,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         type="button"
         disabled={pending}
         onClick={() => setNext("dark")}
+        suppressHydrationWarning
         className={cn(
           "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 transition",
           theme === "dark"

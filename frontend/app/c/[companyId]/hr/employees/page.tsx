@@ -6,23 +6,31 @@ import { EmployeeAllowancesFields } from "@/components/erp/EmployeeAllowancesFie
 import { EmployeeCommissionFields } from "@/components/erp/EmployeeCommissionFields";
 import { EmployeeQiwaContractFields } from "@/components/erp/EmployeeQiwaContractFields";
 import { EmployeeShiftPatternFields } from "@/components/erp/EmployeeShiftPatternFields";
+import { JobTitleFieldWithAdd } from "@/components/erp/JobTitleFieldWithAdd";
 import { PhoneWithDialCodeField } from "@/components/erp/PhoneWithDialCodeField";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { apiServer } from "@/lib/api/server";
 import { getSession } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getFormatters } from "@/lib/format-server";
 import {
+  isCashierJobTitle,
+  isMarketerJobTitle,
+  buildInvoiceCreateByRoleCode,
+} from "@/lib/hr/cashier";
+import {
   createAllowanceType,
   createEmployee,
   deleteAllowanceType,
   updateEmployeeCompensation,
 } from "../actions";
+import { createRoleFromEmployees } from "../../roles/actions";
 import { EmployeeIdentityFields } from "./EmployeeIdentityFields";
 
 type Employee = {
@@ -84,6 +92,20 @@ type AllowanceType = {
   nameAr: string;
   nameEn: string;
 };
+type CompanyRole = {
+  id: string;
+  name: string;
+  code?: string;
+  displayCode?: string;
+  permissions?: Array<{ code?: string | null }>;
+};
+type RolePermissionOption = {
+  id: string;
+  code: string;
+  module: string;
+  action: string;
+  description?: string | null;
+};
 type HrSummary = {
   total: number;
   active: number;
@@ -91,6 +113,25 @@ type HrSummary = {
   suspended: number;
   terminated: number;
 };
+
+function jobTitleSelectOptions(
+  roles: CompanyRole[],
+  current?: string | null,
+): Array<{ value: string; label: string }> {
+  const names = [
+    ...new Set(
+      roles
+        .map((r) => r.name.trim())
+        .filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "ar"));
+  const options = names.map((name) => ({ value: name, label: name }));
+  const cur = current?.trim();
+  if (cur && !names.includes(cur)) {
+    options.unshift({ value: cur, label: cur });
+  }
+  return options;
+}
 
 export default async function EmployeesPage({
   params,
@@ -106,26 +147,38 @@ export default async function EmployeesPage({
   const { formatMoney } = await getFormatters();
   const session = await getSession();
   const canWrite = can(session?.user, "hr.write");
+  const canManageRoles = can(session?.user, "users.write");
   const qiwaUrl =
     process.env.NEXT_PUBLIC_QIWA_URL?.trim() || "https://www.qiwa.sa/";
 
-  const [employees, summary, allowanceTypes] = await Promise.all([
-    apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
-      companyId,
-    }).catch(() => []),
-    apiServer<HrSummary>(`/companies/${companyId}/hr/summary`, {
-      companyId,
-    }).catch(() => null),
-    apiServer<AllowanceType[]>(
-      `/companies/${companyId}/hr/allowance-types`,
-      { companyId },
-    ).catch(() => []),
-  ]);
+  const [employees, summary, allowanceTypes, roles, permissions] =
+    await Promise.all([
+      apiServer<Employee[]>(`/companies/${companyId}/hr/employees`, {
+        companyId,
+      }).catch(() => []),
+      apiServer<HrSummary>(`/companies/${companyId}/hr/summary`, {
+        companyId,
+      }).catch(() => null),
+      apiServer<AllowanceType[]>(
+        `/companies/${companyId}/hr/allowance-types`,
+        { companyId },
+      ).catch(() => []),
+      apiServer<CompanyRole[]>(`/companies/${companyId}/roles`, {
+        companyId,
+      }).catch(() => []),
+      apiServer<RolePermissionOption[]>(
+        `/companies/${companyId}/permissions`,
+        { companyId },
+      ).catch(() => []),
+    ]);
 
+  const jobTitleOptions = jobTitleSelectOptions(roles);
+  const invoiceCreateByRoleCode = buildInvoiceCreateByRoleCode(roles);
   const nextEmployeeNumber = suggestNextEmployeeNumber(employees);
   const create = createEmployee.bind(null, companyId);
   const addAllowanceType = createAllowanceType.bind(null, companyId);
   const removeAllowanceType = deleteAllowanceType.bind(null, companyId);
+  const addJobTitleRole = createRoleFromEmployees.bind(null, companyId);
 
   const now = new Date();
   const trialAlerts = employees.filter((e) => {
@@ -264,7 +317,7 @@ export default async function EmployeesPage({
                   <Input name="fullName" label={t("fullName")} required />
                 <Input name="email" label={t("email")} type="email" required />
                 <PhoneWithDialCodeField name="phone" label={t("phone")} />
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3 md:col-span-2">
+                <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--secondary)]/40 p-3 md:col-span-2">
                   <label className="flex cursor-pointer items-start gap-3 text-sm">
                     <input
                       type="checkbox"
@@ -282,8 +335,40 @@ export default async function EmployeesPage({
                       </span>
                     </span>
                   </label>
+                  <Select
+                    name="loginRoleCode"
+                    label={t("loginRoleCode")}
+                    defaultValue="COMPANY_EMPLOYEE"
+                    showPlaceholderOption={false}
+                    options={[
+                      {
+                        value: "COMPANY_EMPLOYEE",
+                        label: t("loginRoleEmployee"),
+                      },
+                      { value: "CASHIER", label: t("loginRoleCashier") },
+                      { value: "SALES_REP", label: t("loginRoleSalesRep") },
+                      {
+                        value: "POS_MARKETER",
+                        label: t("loginRoleMarketer"),
+                      },
+                    ]}
+                  />
+                  <p className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+                    {t("loginRoleCashierHint")}
+                  </p>
                 </div>
-                <Input name="jobTitle" label={t("jobTitle")} />
+                <JobTitleFieldWithAdd
+                  companyId={companyId}
+                  label={t("jobTitle")}
+                  options={jobTitleOptions}
+                  permissions={permissions}
+                  createRoleAction={addJobTitleRole}
+                  canAdd={canManageRoles}
+                  addTitle={t("jobTitleAddTitle")}
+                  addDescription={t("jobTitleAddDescription")}
+                  addTriggerLabel={t("jobTitleAdd")}
+                  createSubmitLabel={t("jobTitleAddSubmit")}
+                />
                 <Input name="hireDate" label={t("hireDate")} type="date" />
                 <EmployeeQiwaContractFields
                   qiwaUrl={qiwaUrl}
@@ -349,6 +434,7 @@ export default async function EmployeesPage({
                   label={`${t("basicSalary")} (SAR)`}
                 />
                 <EmployeeCommissionFields
+                  invoiceCreateByRoleCode={invoiceCreateByRoleCode}
                   labels={{
                     plan: t("commissionPlan"),
                     withTarget: t("commissionWithTarget"),
@@ -361,6 +447,7 @@ export default async function EmployeesPage({
                     commissionPercent: t("salesCommissionPercent"),
                     hintTarget: t("commissionHintTarget"),
                     hintNoTarget: t("commissionHintNoTarget"),
+                    cashierSkippedHint: t("commissionCashierSkippedHint"),
                   }}
                 />
                 <EmployeeAllowancesFields
@@ -501,7 +588,7 @@ export default async function EmployeesPage({
                         {formatEmployeeShiftHours(e)}
                       </td>
                       <td className="px-2 py-2">
-                        {formatMoney(e.basicSalary, e.currency)}
+                        {formatMoney(e.basicSalary, e.currency ?? "SAR")}
                       </td>
                       <td className="px-2 py-2">
                         {formatMoney(e.salesTargetAmount, "SAR")}
@@ -592,10 +679,25 @@ export default async function EmployeesPage({
                                       label={t("phone")}
                                       defaultValue={e.phone ?? ""}
                                     />
-                                    <Input
-                                      name="jobTitle"
+                                    <JobTitleFieldWithAdd
+                                      companyId={companyId}
                                       label={t("jobTitle")}
                                       defaultValue={e.jobTitle ?? ""}
+                                      options={jobTitleSelectOptions(
+                                        roles,
+                                        e.jobTitle,
+                                      )}
+                                      permissions={permissions}
+                                      createRoleAction={addJobTitleRole}
+                                      canAdd={canManageRoles}
+                                      addTitle={t("jobTitleAddTitle")}
+                                      addDescription={t(
+                                        "jobTitleAddDescription",
+                                      )}
+                                      addTriggerLabel={t("jobTitleAdd")}
+                                      createSubmitLabel={t(
+                                        "jobTitleAddSubmit",
+                                      )}
                                     />
                                     <Input
                                       name="hireDate"
@@ -714,6 +816,16 @@ export default async function EmployeesPage({
                                       defaultValue={e.basicSalary ?? ""}
                                     />
                                     <EmployeeCommissionFields
+                                      forceHidden={
+                                        isCashierJobTitle(e.jobTitle) ||
+                                        (isMarketerJobTitle(e.jobTitle) &&
+                                          !invoiceCreateByRoleCode.POS_MARKETER)
+                                      }
+                                      invoiceCreateByRoleCode={
+                                        invoiceCreateByRoleCode
+                                      }
+                                      watchLoginRole={false}
+                                      watchJobTitle={false}
                                       defaultSalesTargetMode={
                                         e.salesTargetMode
                                       }
@@ -743,6 +855,9 @@ export default async function EmployeesPage({
                                         hintTarget: t("commissionHintTarget"),
                                         hintNoTarget: t(
                                           "commissionHintNoTarget",
+                                        ),
+                                        cashierSkippedHint: t(
+                                          "commissionCashierSkippedHint",
                                         ),
                                       }}
                                     />

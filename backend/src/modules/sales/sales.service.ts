@@ -16,6 +16,7 @@ import { signInvoiceShareToken } from '../../common/documents/invoice-share-toke
 import { StorageService } from '../../common/storage/storage.service';
 import {
   computeLines,
+  applyDocumentDiscount,
   type LineInput,
 } from '../../common/documents/line-totals';
 import { TenantContextService } from '../../common/tenant/tenant-context.service';
@@ -701,25 +702,21 @@ export class SalesService {
       );
     }
 
+    // Document discounts reduce the net (ex-VAT) base, then VAT is recalculated.
+    const merchandiseSubtotal = Number(computed.subtotal);
+
     if (input.couponCode) {
       const couponResult = await this.pricing.validateCoupon(
         input.companyId,
         input.couponCode,
-        Number(computed.totalAmount),
+        merchandiseSubtotal,
         input.contactId,
         saleChannel,
       );
-      const extraDiscount = Number(couponResult.discountAmount);
-      computed = {
-        ...computed,
-        discountAmount: (
-          Number(computed.discountAmount) + extraDiscount
-        ).toFixed(2),
-        totalAmount: Math.max(
-          0,
-          Number(computed.totalAmount) - extraDiscount,
-        ).toFixed(2),
-      };
+      computed = applyDocumentDiscount(
+        computed,
+        Number(couponResult.discountAmount),
+      );
     }
 
     if (input.extraDiscountPct && input.extraDiscountPct > 0) {
@@ -733,14 +730,8 @@ export class SalesService {
         }
       }
       const extra =
-        (Number(computed.totalAmount) * input.extraDiscountPct) / 100;
-      computed = {
-        ...computed,
-        discountAmount: (Number(computed.discountAmount) + extra).toFixed(2),
-        totalAmount: Math.max(0, Number(computed.totalAmount) - extra).toFixed(
-          2,
-        ),
-      };
+        (merchandiseSubtotal * input.extraDiscountPct) / 100;
+      computed = applyDocumentDiscount(computed, extra);
     }
 
     let companyBranchId = input.companyBranchId;
@@ -911,7 +902,7 @@ export class SalesService {
             input.couponCode,
             invoice.id,
             input.contactId,
-            Number(computed.totalAmount),
+            merchandiseSubtotal,
             saleChannel,
           )
           .catch((error) =>
@@ -933,6 +924,12 @@ export class SalesService {
         input.createdById,
         Number(input.storeCreditAmount ?? 0),
       );
+      if (paidAtIssue) {
+        await this.recordApprovedEmployeeSaleFromPosInvoice(
+          input.companyId,
+          invoice.id,
+        );
+      }
       return this.prisma.salesInvoice.findFirstOrThrow({
         where: { id: invoice.id },
         include: { items: true, contact: true, payments: true },
@@ -1056,6 +1053,12 @@ export class SalesService {
       input.createdById,
       0,
     );
+    if (paidAtIssue) {
+      await this.recordApprovedEmployeeSaleFromPosInvoice(
+        input.companyId,
+        updated.id,
+      );
+    }
 
     return this.prisma.salesInvoice.findFirstOrThrow({
       where: { id: updated.id },
@@ -1090,6 +1093,11 @@ export class SalesService {
         if (['CANCELLED', 'DRAFT', 'ON_HOLD'].includes(invoice.status)) {
           throw new BadRequestException(
             'Cannot pay a draft, held, or cancelled invoice',
+          );
+        }
+        if (invoice.status === 'PAID' || Number(invoice.balanceDue) <= 0) {
+          throw new BadRequestException(
+            'Invoice is already paid — cannot record another payment',
           );
         }
 
@@ -1175,6 +1183,10 @@ export class SalesService {
               invoiceNumber: invoice.invoiceNumber,
               totalAmount: String(invoice.totalAmount),
             },
+          );
+          await this.recordApprovedEmployeeSaleFromPosInvoice(
+            input.companyId,
+            invoice.id,
           );
         }
 
@@ -1539,6 +1551,12 @@ export class SalesService {
       return note;
     });
 
+    await this.adjustApprovedEmployeeSaleForCredit(
+      input.companyId,
+      invoice.id,
+      total,
+    );
+
     if (input.toStoreCredit !== false) {
       try {
         await this.loyalty.creditStoreWallet({
@@ -1866,11 +1884,13 @@ export class SalesService {
         'Cannot cancel an invoice that already has payments',
       );
     }
-    return this.prisma.salesInvoice.update({
+    const updated = await this.prisma.salesInvoice.update({
       where: { id: invoiceId },
       data: { status: 'CANCELLED', balanceDue: 0 },
       include: { items: true, contact: true },
     });
+    await this.rejectApprovedEmployeeSaleForInvoice(companyId, invoiceId);
+    return updated;
   }
 
   async invoicePdf(companyId: string, invoiceId: string, options: { theme?: DocumentTheme; format?: InvoiceFormat; includeQr?: boolean; qrUrl?: string } = {}) {
@@ -2497,6 +2517,155 @@ export class SalesService {
         .toFixed(2),
       contracts: rows,
     };
+  }
+
+  /**
+   * POS sale → approved employee commission sale (once), for the user who
+   * created the invoice — only when that employee has a commission plan.
+   */
+  async recordApprovedEmployeeSaleFromPosInvoice(
+    companyId: string,
+    invoiceId: string,
+  ) {
+    this.tenant.setCompanyId(companyId);
+    try {
+      const invoice = await this.prisma.salesInvoice.findFirst({
+        where: { id: invoiceId, companyId },
+      });
+      if (!invoice?.createdById) return;
+      if (invoice.status !== 'PAID') return;
+      const isPos =
+        invoice.saleChannel === 'POS' || Boolean(invoice.pointOfSaleId);
+      if (!isPos) return;
+
+      const existing = await this.prisma.employeeSalesSubmission.findFirst({
+        where: { companyId, salesInvoiceId: invoice.id },
+      });
+      if (existing) return;
+
+      const employee = await this.prisma.employee.findFirst({
+        where: { companyId, userId: invoice.createdById },
+        select: {
+          id: true,
+          targetPercent: true,
+          salesTargetMode: true,
+          salesTargetAmount: true,
+          salesRewardAmount: true,
+        },
+      });
+      if (!employee || !this.employeeHasCommissionPlan(employee)) return;
+
+      const method = this.mapInvoicePaymentToHrMethod(invoice.paymentMethod);
+      await this.prisma.employeeSalesSubmission.create({
+        data: {
+          companyId,
+          employeeId: employee.id,
+          saleDate: invoice.issuedOn,
+          amount: Number(invoice.totalAmount).toFixed(2),
+          paymentMethod: method,
+          invoiceNumber: invoice.invoiceNumber,
+          salesInvoiceId: invoice.id,
+          status: 'APPROVED',
+          decidedAt: new Date(),
+          notes: 'POS invoice — auto-approved for commission',
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `POS approved sale record failed: ${
+          error instanceof Error ? error.message : 'unknown'
+        }`,
+      );
+    }
+  }
+
+  private employeeHasCommissionPlan(employee: {
+    targetPercent?: unknown;
+    salesTargetMode?: string | null;
+    salesTargetAmount?: unknown;
+    salesRewardAmount?: unknown;
+  }): boolean {
+    const mode = employee.salesTargetMode ?? null;
+    const pct = Number(employee.targetPercent ?? 0);
+    const targetAmt = Number(employee.salesTargetAmount ?? 0);
+    const reward = Number(employee.salesRewardAmount ?? 0);
+    if (
+      mode === 'NO_TARGET_PERCENT' ||
+      mode === 'TARGET_PERCENT' ||
+      mode === 'PERCENT' ||
+      mode === 'BOTH'
+    ) {
+      return pct > 0;
+    }
+    if (mode === 'TARGET_FIXED' || mode === 'AMOUNT') {
+      return targetAmt > 0 || reward > 0;
+    }
+    return pct > 0 || targetAmt > 0;
+  }
+
+  private mapInvoicePaymentToHrMethod(
+    method?: string | null,
+  ): 'CASH' | 'CARD' | 'TRANSFER' | 'NETWORK' {
+    const m = (method ?? 'CASH').toUpperCase();
+    if (m === 'CARD' || m === 'MIXED' || m === 'GIFT' || m === 'WALLET') {
+      return 'CARD';
+    }
+    if (m === 'TRANSFER' || m === 'BANK') return 'TRANSFER';
+    if (m === 'NETWORK') return 'NETWORK';
+    return 'CASH';
+  }
+
+  private async rejectApprovedEmployeeSaleForInvoice(
+    companyId: string,
+    invoiceId: string,
+  ) {
+    await this.prisma.employeeSalesSubmission.updateMany({
+      where: {
+        companyId,
+        salesInvoiceId: invoiceId,
+        status: 'APPROVED',
+      },
+      data: {
+        status: 'REJECTED',
+        decidedAt: new Date(),
+        notes: 'Invoice cancelled — commission sale reversed',
+      },
+    });
+  }
+
+  private async adjustApprovedEmployeeSaleForCredit(
+    companyId: string,
+    invoiceId: string,
+    creditAmount: number,
+  ) {
+    const sale = await this.prisma.employeeSalesSubmission.findFirst({
+      where: {
+        companyId,
+        salesInvoiceId: invoiceId,
+        status: 'APPROVED',
+      },
+    });
+    if (!sale) return;
+    const next = Math.max(0, Number(sale.amount) - Number(creditAmount));
+    if (next <= 0.001) {
+      await this.prisma.employeeSalesSubmission.update({
+        where: { id: sale.id },
+        data: {
+          amount: '0.00',
+          status: 'REJECTED',
+          decidedAt: new Date(),
+          notes: 'Fully reversed by credit note',
+        },
+      });
+      return;
+    }
+    await this.prisma.employeeSalesSubmission.update({
+      where: { id: sale.id },
+      data: {
+        amount: next.toFixed(2),
+        notes: `Adjusted after credit note (−${Number(creditAmount).toFixed(2)})`,
+      },
+    });
   }
 
   private async expandBundleLines(

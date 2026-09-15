@@ -22,6 +22,7 @@ import type { AuthUser } from "@/lib/types/auth";
 import { BFF_AUTH } from "@/lib/auth/bff-paths";
 import {
   can,
+  canAccessPos,
   employeePortalBase,
   isCashierPortalUser,
 } from "@/lib/permissions";
@@ -55,7 +56,7 @@ export function EmployeeShell({
   const base = employeePortalBase(companyId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
-  const showPos = can(user, "sales.write") || isCashierPortalUser(user);
+  const showPos = canAccessPos(user) || isCashierPortalUser(user);
   const onPos =
     pathname === `${base}/pos` || pathname.startsWith(`${base}/pos/`);
 
